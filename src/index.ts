@@ -49,6 +49,15 @@ function main() {
       await catscompanyCommand();
     });
 
+  // 微信机器人命令
+  program
+    .command('weixin')
+    .description('启动微信机器人')
+    .action(async () => {
+      const { weixinCommand } = await import('./commands/weixin');
+      await weixinCommand();
+    });
+
   // Dashboard 命令
   program
     .command('dashboard')

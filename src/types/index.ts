@@ -39,6 +39,14 @@ export interface ChatConfig {
     httpBaseUrl?: string;
     sessionTTL?: number;
   };
+  weixin?: {
+    token?: string;
+    baseUrl?: string;
+    cdnBaseUrl?: string;
+    allowFrom?: string[];
+    sessionTTL?: number;
+    longPollTimeout?: number;
+  };
 }
 
 export interface TokenUsage {

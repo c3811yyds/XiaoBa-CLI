@@ -349,6 +349,30 @@ export function createApiRouter(serviceManager: ServiceManager): Router {
     }
   });
 
+  // ==================== 微信 Token 获取 ====================
+
+  router.get('/weixin/qrcode', async (_req, res) => {
+    try {
+      const response = await fetch('https://ilinkai.weixin.qq.com/ilink/bot/get_bot_qrcode?bot_type=3');
+      const data = await response.json();
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.get('/weixin/qrcode-status', async (req, res) => {
+    try {
+      const qrcode = req.query.qrcode as string;
+      if (!qrcode) return res.status(400).json({ error: 'qrcode required' });
+      const response = await fetch(`https://ilinkai.weixin.qq.com/ilink/bot/get_qrcode_status?qrcode=${qrcode}`);
+      const data = await response.json();
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   return router;
 }
 

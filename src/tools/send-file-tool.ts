@@ -56,8 +56,9 @@ export class SendFileTool implements Tool {
       Logger.info(`[send_file] 已发送: ${file_name}`);
       return `文件 "${file_name}" 已发送`;
     } catch (err: any) {
-      Logger.error(`[send_file] 发送失败: ${err.message}`);
-      return `文件发送失败: ${err.message}`;
+      const errorMsg = `文件发送失败: ${err.message}`;
+      Logger.error(`[send_file] ${errorMsg}`);
+      return errorMsg;
     }
   }
 }

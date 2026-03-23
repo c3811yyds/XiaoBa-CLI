@@ -11,6 +11,7 @@ skills/_learned/
 # 数据文件
 data/
 logs/
+files/
 
 # 临时文件
 *.tmp

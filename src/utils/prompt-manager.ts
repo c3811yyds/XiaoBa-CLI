@@ -40,10 +40,12 @@ export class PromptManager {
       || process.env.BOT_BRIDGE_NAME
       || ''
     ).trim();
+    const platform = process.env.CURRENT_PLATFORM || '';
     const today = new Date().toISOString().slice(0, 10);
 
     const runtimeInfo = [
       displayName ? `你在这个平台上的名字是：${displayName}` : '',
+      platform ? `当前平台：${platform}` : '',
       `当前日期：${today}`,
     ].filter(Boolean).join('\n');
 
