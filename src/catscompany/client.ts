@@ -120,6 +120,12 @@ export class CatsClient extends EventEmitter {
     this.send({ note: { topic, what: 'kp' } });
   }
 
+  sendInfo(topic: string, what: string, payload?: any): void {
+    const msg = { note: { topic, what, payload } };
+    console.log('[WS SEND]', JSON.stringify(msg));
+    this.send(msg);
+  }
+
   private async acceptFriendRequest(userId: number): Promise<void> {
     const httpBaseUrl = this.config.httpBaseUrl || 'https://api.catsco.cc';
     const res = await fetch(`${httpBaseUrl}/api/friends/accept`, {

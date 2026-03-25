@@ -1,5 +1,4 @@
 import { CatsClient } from './client';
-import { CatsContentBlock } from './content-blocks';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Logger } from '../utils/logger';
@@ -15,18 +14,91 @@ export class MessageSender {
     this.apiKey = apiKey || '';
   }
 
+  /**
+   * 统一的消息发送接口
+   */
+  private async send(
+    topic: string,
+    type: 'thinking' | 'tool_use' | 'tool_result' | 'text',
+    content: string,
+    metadata?: any
+  ): Promise<{ seq_id: number }> {
+    try {
+      const url = `${this.baseUrl}/api/messages/send`;
+      const body = {
+        topic_id: topic,
+        type,
+        content,
+        metadata,
+      };
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `ApiKey ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        Logger.error(`消息发送失败: HTTP ${res.status} - ${errText}`);
+        throw new Error(`Failed to send message: ${res.status}`);
+      }
+
+      const result = await res.json() as { seq_id: number };
+      return result;
+    } catch (err: any) {
+      Logger.error(`消息发送失败: ${err.message}`);
+      throw err;
+    }
+  }
+
+  /**
+   * 发送 thinking
+   */
+  async sendThinking(topic: string, thinking: string): Promise<void> {
+    await this.send(topic, 'thinking', thinking);
+    Logger.info(`Thinking 已发送: ${thinking.slice(0, 50)}...`);
+  }
+
+  /**
+   * 发送 tool_use
+   */
+  async sendToolUse(topic: string, toolUseId: string, name: string, input: any): Promise<void> {
+    await this.send(topic, 'tool_use', name, { id: toolUseId, input });
+    Logger.info(`Tool use 已发送: ${name}, id=${toolUseId}`);
+  }
+
+  /**
+   * 发送 tool_result
+   */
+  async sendToolResult(
+    topic: string,
+    toolUseId: string,
+    content: string,
+    isError = false
+  ): Promise<void> {
+    await this.send(topic, 'tool_result', content, {
+      tool_use_id: toolUseId,
+      is_error: isError,
+    });
+    Logger.info(`Tool result 已发送: tool_use_id=${toolUseId}`);
+  }
+
+  /**
+   * 发送普通文本消息
+   */
+  async sendText(topic: string, text: string): Promise<void> {
+    await this.send(topic, 'text', text);
+    Logger.info(`Text 已发送: ${text.slice(0, 50)}...`);
+  }
+
   async reply(topic: string, text: string): Promise<void> {
     const segments = this.splitText(text, MAX_MSG_LENGTH);
     for (const seg of segments) {
       await this.sendText(topic, seg);
-    }
-  }
-
-  private async sendText(topic: string, text: string): Promise<void> {
-    try {
-      await this.bot.sendMessage(topic, text);
-    } catch (err: any) {
-      Logger.error(`CatsCompany 消息发送失败: ${err.message || err}`);
     }
   }
 
@@ -35,6 +107,7 @@ export class MessageSender {
       this.bot.sendTyping(topic);
     } catch {}
   }
+
 
   private splitText(text: string, maxLen: number): string[] {
     if (text.length <= maxLen) return [text];
@@ -109,43 +182,4 @@ export class MessageSender {
     }
   }
 
-  /**
-   * 通过 REST API 发送带 content_blocks 的 code mode 消息。
-   * content_blocks 包含 thinking / tool_use / tool_result 过程数据。
-   */
-  async sendWithBlocks(
-    topic: string,
-    text: string,
-    contentBlocks: CatsContentBlock[],
-  ): Promise<void> {
-    try {
-      const url = `${this.baseUrl}/api/messages/send`;
-      const body: Record<string, unknown> = {
-        topic_id: topic,
-        content: text,
-        content_blocks: contentBlocks,
-        mode: 'code',
-        role: 'assistant',
-      };
-
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `ApiKey ${this.apiKey}`,
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        Logger.error(`content_blocks 发送失败: HTTP ${res.status} - ${errText}`);
-        return;
-      }
-
-      Logger.info(`content_blocks 已发送 (${contentBlocks.length} blocks, topic=${topic})`);
-    } catch (err: any) {
-      Logger.error(`content_blocks 发送失败: ${err.message}`);
-    }
-  }
 }

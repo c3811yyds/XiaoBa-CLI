@@ -36,10 +36,12 @@ const TRANSIENT_RUNNER_HINT_PREFIX = '[transient_runner_hint]';
 export interface RunnerCallbacks {
   /** 流式文本片段 */
   onText?: (text: string) => void;
+  /** AI 思考过程 */
+  onThinking?: (thinking: string) => void;
   /** 工具开始执行 */
-  onToolStart?: (name: string) => void;
+  onToolStart?: (name: string, toolUseId: string, input: any) => void;
   /** 工具执行完成 */
-  onToolEnd?: (name: string, result: string) => void;
+  onToolEnd?: (name: string, toolUseId: string, result: string) => void;
   /** 需要显示工具输出（如 task_planner） */
   onToolDisplay?: (name: string, content: string) => void;
   /** 重试通知 */
@@ -200,7 +202,9 @@ export class ConversationRunner {
           finalText = finalText.replace(/^\[已发送信息\]\s*/, '');
           finalText = finalText.replace(/^\[已发送文件\]\s*/, '');
 
-          if (finalText && this.toolExecutionContext?.channel) {
+          // CatsCompany 使用 Code Mode API，不自动转发，由上层统一处理
+          const surface = this.toolExecutionContext?.surface;
+          if (finalText && this.toolExecutionContext?.channel && surface !== 'catscompany') {
             try {
               await this.toolExecutionContext.channel.reply(
                 this.toolExecutionContext.channel.chatId,
@@ -214,8 +218,8 @@ export class ConversationRunner {
           }
 
           return {
-            response: '',
-            finalResponseVisible: false,
+            response: finalText,
+            finalResponseVisible: true,
             messages,
             newMessages,
           };
@@ -235,6 +239,10 @@ export class ConversationRunner {
 
       if (response.content) {
         Logger.info(`[${this.sessionLabel}Turn ${turns}] AI文本: ${ConversationRunner.truncateForLog(response.content, 300)}`);
+        // 发送 thinking 回调
+        if (callbacks?.onThinking) {
+          await callbacks.onThinking(response.content);
+        }
       }
       const toolNames = response.toolCalls.map(tc => tc.function.name).join(', ');
       Logger.info(`[${this.sessionLabel}Turn ${turns}] AI选择工具: [${toolNames}]`);
@@ -253,7 +261,9 @@ export class ConversationRunner {
         }
 
         const toolName = toolCall.function.name;
-        callbacks?.onToolStart?.(toolName);
+        const toolUseId = toolCall.id;
+        const toolInput = JSON.parse(toolCall.function.arguments);
+        callbacks?.onToolStart?.(toolName, toolUseId, toolInput);
         Logger.info(`[${this.sessionLabel}Turn ${turns}] 执行工具: ${toolName} | 参数: ${ConversationRunner.truncateForLog(toolCall.function.arguments, 500)}`);
         const activeToolNames = allTools.map(tool => tool.name);
         const toolStart = Date.now();
@@ -269,6 +279,7 @@ export class ConversationRunner {
         const toolDuration = Date.now() - toolStart;
         Metrics.recordToolCall(toolName, toolDuration);
         Logger.info(`[${this.sessionLabel}Turn ${turns}] 工具完成: ${toolName} | 耗时: ${toolDuration}ms | 结果: ${ConversationRunner.truncateForLog(result.content, 300)}`);
+        callbacks?.onToolEnd?.(toolName, toolUseId, result.content);
 
         const transcriptMode = this.getToolTranscriptMode(toolName, toolDefinitions);
         if (
@@ -310,7 +321,6 @@ export class ConversationRunner {
           shouldPauseTurn = true;
           break;
         }
-        callbacks?.onToolEnd?.(toolCall.function.name, toolContent);
       }
 
       const turnMessages = this.buildTurnMessages(

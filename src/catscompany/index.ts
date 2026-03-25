@@ -269,18 +269,47 @@ export class CatsCompanyBot {
           onRetry: async (attempt, maxRetries) => {
             await this.sender.reply(msg.topic, `⚠️ 大模型请求失败，正在重试 (${attempt}/${maxRetries})...`);
           },
+          onThinking: async (thinking: string) => {
+            await this.sender.sendThinking(msg.topic, thinking);
+          },
+          onToolStart: async (toolName: string, toolUseId: string, input: any) => {
+            await this.sender.sendToolUse(msg.topic, toolUseId, toolName, input);
+          },
+          onToolEnd: async (toolName: string, toolUseId: string, result: string) => {
+            let content = result;
+
+            // 清理 execute_shell 的格式化前缀
+            if (content.startsWith('命令执行成功:') || content.startsWith('命令执行失败:')) {
+              const lines = content.split('\n');
+              content = lines.slice(5).join('\n').trim();
+            }
+
+            // 清理 read_file 的格式化前缀
+            if (content.startsWith('文件:')) {
+              const lines = content.split('\n');
+              const contentStart = lines.findIndex(line => line.match(/^\s+\d+→/));
+              if (contentStart > 0) {
+                content = lines.slice(contentStart).join('\n');
+              }
+            }
+
+            // 清理 glob 的格式化前缀
+            if (content.startsWith('找到') && content.includes('个匹配文件:')) {
+              const lines = content.split('\n');
+              const listStart = lines.findIndex((line, idx) => idx > 0 && line.match(/^\s+\d+\./));
+              if (listStart > 0) {
+                content = lines.slice(listStart).join('\n').trim();
+              }
+            }
+
+            await this.sender.sendToolResult(msg.topic, toolUseId, content);
+          },
         },
       });
-      if (result.visibleToUser && result.text) {
-        await this.sender.reply(msg.topic, result.text);
-      }
 
-      // code mode: 发送 content_blocks（thinking / tool_use / tool_result）
-      if (result.newMessages && result.newMessages.length > 0) {
-        const blocks = extractContentBlocks(result.newMessages);
-        if (blocks.length > 0) {
-          await this.sender.sendWithBlocks(msg.topic, '', blocks);
-        }
+      // 最终文本回复
+      if (result.visibleToUser && result.text) {
+        await this.sender.sendText(msg.topic, result.text);
       }
     } finally {
       this.clearPendingAnswerBySession(key);
@@ -299,8 +328,19 @@ export class CatsCompanyBot {
 
     // 检测 rich content 中的文件/图片
     let file: CatsFileInfo | undefined;
-    if (typeof ctx.content === 'object' && ctx.content !== null) {
-      const rich = ctx.content as any;
+    let content = ctx.content;
+
+    // 如果 content 是 JSON 字符串，先解析
+    if (typeof content === 'string') {
+      try {
+        content = JSON.parse(content);
+      } catch {
+        // 解析失败，保持原样
+      }
+    }
+
+    if (typeof content === 'object' && content !== null) {
+      const rich = content as any;
       if (rich.type === 'file' && rich.payload) {
         file = {
           url: rich.payload.url,

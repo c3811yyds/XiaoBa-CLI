@@ -37,8 +37,9 @@ export interface AgentServices {
 /** 会话回调（由适配层提供） */
 export interface SessionCallbacks {
   onText?: (text: string) => void;
-  onToolStart?: (name: string) => void;
-  onToolEnd?: (name: string, result: string) => void;
+  onThinking?: (thinking: string) => void;
+  onToolStart?: (name: string, toolUseId: string, input: any) => void;
+  onToolEnd?: (name: string, toolUseId: string, result: string) => void;
   onToolDisplay?: (name: string, content: string) => void;
   onRetry?: (attempt: number, maxRetries: number) => void;
 }
@@ -482,6 +483,18 @@ thinking 工具使用场景（谨慎使用）：
         this.messages.pop();
       }
       Logger.error(`[会话 ${this.key}] 处理失败: ${err.message}`);
+
+      // 识别多模态相关错误
+      const errorMsg = err.message || String(err);
+      const isVisionError = errorMsg.match(/image|vision|multimodal|media_type|base64.*not supported/i);
+
+      if (isVisionError) {
+        return {
+          text: '当前模型不支持图片识别。请使用支持多模态的模型（如 Claude 3.5 Sonnet 或 GPT-4V），或者用文字描述图片内容。',
+          visibleToUser: true
+        };
+      }
+
       return { text: ERROR_MESSAGE, visibleToUser: true };
     } finally {
       this.busy = false;

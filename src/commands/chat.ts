@@ -77,7 +77,7 @@ function createStreamingCallbacks(spinner: ora.Ora): { callbacks: SessionCallbac
       }
       process.stdout.write(text);
     },
-    onToolStart: (name: string) => {
+    onToolStart: (name: string, toolUseId: string, input: any) => {
       // 如果上一轮有流式输出，先换行
       if (streaming) {
         process.stdout.write('\n');

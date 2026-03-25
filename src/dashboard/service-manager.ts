@@ -1,4 +1,4 @@
-import { ChildProcess, spawn } from 'child_process';
+import { ChildProcess, spawn, fork } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as dotenv from 'dotenv';
@@ -48,42 +48,26 @@ export class ServiceManager extends EventEmitter {
     const packaged = this.isPackaged();
     const appRoot = this.getAppRoot();
 
-    let command: string;
-    let args: (name: string) => string[];
+    const services = ['catscompany', 'feishu'];
+    const labels = {
+      catscompany: 'Cats Company 机器人',
+      feishu: '飞书机器人',
+    };
 
-    if (packaged) {
-      // 打包版：用系统 node 跑 app 目录里的 dist/index.js
-      command = 'node';
-      const distEntry = path.join(appRoot, 'dist', 'index.js');
-      args = (name) => [distEntry, name];
-    } else {
-      // 开发版：用 tsx 跑 ts 源码
-      command = path.join(this.projectRoot, 'node_modules', '.bin', 'tsx');
-      const entry = path.join(this.projectRoot, 'src', 'index.ts');
-      args = (name) => [entry, name];
+    for (const name of services) {
+      this.services.set(name, {
+        info: {
+          name,
+          label: labels[name as keyof typeof labels],
+          command: packaged ? 'fork' : 'spawn',
+          args: packaged
+            ? [path.join(appRoot, 'dist', 'index.js'), name]
+            : [path.join(this.projectRoot, 'src', 'index.ts'), name],
+          status: 'stopped',
+        },
+        logs: [],
+      });
     }
-
-    this.services.set('catscompany', {
-      info: {
-        name: 'catscompany',
-        label: 'Cats Company 机器人',
-        command,
-        args: args('catscompany'),
-        status: 'stopped',
-      },
-      logs: [],
-    });
-
-    this.services.set('feishu', {
-      info: {
-        name: 'feishu',
-        label: '飞书机器人',
-        command,
-        args: args('feishu'),
-        status: 'stopped',
-      },
-      logs: [],
-    });
   }
 
   getAll(): ServiceInfo[] {
@@ -130,11 +114,17 @@ export class ServiceManager extends EventEmitter {
       ? this.getAppRoot()
       : this.projectRoot;
 
-    const child = spawn(svc.info.command, svc.info.args, {
-      cwd: spawnCwd,
-      env: envVars,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const child = svc.info.command === 'fork'
+      ? fork(svc.info.args[0], svc.info.args.slice(1), {
+          cwd: spawnCwd,
+          env: envVars,
+          stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+        })
+      : spawn(svc.info.command, svc.info.args, {
+          cwd: spawnCwd,
+          env: envVars,
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
 
     svc.process = child;
     svc.info.status = 'running';
