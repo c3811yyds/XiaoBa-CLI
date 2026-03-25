@@ -145,11 +145,19 @@ export class CatsCompanyBot {
       get hasOutbound() { return _hasOutbound; },
       reply: async (_targetTopic: string, text: string) => {
         _hasOutbound = true;
-        await this.sender.reply(topic, text);
+        try {
+          await this.sender.reply(topic, text);
+        } catch (err: any) {
+          Logger.warning(`消息发送失败 (reply): ${err.message}`);
+        }
       },
       sendFile: async (_targetTopic: string, filePath: string, fileName: string) => {
         _hasOutbound = true;
-        await this.sender.sendFile(topic, filePath, fileName);
+        try {
+          await this.sender.sendFile(topic, filePath, fileName);
+        } catch (err: any) {
+          Logger.warning(`文件发送失败 (sendFile): ${err.message}`);
+        }
       },
     };
 
@@ -208,7 +216,11 @@ export class CatsCompanyBot {
 
       const result = await session.handleCommand(command, args);
       if (result.handled && result.reply) {
-        await this.sender.reply(msg.topic, result.reply);
+        try {
+          await this.sender.reply(msg.topic, result.reply);
+        } catch (err: any) {
+          Logger.warning(`命令回复发送失败: ${err.message}`);
+        }
       }
       if (result.handled && command.toLowerCase() === 'clear') {
         this.pendingAttachments.delete(key);
@@ -223,7 +235,11 @@ export class CatsCompanyBot {
     if (msg.file) {
       const localPath = await this.sender.downloadFile(msg.file.url, msg.file.fileName);
       if (!localPath) {
-        await this.sender.reply(msg.topic, `文件下载失败：${msg.file.fileName}\n请重试上传。`);
+        try {
+          await this.sender.reply(msg.topic, `文件下载失败：${msg.file.fileName}\n请重试上传。`);
+        } catch (err: any) {
+          Logger.warning(`错误提示发送失败: ${err.message}`);
+        }
         return;
       }
 
@@ -267,7 +283,11 @@ export class CatsCompanyBot {
         channel,
         callbacks: {
           onRetry: async (attempt, maxRetries) => {
-            await this.sender.reply(msg.topic, `⚠️ 大模型请求失败，正在重试 (${attempt}/${maxRetries})...`);
+            try {
+              await this.sender.reply(msg.topic, `⚠️ 大模型请求失败，正在重试 (${attempt}/${maxRetries})...`);
+            } catch (err: any) {
+              Logger.warning(`重试提示发送失败: ${err.message}`);
+            }
           },
           onThinking: async (thinking: string) => {
             try {
@@ -321,7 +341,11 @@ export class CatsCompanyBot {
 
       // 最终文本回复
       if (result.visibleToUser && result.text) {
-        await this.sender.sendText(msg.topic, result.text);
+        try {
+          await this.sender.sendText(msg.topic, result.text);
+        } catch (err: any) {
+          Logger.warning(`前端通知发送失败 (text): ${err.message}`);
+        }
       }
     } finally {
       this.clearPendingAnswerBySession(key);
@@ -418,7 +442,11 @@ export class CatsCompanyBot {
           continue;
         }
         if (result.text.startsWith('处理消息时出错:')) {
-          await this.sender.reply(topic, result.text);
+          try {
+            await this.sender.reply(topic, result.text);
+          } catch (err: any) {
+            Logger.warning(`错误消息发送失败: ${err.message}`);
+          }
         }
         await this.drainMessageQueue(sessionKey);
         return;
@@ -451,7 +479,11 @@ export class CatsCompanyBot {
     try {
       const result = await session.handleMessage(msg.userMessage, { channel });
       if (result.text.startsWith('处理消息时出错:')) {
-        await this.sender.reply(msg.topic, result.text);
+        try {
+          await this.sender.reply(msg.topic, result.text);
+        } catch (err: any) {
+          Logger.warning(`错误消息发送失败: ${err.message}`);
+        }
       }
     } finally {
       this.clearPendingAnswerBySession(sessionKey);
