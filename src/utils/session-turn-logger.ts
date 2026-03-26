@@ -51,7 +51,8 @@ export class SessionTurnLogger {
     const dir = path.join(SESSION_LOG_DIR, sessionType, dateStr);
 
     fs.mkdirSync(dir, { recursive: true });
-    this.logFilePath = path.join(dir, `${sessionId}.jsonl`);
+    const safeSessionId = sessionId.replace(/[:<>"|?*]/g, '_');
+    this.logFilePath = path.join(dir, `${safeSessionId}.jsonl`);
   }
 
   /**

@@ -10,7 +10,7 @@ import { AgentSession, AgentServices, SessionCallbacks } from '../core/agent-ses
 
 export async function chatCommand(options: CommandOptions): Promise<void> {
   const aiService = new AIService();
-  Logger.openLogFile('cli');
+  Logger.openLogFile('cli', undefined, true);
 
   // 初始化 ToolManager
   const toolManager = new ToolManager();
@@ -35,7 +35,7 @@ export async function chatCommand(options: CommandOptions): Promise<void> {
     toolManager,
     skillManager,
   };
-  const session = new AgentSession('cli', services);
+  const session = new AgentSession('cli', services, 'cli');
 
   // 启动时激活指定 skill
   if (options.skill) {

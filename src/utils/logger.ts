@@ -7,6 +7,7 @@ export class Logger {
   private static spinner: Ora | null = null;
   private static logStream: fs.WriteStream | null = null;
   private static logFilePath: string | null = null;
+  private static silentMode: boolean = false;
 
   private static stripAnsi(str: string): string {
     // eslint-disable-next-line no-control-regex
@@ -28,7 +29,8 @@ export class Logger {
     this.logStream.write(`[${ts}] [${level}] ${clean}\n`);
   }
 
-  static openLogFile(sessionType: string, sessionKey?: string): void {
+  static openLogFile(sessionType: string, sessionKey?: string, silent: boolean = false): void {
+    this.silentMode = silent;
     const now = new Date();
     const dateDir = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const hh = String(now.getHours()).padStart(2, '0');
@@ -73,7 +75,9 @@ export class Logger {
 
   static info(message: string): void {
     this.writeToFile('INFO', message);
-    console.log(styles.info(message));
+    if (!this.silentMode) {
+      console.log(styles.info(message));
+    }
   }
 
   static title(message: string): void {

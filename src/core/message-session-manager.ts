@@ -28,11 +28,14 @@ export class MessageSessionManager {
   private lastChannelIdMap = new Map<string, string>();
   private wakeupSendFn: WakeupSendFn | null = null;
   private contextInjector: ((session: AgentSession) => void) | null = null;
+  private sessionType: string;
 
   constructor(
     private agentServices: AgentServices,
+    sessionType: string,
     ttl?: number,
   ) {
+    this.sessionType = sessionType;
     this.ttl = ttl ?? DEFAULT_SESSION_TTL;
     this.startCleanup();
   }
@@ -55,7 +58,7 @@ export class MessageSessionManager {
   getOrCreate(key: string, channelId?: string): AgentSession {
     let session = this.sessions.get(key);
     if (!session) {
-      session = new AgentSession(key, this.agentServices);
+      session = new AgentSession(key, this.agentServices, this.sessionType);
       session.restoreFromStore();
       if (this.contextInjector) {
         this.contextInjector(session);

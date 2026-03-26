@@ -83,6 +83,7 @@ export class CatsCompanyBot {
 
     this.sessionManager = new MessageSessionManager(
       this.agentServices,
+      'catscompany',
       config.sessionTTL,
     );
     this.sessionManager.setWakeupSendFn((channelId, text) => this.sender.reply(channelId, text));

@@ -52,47 +52,36 @@ max-turns: 30
 
 设计以下内容：
 
-- `tool_name`：工具名称（snake_case）
-- `tool_description`：工具描述
-- `tool_parameters`：JSON Schema 格式的参数定义
-- `tool_timeout`：超时时间（秒）
-- Python 代码：继承 BaseTool，实现 `execute(self, params)` 方法
+- 脚本名称（snake_case）
+- 脚本功能描述
+- 输入参数
+- Python 脚本：独立可执行，通过 `execute_shell` 调用
 
 Tool 标准模板：
 
 ```python
+#!/usr/bin/env python3
 """<工具描述>"""
 import sys
-from pathlib import Path
-from typing import Dict, Any
+import json
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'tools'))
-from base_tool import BaseTool
+def main():
+    # 从 stdin 读取参数（如果需要）
+    # params = json.loads(sys.stdin.read())
 
+    # 实现逻辑
+    result = {"status": "success", "message": "完成"}
 
-class <ClassName>(BaseTool):
-    tool_name = "<tool_name>"
-    tool_description = "<工具描述>"
-    tool_parameters = {
-        "type": "object",
-        "properties": {
-            "param1": {
-                "type": "string",
-                "description": "参数说明"
-            }
-        },
-        "required": ["param1"]
-    }
-    tool_timeout = 30
-
-    def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        self.validate_params(params, ["param1"])
-        # 实现逻辑
-        return {"result": "success"}
-
+    # 输出结果到 stdout
+    print(json.dumps(result, ensure_ascii=False))
 
 if __name__ == "__main__":
-    <ClassName>().run()
+    main()
+```
+
+调用方式：通过 `execute_shell` 执行脚本，例如：
+```bash
+python skills/<skill-name>/<script_name>.py
 ```
 
 ### Step 3：向用户确认方案

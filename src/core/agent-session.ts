@@ -94,14 +94,16 @@ export class AgentSession {
   constructor(
     public readonly key: string,
     private services: AgentServices,
+    private sessionType?: string,
   ) {
-    const sessionType = this.extractSessionType(key);
-    this.sessionTurnLogger = new SessionTurnLogger(sessionType, key);
+    const type = sessionType || this.extractSessionType(key);
+    this.sessionTurnLogger = new SessionTurnLogger(type, key);
   }
 
   private extractSessionType(key: string): string {
     if (key.startsWith('catscompany:')) return 'catscompany';
     if (key.startsWith('feishu:')) return 'feishu';
+    if (key.startsWith('user:')) return 'weixin';
     return 'chat';
   }
 
