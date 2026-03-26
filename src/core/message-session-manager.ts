@@ -100,8 +100,8 @@ export class MessageSessionManager {
           this.destroying.add(key);
           this.sessions.delete(key);
           Logger.info(`会话已过期清理: ${key}`);
-          session.archiveSession()
-            .catch(err => Logger.warning(`会话 ${key} 归档失败: ${err}`))
+          session.cleanup()
+            .catch(err => Logger.warning(`会话 ${key} 清理失败: ${err}`))
             .finally(() => this.destroying.delete(key));
         }
       }

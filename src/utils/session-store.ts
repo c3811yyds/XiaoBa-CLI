@@ -17,10 +17,6 @@ function filePath(key: string): string {
   return path.join(SESSIONS_DIR, keyToFilename(key));
 }
 
-function archivedPath(key: string): string {
-  return path.join(SESSIONS_DIR, key.replace(/[^a-zA-Z0-9_-]/g, '_') + '.archived.jsonl');
-}
-
 export class SessionStore {
   private static instance: SessionStore | null = null;
 
@@ -45,7 +41,7 @@ export class SessionStore {
     }
   }
 
-  /** 加载未归档的消息 */
+  /** 加载消息 */
   loadMessages(sessionKey: string): Message[] {
     try {
       const fp = filePath(sessionKey);
@@ -64,30 +60,16 @@ export class SessionStore {
     }
   }
 
-  /** 归档会话（rename 为 .archived.jsonl） */
-  archiveSession(sessionKey: string): void {
-    try {
-      const fp = filePath(sessionKey);
-      if (!fs.existsSync(fp)) return;
-      fs.renameSync(fp, archivedPath(sessionKey));
-      Logger.info(`会话已归档: ${sessionKey}`);
-    } catch (err) {
-      Logger.error(`归档会话失败 [${sessionKey}]: ${err}`);
-    }
-  }
-
-  /** 检查是否有未归档的会话文件 */
+  /** 检查是否有会话文件 */
   hasActiveSession(sessionKey: string): boolean {
     return fs.existsSync(filePath(sessionKey));
   }
 
-  /** 删除会话文件（包括归档文件） */
+  /** 删除会话文件 */
   deleteSession(sessionKey: string): void {
     try {
       const fp = filePath(sessionKey);
-      const archived = archivedPath(sessionKey);
       if (fs.existsSync(fp)) fs.unlinkSync(fp);
-      if (fs.existsSync(archived)) fs.unlinkSync(archived);
       Logger.info(`会话已删除: ${sessionKey}`);
     } catch (err) {
       Logger.error(`删除会话失败 [${sessionKey}]: ${err}`);

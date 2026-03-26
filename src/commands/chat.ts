@@ -136,10 +136,8 @@ async function interactiveChat(session: AgentSession): Promise<void> {
     const keepAliveTimer = setInterval(() => {}, 100);
     const cleanup = async () => {
       try {
-        const success = await session.summarizeAndDestroy();
-        if (success) {
-          Logger.info('已保存对话历史到记忆系统');
-        }
+        await session.cleanup();
+        Logger.info('已保存对话历史');
         console.log(styles.text('再见！期待下次与你对话。\n'));
       } finally {
         Logger.closeLogFile();

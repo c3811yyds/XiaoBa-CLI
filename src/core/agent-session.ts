@@ -376,8 +376,9 @@ thinking 工具使用场景（谨慎使用）：
         );
       }
 
-      // 持久化本轮用户可见的消息（user + reply/send_file工具调用）
-      // 完整的工具调用链路已存入log文件，可通过 recall_log 工具查询
+      // 持久化本轮消息到 SessionStore（所有平台统一）
+      // 飞书/CatsCompany: 只保存用户可见消息（user + send_text/send_file）
+      // CLI/微信: 保存完整对话历史
       if (this.isChatSession()) {
         // 收集 send_text 和 send_file 的 tool_call_id
         const outboundToolCallIds = new Set<string>();
@@ -394,11 +395,9 @@ thinking 工具使用场景（谨慎使用）：
         const visibleMsgs = [
           { role: 'user' as const, content: text },
           ...result.newMessages.filter(m => {
-            // 保留 send_text 和 send_file 的 tool_use
             if (m.role === 'assistant' && m.tool_calls) {
               return m.tool_calls.some(tc => outboundToolCallIds.has(tc.id));
             }
-            // 保留对应的 tool_result
             if (m.role === 'tool' && m.tool_call_id) {
               return outboundToolCallIds.has(m.tool_call_id);
             }
@@ -407,6 +406,17 @@ thinking 工具使用场景（谨慎使用）：
         ];
         if (visibleMsgs.length > 0) {
           SessionStore.getInstance().appendMessages(this.key, visibleMsgs);
+        }
+      } else {
+        // CLI: 保存完整对话（user + assistant text）
+        const persistMsgs = [
+          { role: 'user' as const, content: text },
+          ...result.newMessages.filter(m =>
+            m.role === 'assistant' && typeof m.content === 'string' && m.content.trim()
+          )
+        ];
+        if (persistMsgs.length > 0) {
+          SessionStore.getInstance().appendMessages(this.key, persistMsgs);
         }
       }
 
@@ -650,8 +660,8 @@ ${conversationText}
     }
   }
 
-  /** 过期时归档会话（不生成摘要，依赖 context-compressor） */
-  async archiveSession(): Promise<void> {
+  /** 过期或退出时清理内存（不删除持久化文件） */
+  async cleanup(): Promise<void> {
     if (this.messages.length === 0) return;
 
     try {
@@ -661,7 +671,7 @@ ${conversationText}
         if (hasUserMessages) {
           const conversationText = this.messages
             .filter(m => m.role === 'user' || m.role === 'assistant')
-            .slice(-10) // 只取最后 10 条消息判断
+            .slice(-10)
             .map(m => `${m.role === 'user' ? '用户' : 'AI'}: ${m.content}`)
             .join('\n');
 
@@ -696,12 +706,11 @@ ${conversationText}`;
         }
       }
 
-      // 归档到 SessionStore
-      SessionStore.getInstance().archiveSession(this.key);
+      // 只清理内存，持久化文件保留
       this.messages = [];
-      Logger.info(`会话已归档: ${this.key}`);
+      Logger.info(`会话已清理: ${this.key}`);
     } catch (error) {
-      Logger.error(`归档会话失败: ${error}`);
+      Logger.error(`清理会话失败: ${error}`);
     }
   }
 
