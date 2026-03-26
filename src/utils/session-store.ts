@@ -25,24 +25,22 @@ export class SessionStore {
     return SessionStore.instance;
   }
 
-  /** 追加消息（跳过 system 和 __injected） */
-  appendMessages(sessionKey: string, messages: Message[]): void {
+  /** 保存完整 context（覆盖写入） */
+  saveContext(sessionKey: string, messages: Message[]): void {
     try {
       ensureDir();
       const fp = filePath(sessionKey);
       const lines = messages
-        .filter(m => m.role !== 'system' && !(m as any).__injected)
+        .filter(m => !(m as any).__injected) // 跳过注入的临时消息
         .map(m => JSON.stringify(m));
-      if (lines.length > 0) {
-        fs.appendFileSync(fp, lines.join('\n') + '\n', 'utf-8');
-      }
+      fs.writeFileSync(fp, lines.join('\n') + '\n', 'utf-8');
     } catch (err) {
-      Logger.error(`持久化消息失败 [${sessionKey}]: ${err}`);
+      Logger.error(`保存 context 失败 [${sessionKey}]: ${err}`);
     }
   }
 
-  /** 加载消息 */
-  loadMessages(sessionKey: string): Message[] {
+  /** 加载完整 context */
+  loadContext(sessionKey: string): Message[] {
     try {
       const fp = filePath(sessionKey);
       if (!fs.existsSync(fp)) return [];
@@ -55,13 +53,13 @@ export class SessionStore {
       }
       return msgs;
     } catch (err) {
-      Logger.error(`加载消息失败 [${sessionKey}]: ${err}`);
+      Logger.error(`加载 context 失败 [${sessionKey}]: ${err}`);
       return [];
     }
   }
 
   /** 检查是否有会话文件 */
-  hasActiveSession(sessionKey: string): boolean {
+  hasSession(sessionKey: string): boolean {
     return fs.existsSync(filePath(sessionKey));
   }
 
