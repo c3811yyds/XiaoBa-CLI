@@ -152,6 +152,7 @@ export class FeishuBot {
 
     this.sessionManager = new MessageSessionManager(
       this.agentServices,
+      'feishu',
       config.sessionTTL,
     );
     this.sessionManager.setWakeupSendFn((channelId, text) => this.sender.reply(channelId, text));

@@ -1,8 +1,8 @@
 import { AgentSession, AgentServices } from './agent-session';
 import { Logger } from '../utils/logger';
 
-/** 默认会话过期时间：30 分钟 */
-const DEFAULT_SESSION_TTL = 30 * 60 * 1000;
+/** 默认会话过期时间：60 分钟 */
+const DEFAULT_SESSION_TTL = 60 * 60 * 1000;
 
 /**
  * 统一唤醒回复函数签名
@@ -28,11 +28,14 @@ export class MessageSessionManager {
   private lastChannelIdMap = new Map<string, string>();
   private wakeupSendFn: WakeupSendFn | null = null;
   private contextInjector: ((session: AgentSession) => void) | null = null;
+  private sessionType: string;
 
   constructor(
     private agentServices: AgentServices,
+    sessionType: string,
     ttl?: number,
   ) {
+    this.sessionType = sessionType;
     this.ttl = ttl ?? DEFAULT_SESSION_TTL;
     this.startCleanup();
   }
@@ -55,7 +58,7 @@ export class MessageSessionManager {
   getOrCreate(key: string, channelId?: string): AgentSession {
     let session = this.sessions.get(key);
     if (!session) {
-      session = new AgentSession(key, this.agentServices);
+      session = new AgentSession(key, this.agentServices, this.sessionType);
       session.restoreFromStore();
       if (this.contextInjector) {
         this.contextInjector(session);
@@ -97,8 +100,8 @@ export class MessageSessionManager {
           this.destroying.add(key);
           this.sessions.delete(key);
           Logger.info(`会话已过期清理: ${key}`);
-          session.summarizeAndDestroy()
-            .catch(err => Logger.warning(`会话 ${key} 摘要保存失败: ${err}`))
+          session.cleanup()
+            .catch(err => Logger.warning(`会话 ${key} 清理失败: ${err}`))
             .finally(() => this.destroying.delete(key));
         }
       }

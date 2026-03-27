@@ -19,11 +19,16 @@ export class PromptManager {
   }
 
   /**
-   * 获取 behavior prompt（bot 专属行为风格）
+   * 获取 behavior prompt（用户偏好）
    */
   static getBehaviorPrompt(): string {
     try {
-      return fs.readFileSync(path.join(this.promptsDir, 'behavior.md'), 'utf-8');
+      const content = fs.readFileSync(path.join(this.promptsDir, 'behavior.md'), 'utf-8').trim();
+      // 如果只有模板内容，返回空
+      if (content.includes('（在下方添加你的个性化设置）')) {
+        return '';
+      }
+      return content;
     } catch {
       return '';
     }

@@ -94,14 +94,16 @@ export class AgentSession {
   constructor(
     public readonly key: string,
     private services: AgentServices,
+    private sessionType?: string,
   ) {
-    const sessionType = this.extractSessionType(key);
-    this.sessionTurnLogger = new SessionTurnLogger(sessionType, key);
+    const type = sessionType || this.extractSessionType(key);
+    this.sessionTurnLogger = new SessionTurnLogger(type, key);
   }
 
   private extractSessionType(key: string): string {
     if (key.startsWith('catscompany:')) return 'catscompany';
     if (key.startsWith('feishu:')) return 'feishu';
+    if (key.startsWith('user:')) return 'weixin';
     return 'chat';
   }
 
@@ -374,40 +376,6 @@ thinking 工具使用场景（谨慎使用）：
         );
       }
 
-      // 持久化本轮用户可见的消息（user + reply/send_file工具调用）
-      // 完整的工具调用链路已存入log文件，可通过 recall_log 工具查询
-      if (this.isChatSession()) {
-        // 收集 send_text 和 send_file 的 tool_call_id
-        const outboundToolCallIds = new Set<string>();
-        result.newMessages.forEach(m => {
-          if (m.role === 'assistant' && m.tool_calls) {
-            m.tool_calls.forEach(tc => {
-              if (tc.function.name === 'send_text' || tc.function.name === 'send_file') {
-                outboundToolCallIds.add(tc.id);
-              }
-            });
-          }
-        });
-
-        const visibleMsgs = [
-          { role: 'user' as const, content: text },
-          ...result.newMessages.filter(m => {
-            // 保留 send_text 和 send_file 的 tool_use
-            if (m.role === 'assistant' && m.tool_calls) {
-              return m.tool_calls.some(tc => outboundToolCallIds.has(tc.id));
-            }
-            // 保留对应的 tool_result
-            if (m.role === 'tool' && m.tool_call_id) {
-              return outboundToolCallIds.has(m.tool_call_id);
-            }
-            return false;
-          })
-        ];
-        if (visibleMsgs.length > 0) {
-          SessionStore.getInstance().appendMessages(this.key, visibleMsgs);
-        }
-      }
-
       // 替换 base64 图片数据为轻量占位符，避免撑爆 context
       for (const msg of this.messages) {
         if (Array.isArray(msg.content)) {
@@ -648,6 +616,63 @@ ${conversationText}
     }
   }
 
+  /** 过期或退出时清理内存（保存完整 context） */
+  async cleanup(): Promise<void> {
+    if (this.messages.length === 0) return;
+
+    try {
+      // 判断是否需要主动唤醒用户
+      if (this.wakeupReply) {
+        const hasUserMessages = this.messages.some(m => m.role === 'user');
+        if (hasUserMessages) {
+          const conversationText = this.messages
+            .filter(m => m.role === 'user' || m.role === 'assistant')
+            .slice(-10)
+            .map(m => `${m.role === 'user' ? '用户' : 'AI'}: ${m.content}`)
+            .join('\n');
+
+          const wakeupPrompt = `请判断以下对话是否需要主动唤醒用户。返回 JSON 格式（不要包含 markdown 代码块）：
+{ "wakeup": null 或 "一条自然的消息" }
+
+判断规则：
+- 有未完成的任务或承诺 → 需要唤醒
+- 后台任务已完成但结果还没告诉用户 → 需要唤醒
+- 用户最后的问题没有得到完整回答 → 需要唤醒
+- 对话自然结束、用户主动告别、或只是闲聊 → 不需要唤醒（返回 null）
+
+对话内容：
+${conversationText}`;
+
+          try {
+            const result = await this.services.aiService.chat([
+              { role: 'user', content: wakeupPrompt },
+            ]);
+
+            const raw = result.content || '{}';
+            const jsonStr = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?\s*```$/i, '').trim();
+            const parsed = JSON.parse(jsonStr);
+
+            if (parsed.wakeup && this.wakeupReply) {
+              await this.wakeupReply(parsed.wakeup);
+              Logger.info(`[会话 ${this.key}] 主动唤醒用户: ${parsed.wakeup.slice(0, 100)}`);
+            }
+          } catch (err: any) {
+            Logger.warning(`[会话 ${this.key}] 唤醒判断失败: ${err.message}`);
+          }
+        }
+      }
+
+      // 保存完整 context 到 SessionStore
+      SessionStore.getInstance().saveContext(this.key, this.messages);
+      Logger.info(`会话已保存: ${this.key}, ${this.messages.length} 条消息`);
+
+      // 清理内存
+      this.messages = [];
+    } catch (error) {
+      Logger.error(`清理会话失败: ${error}`);
+    }
+  }
+
   // ─── 查询方法 ──────────────────────────────────────
 
   isBusy(): boolean {
@@ -663,8 +688,8 @@ ${conversationText}
   /** 从 DB 恢复消息（进程重启后调用） */
   restoreFromStore(): boolean {
     const store = SessionStore.getInstance();
-    if (!store.hasActiveSession(this.key)) return false;
-    const msgs = store.loadMessages(this.key);
+    if (!store.hasSession(this.key)) return false;
+    const msgs = store.loadContext(this.key);
     if (msgs.length === 0) return false;
     this.pendingRestore = msgs;
     Logger.info(`[会话 ${this.key}] 标记从 DB 恢复 ${msgs.length} 条消息`);

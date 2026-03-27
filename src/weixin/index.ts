@@ -40,7 +40,7 @@ export class WeixinBot {
       skillManager,
     };
 
-    this.sessionManager = new MessageSessionManager(this.agentServices);
+    this.sessionManager = new MessageSessionManager(this.agentServices, 'weixin');
     this.setupChannelCallbacks();
     this.loadState();
   }
@@ -102,6 +102,7 @@ export class WeixinBot {
   }
 
   async start(): Promise<void> {
+    Logger.openLogFile('weixin');
     Logger.info('正在启动微信机器人...');
     await this.agentServices.skillManager.loadSkills();
     Logger.info(`已加载 ${this.agentServices.skillManager.getAllSkills().length} 个 skills`);

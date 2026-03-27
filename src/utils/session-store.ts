@@ -17,10 +17,6 @@ function filePath(key: string): string {
   return path.join(SESSIONS_DIR, keyToFilename(key));
 }
 
-function archivedPath(key: string): string {
-  return path.join(SESSIONS_DIR, key.replace(/[^a-zA-Z0-9_-]/g, '_') + '.archived.jsonl');
-}
-
 export class SessionStore {
   private static instance: SessionStore | null = null;
 
@@ -29,24 +25,22 @@ export class SessionStore {
     return SessionStore.instance;
   }
 
-  /** 追加消息（跳过 system 和 __injected） */
-  appendMessages(sessionKey: string, messages: Message[]): void {
+  /** 保存完整 context（覆盖写入） */
+  saveContext(sessionKey: string, messages: Message[]): void {
     try {
       ensureDir();
       const fp = filePath(sessionKey);
       const lines = messages
-        .filter(m => m.role !== 'system' && !(m as any).__injected)
+        .filter(m => !(m as any).__injected) // 跳过注入的临时消息
         .map(m => JSON.stringify(m));
-      if (lines.length > 0) {
-        fs.appendFileSync(fp, lines.join('\n') + '\n', 'utf-8');
-      }
+      fs.writeFileSync(fp, lines.join('\n') + '\n', 'utf-8');
     } catch (err) {
-      Logger.error(`持久化消息失败 [${sessionKey}]: ${err}`);
+      Logger.error(`保存 context 失败 [${sessionKey}]: ${err}`);
     }
   }
 
-  /** 加载未归档的消息 */
-  loadMessages(sessionKey: string): Message[] {
+  /** 加载完整 context */
+  loadContext(sessionKey: string): Message[] {
     try {
       const fp = filePath(sessionKey);
       if (!fs.existsSync(fp)) return [];
@@ -59,38 +53,39 @@ export class SessionStore {
       }
       return msgs;
     } catch (err) {
-      Logger.error(`加载消息失败 [${sessionKey}]: ${err}`);
+      Logger.error(`加载 context 失败 [${sessionKey}]: ${err}`);
       return [];
     }
   }
 
-  /** 归档会话（rename 为 .archived.jsonl） */
+  /** 检查是否有会话文件 */
+  hasSession(sessionKey: string): boolean {
+    return fs.existsSync(filePath(sessionKey));
+  }
+
+  /** 删除会话文件 */
+  deleteSession(sessionKey: string): void {
+    try {
+      const fp = filePath(sessionKey);
+      if (fs.existsSync(fp)) fs.unlinkSync(fp);
+      Logger.info(`会话已删除: ${sessionKey}`);
+    } catch (err) {
+      Logger.error(`删除会话失败 [${sessionKey}]: ${err}`);
+    }
+  }
+
+  /** 归档会话文件（移动到 archive 目录） */
   archiveSession(sessionKey: string): void {
     try {
       const fp = filePath(sessionKey);
       if (!fs.existsSync(fp)) return;
-      fs.renameSync(fp, archivedPath(sessionKey));
+      const archiveDir = path.join(SESSIONS_DIR, 'archive');
+      if (!fs.existsSync(archiveDir)) fs.mkdirSync(archiveDir, { recursive: true });
+      const archivePath = path.join(archiveDir, keyToFilename(sessionKey));
+      fs.renameSync(fp, archivePath);
       Logger.info(`会话已归档: ${sessionKey}`);
     } catch (err) {
       Logger.error(`归档会话失败 [${sessionKey}]: ${err}`);
-    }
-  }
-
-  /** 检查是否有未归档的会话文件 */
-  hasActiveSession(sessionKey: string): boolean {
-    return fs.existsSync(filePath(sessionKey));
-  }
-
-  /** 删除会话文件（包括归档文件） */
-  deleteSession(sessionKey: string): void {
-    try {
-      const fp = filePath(sessionKey);
-      const archived = archivedPath(sessionKey);
-      if (fs.existsSync(fp)) fs.unlinkSync(fp);
-      if (fs.existsSync(archived)) fs.unlinkSync(archived);
-      Logger.info(`会话已删除: ${sessionKey}`);
-    } catch (err) {
-      Logger.error(`删除会话失败 [${sessionKey}]: ${err}`);
     }
   }
 }

@@ -10,7 +10,7 @@ import { AgentSession, AgentServices, SessionCallbacks } from '../core/agent-ses
 
 export async function chatCommand(options: CommandOptions): Promise<void> {
   const aiService = new AIService();
-  Logger.openLogFile('cli');
+  Logger.openLogFile('cli', undefined, true);
 
   // 初始化 ToolManager
   const toolManager = new ToolManager();
@@ -35,7 +35,7 @@ export async function chatCommand(options: CommandOptions): Promise<void> {
     toolManager,
     skillManager,
   };
-  const session = new AgentSession('cli', services);
+  const session = new AgentSession('cli', services, 'cli');
 
   // 启动时激活指定 skill
   if (options.skill) {
@@ -136,10 +136,8 @@ async function interactiveChat(session: AgentSession): Promise<void> {
     const keepAliveTimer = setInterval(() => {}, 100);
     const cleanup = async () => {
       try {
-        const success = await session.summarizeAndDestroy();
-        if (success) {
-          Logger.info('已保存对话历史到记忆系统');
-        }
+        await session.cleanup();
+        Logger.info('已保存对话历史');
         console.log(styles.text('再见！期待下次与你对话。\n'));
       } finally {
         Logger.closeLogFile();
