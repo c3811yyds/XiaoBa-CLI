@@ -436,24 +436,26 @@ thinking 工具使用场景（谨慎使用）：
         newMessages: result.newMessages,
       };
     } catch (err: any) {
-      // 清理孤立的 user 消息，避免污染后续对话
-      if (this.messages.length > 0 && this.messages[this.messages.length - 1].role === 'user') {
-        this.messages.pop();
-      }
+      // 不删除用户消息，而是添加一个错误回复，保持上下文连贯
+      // 这样用户说"继续"时可以接上
       Logger.error(`[会话 ${this.key}] 处理失败: ${err.message}`);
 
       // 识别多模态相关错误
       const errorMsg = err.message || String(err);
       const isVisionError = errorMsg.match(/image|vision|multimodal|media_type|base64.*not supported/i);
 
+      let errorReply = ERROR_MESSAGE;
       if (isVisionError) {
-        return {
-          text: '当前模型不支持图片识别。请使用支持多模态的模型（如 Claude 3.5 Sonnet 或 GPT-4V），或者用文字描述图片内容。',
-          visibleToUser: true
-        };
+        errorReply = '当前模型不支持图片识别。请使用支持多模态的模型（如 Claude 3.5 Sonnet 或 GPT-4V），或者用文字描述图片内容。';
       }
 
-      return { text: ERROR_MESSAGE, visibleToUser: true };
+      // 添加错误回复到上下文，保持对话连贯性
+      this.messages.push({
+        role: 'assistant',
+        content: `[处理失败: ${err.message}]`
+      });
+
+      return { text: errorReply, visibleToUser: true };
     } finally {
       this.busy = false;
     }
