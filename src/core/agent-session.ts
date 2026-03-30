@@ -13,7 +13,6 @@ import { SubAgentManager } from './sub-agent-manager';
 import { PromptManager } from '../utils/prompt-manager';
 import { Logger } from '../utils/logger';
 import { SessionTurnLogger } from '../utils/session-turn-logger';
-import { saveSessionSummary, loadSessionSummary, removeSessionSummary, getMasterSummary, updateMasterSummary } from '../utils/local-session-store';
 import { SessionStore } from '../utils/session-store';
 import { Metrics } from '../utils/metrics';
 
@@ -171,18 +170,7 @@ thinking 工具使用场景（谨慎使用）：
     }
 
     // 加载上次会话摘要（本地文件兜底）
-    if (this.isChatSession()) {
-      const previousSummary = loadSessionSummary(this.key);
-      if (previousSummary) {
-        this.messages.push({
-          role: 'system',
-          content: `[previous_session_summary]\n以下是你与该用户上次对话的摘要，请参考以保持上下文连贯：\n\n${previousSummary}`,
-        });
-        removeSessionSummary(this.key);
-        Logger.info(`已加载上次会话摘要: ${this.key}`);
-      }
-
-    }
+    // 已移除摘要机制
 
     // 从 DB 恢复未归档的消息
     if (this.pendingRestore) {
@@ -499,7 +487,6 @@ thinking 工具使用场景（谨慎使用）：
   /** 清空历史 */
   clear(): void {
     SessionStore.getInstance().deleteSession(this.key);
-    removeSessionSummary(this.key); // 同时清除长期记忆摘要
     this.messages = [];
     this.initialized = false;
     this.activeSkillName = undefined;
@@ -581,37 +568,14 @@ ${conversationText}
         }
       }
 
-      // \u672c\u5730\u6587\u4ef6\u515c\u5e95\uff1a\u59cb\u7ec8\u5199\u5165\u672c\u5730\uff08\u539f\u59cb\u6458\u8981\u5f52\u6863\uff09
-      const localSuccess = saveSessionSummary(this.key, summaryText, Logger.getLogFilePath() || undefined);
-
-      // \u6eda\u52a8\u538b\u7f29\uff1a\u5c06\u65b0\u6458\u8981\u4e0e\u73b0\u6709\u4e3b\u6458\u8981\u5408\u5e76
-      const oldMaster = getMasterSummary(this.key);
-      if (oldMaster) {
-        try {
-          const mergeResult = await this.services.aiService.chat([{
-            role: 'user',
-            content: `\u8bf7\u5c06\u4ee5\u4e0b\u4e24\u6bb5\u5bf9\u8bdd\u6458\u8981\u5408\u5e76\u4e3a\u4e00\u6bb5\u7cbe\u70bc\u7684\u4e3b\u6458\u8981\u3002\u4fdd\u7559\u5173\u952e\u4fe1\u606f\uff0c\u53bb\u9664\u91cd\u590d\u548c\u8fc7\u65f6\u5185\u5bb9\uff0c\u63a7\u5236\u5728\u5408\u7406\u957f\u5ea6\u5185\u3002\n\n--- \u5df2\u6709\u4e3b\u6458\u8981 ---\n${oldMaster}\n\n--- \u6700\u65b0\u5bf9\u8bdd\u6458\u8981 ---\n${summaryText}\n\n\u8bf7\u8f93\u51fa\u5408\u5e76\u540e\u7684\u4e3b\u6458\u8981\uff1a`,
-          }]);
-          updateMasterSummary(this.key, mergeResult.content || summaryText);
-        } catch (err) {
-          Logger.error(`\u5408\u5e76\u4e3b\u6458\u8981\u5931\u8d25\uff0c\u4f7f\u7528\u65b0\u6458\u8981\u8986\u76d6: ${err}`);
-          updateMasterSummary(this.key, summaryText);
-        }
-      } else {
-        updateMasterSummary(this.key, summaryText);
-      }
-
-      if (localSuccess) {
-        Logger.info(`\u5df2\u538b\u7f29 ${this.messages.length} \u6761\u6d88\u606f\u5e76\u5199\u5165\u672c\u5730\u6587\u4ef6`);
-      }
 
       // \u5f52\u6863\u6301\u4e45\u5316\u6587\u4ef6
-      SessionStore.getInstance().archiveSession(this.key);
 
       this.messages = [];
-      return localSuccess;
+      return true;
     } catch (error) {
       Logger.error('\u538b\u7f29\u5386\u53f2\u5931\u8d25: ' + String(error));
+      return false;
       return false;
     }
   }

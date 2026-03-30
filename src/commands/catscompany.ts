@@ -32,8 +32,8 @@ export async function catscompanyCommand(): Promise<void> {
   const bot = new CatsCompanyBot(botConfig);
 
   // 优雅退出
-  const shutdown = () => {
-    bot.destroy();
+  const shutdown = async () => {
+    await bot.destroy();
     process.exit(0);
   };
   process.on('SIGINT', shutdown);

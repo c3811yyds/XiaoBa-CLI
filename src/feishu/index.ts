@@ -563,11 +563,11 @@ export class FeishuBot {
   /**
    * 停止机器人
    */
-  destroy(): void {
+  async destroy(): Promise<void> {
     if (this.bridgeServer) {
       this.bridgeServer.stop();
     }
-    this.sessionManager.destroy();
+    await this.sessionManager.destroy();
     for (const pendingId of Array.from(this.pendingAnswers.keys())) {
       this.clearPendingAnswerById(pendingId);
     }

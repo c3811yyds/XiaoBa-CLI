@@ -108,12 +108,21 @@ export class MessageSessionManager {
     }, 60_000);
   }
 
-  /** 停止清理定时器 */
-  destroy(): void {
+  /** 停止清理定时器并保存所有会话 */
+  async destroy(): Promise<void> {
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
       this.cleanupTimer = null;
     }
+
+    // 保存所有活跃会话
+    const cleanupPromises = Array.from(this.sessions.values()).map(session =>
+      session.cleanup().catch(err =>
+        Logger.warning(`会话 ${session.key} 清理失败: ${err}`)
+      )
+    );
+    await Promise.all(cleanupPromises);
+
     this.sessions.clear();
   }
 }

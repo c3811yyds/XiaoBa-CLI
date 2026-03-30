@@ -32,6 +32,7 @@ export class SessionStore {
       const fp = filePath(sessionKey);
       const lines = messages
         .filter(m => !(m as any).__injected) // 跳过注入的临时消息
+        .filter(m => m.role !== 'system') // 跳过系统消息，恢复时会重新生成
         .map(m => JSON.stringify(m));
       fs.writeFileSync(fp, lines.join('\n') + '\n', 'utf-8');
     } catch (err) {
@@ -71,21 +72,6 @@ export class SessionStore {
       Logger.info(`会话已删除: ${sessionKey}`);
     } catch (err) {
       Logger.error(`删除会话失败 [${sessionKey}]: ${err}`);
-    }
-  }
-
-  /** 归档会话文件（移动到 archive 目录） */
-  archiveSession(sessionKey: string): void {
-    try {
-      const fp = filePath(sessionKey);
-      if (!fs.existsSync(fp)) return;
-      const archiveDir = path.join(SESSIONS_DIR, 'archive');
-      if (!fs.existsSync(archiveDir)) fs.mkdirSync(archiveDir, { recursive: true });
-      const archivePath = path.join(archiveDir, keyToFilename(sessionKey));
-      fs.renameSync(fp, archivePath);
-      Logger.info(`会话已归档: ${sessionKey}`);
-    } catch (err) {
-      Logger.error(`归档会话失败 [${sessionKey}]: ${err}`);
     }
   }
 }

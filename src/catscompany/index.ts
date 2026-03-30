@@ -504,9 +504,9 @@ export class CatsCompanyBot {
   /**
    * 停止机器人
    */
-  destroy(): void {
+  async destroy(): Promise<void> {
     this.bot.disconnect();
-    this.sessionManager.destroy();
+    await this.sessionManager.destroy();
     for (const pendingId of Array.from(this.pendingAnswers.keys())) {
       this.clearPendingAnswerById(pendingId);
     }

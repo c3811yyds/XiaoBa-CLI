@@ -381,7 +381,7 @@ export function createApiRouter(serviceManager: ServiceManager): Router {
     try {
       const { date } = req.body;
       if (!date) return res.status(400).json({ error: 'date required' });
-      
+
       const serverUrl = process.env.LOG_SERVER_URL;
       const apiKey = process.env.LOG_API_KEY;
       if (!serverUrl || !apiKey) {
@@ -416,10 +416,10 @@ export function createApiRouter(serviceManager: ServiceManager): Router {
 
       const generator = new ReportGenerator();
       const report = generator.generateDailyReport(date);
-      
+
       const outputPath = output || path.resolve(`logs/reports/${date}.json`);
       generator.saveReport(report, outputPath);
-      
+
       res.json({ ok: true, path: outputPath, report });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
