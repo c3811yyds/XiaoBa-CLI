@@ -1,4 +1,3 @@
-import { handleIMCLICommand } from '../commands/imcli-handler';
 import { Message } from '../types';
 import { AIService } from '../utils/ai-service';
 import { ToolManager } from '../tools/tool-manager';
@@ -183,9 +182,11 @@ thinking 工具使用场景（谨慎使用）：
       this.pendingRestore = undefined;
 
       // 恢复后立即检查是否需要压缩
+      const usage = this.compressor.getUsageInfo(this.messages);
+      Logger.info(`[${this.key}] 恢复后上下文: ${usage.usedTokens}/${usage.maxTokens} tokens (${usage.usagePercent}%)`);
+
       if (this.compressor.needsCompaction(this.messages)) {
-        const usage = this.compressor.getUsageInfo(this.messages);
-        Logger.info(`[${this.key}] 恢复后上下文过大，立即压缩: ${usage.usedTokens}/${usage.maxTokens} tokens (${usage.usagePercent}%)`);
+        Logger.info(`[${this.key}] 超过阈值，开始压缩...`);
         try {
           this.messages = await this.compressor.compact(this.messages);
           Logger.info(`[${this.key}] 压缩完成，当前消息数: ${this.messages.length}`);
@@ -508,11 +509,6 @@ thinking 工具使用场景（谨慎使用）：
       return { handled: true, reply: '再见！期待下次与你对话。' };
     }
 
-    // /imcli
-    if (commandName === 'imcli') {
-      const reply = await handleIMCLICommand(args.join(' '));
-      return { handled: true, reply };
-    }
 
     // skill 斜杠命令
     return this.handleSkillCommand(commandName, args, callbacks);
@@ -617,12 +613,12 @@ ${conversationText}
   }
 
   /** 过期或退出时清理内存（保存完整 context） */
-  async cleanup(): Promise<void> {
+  async cleanup(options?: { checkWakeup?: boolean }): Promise<void> {
     if (this.messages.length === 0) return;
 
     try {
-      // 判断是否需要主动唤醒用户
-      if (this.wakeupReply) {
+      // 判断是否需要主动唤醒用户（仅在会话过期时）
+      if (options?.checkWakeup && this.wakeupReply) {
         const hasUserMessages = this.messages.some(m => m.role === 'user');
         if (hasUserMessages) {
           const conversationText = this.messages
@@ -652,7 +648,7 @@ ${conversationText}`;
             const jsonStr = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?\s*```$/i, '').trim();
             const parsed = JSON.parse(jsonStr);
 
-            if (parsed.wakeup && this.wakeupReply) {
+            if (parsed && parsed.wakeup && this.wakeupReply) {
               await this.wakeupReply(parsed.wakeup);
               Logger.info(`[会话 ${this.key}] 主动唤醒用户: ${parsed.wakeup.slice(0, 100)}`);
             }

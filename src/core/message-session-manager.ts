@@ -100,7 +100,7 @@ export class MessageSessionManager {
           this.destroying.add(key);
           this.sessions.delete(key);
           Logger.info(`会话已过期清理: ${key}`);
-          session.cleanup()
+          session.cleanup({ checkWakeup: true })
             .catch(err => Logger.warning(`会话 ${key} 清理失败: ${err}`))
             .finally(() => this.destroying.delete(key));
         }
