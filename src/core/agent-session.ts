@@ -1,3 +1,4 @@
+import { handleIMCLICommand } from '../commands/imcli-handler';
 import { Message } from '../types';
 import { AIService } from '../utils/ai-service';
 import { ToolManager } from '../tools/tool-manager';
@@ -15,6 +16,7 @@ import { Logger } from '../utils/logger';
 import { SessionTurnLogger } from '../utils/session-turn-logger';
 import { SessionStore } from '../utils/session-store';
 import { Metrics } from '../utils/metrics';
+import { ContextCompressor } from './context-compressor';
 
 const TRANSIENT_SUBAGENT_STATUS_PREFIX = '[transient_subagent_status]';
 const TRANSIENT_RUNNER_HINT_PREFIX = '[transient_runner_hint]';
@@ -85,10 +87,11 @@ export class AgentSession {
   private pendingRestore?: Message[];
   /** 过期时主动唤醒用户的回调（由平台 SessionManager 注入） */
   private wakeupReply?: (text: string) => Promise<void>;
-  /** 外部请求中断当前 run（例如用户在 busy 时发送”停止”） */
+  /** 外部请求中断当前 run（例如用户在 busy 时发送"停止"） */
   private interruptRequested = false;
   lastActiveAt: number = Date.now();
   private sessionTurnLogger: SessionTurnLogger;
+  private compressor: ContextCompressor;
 
   constructor(
     public readonly key: string,
@@ -97,6 +100,7 @@ export class AgentSession {
   ) {
     const type = sessionType || this.extractSessionType(key);
     this.sessionTurnLogger = new SessionTurnLogger(type, key);
+    this.compressor = new ContextCompressor(services.aiService);
   }
 
   private extractSessionType(key: string): string {
@@ -259,6 +263,18 @@ thinking 工具使用场景（谨慎使用）：
     this.busy = true;
     this.interruptRequested = false;
     this.lastActiveAt = Date.now();
+
+    // 检查是否需要压缩上下文
+    if (this.compressor.needsCompaction(this.messages)) {
+      const usage = this.compressor.getUsageInfo(this.messages);
+      Logger.info(`[${this.key}] 上下文即将压缩: ${usage.usedTokens}/${usage.maxTokens} tokens (${usage.usagePercent}%)`);
+      try {
+        this.messages = await this.compressor.compact(this.messages);
+        Logger.info(`[${this.key}] 压缩完成，当前消息数: ${this.messages.length}`);
+      } catch (err) {
+        Logger.error(`[${this.key}] 压缩失败: ${err}`);
+      }
+    }
 
     try {
       await this.init();
@@ -476,6 +492,12 @@ thinking 工具使用场景（谨慎使用）：
     if (commandName === 'exit') {
       await this.summarizeAndDestroy();
       return { handled: true, reply: '再见！期待下次与你对话。' };
+    }
+
+    // /imcli
+    if (commandName === 'imcli') {
+      const reply = await handleIMCLICommand(args.join(' '));
+      return { handled: true, reply };
     }
 
     // skill 斜杠命令
