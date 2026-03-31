@@ -143,7 +143,11 @@ export class MessageSender {
       const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext.slice(1));
       const uploadType = isImage ? 'image' as const : 'file' as const;
 
+      const fileSize = fs.statSync(filePath).size;
+      Logger.info(`开始上传文件: ${fileName} (${fileSize} bytes, type: ${uploadType})`);
+
       const uploadResult = await this.bot.uploadFile(filePath, uploadType);
+      Logger.info(`文件上传成功: ${uploadResult.url}`);
 
       if (isImage) {
         await this.bot.sendImage(topic, uploadResult);
@@ -153,7 +157,8 @@ export class MessageSender {
 
       Logger.info(`CatsCompany 文件已发送: ${fileName}`);
     } catch (err: any) {
-      Logger.error(`文件发送失败: ${err.message}`);
+      Logger.error(`文件发送失败 (${fileName}): ${err.message}`);
+      Logger.error(`错误堆栈: ${err.stack}`);
       throw err;
     }
   }

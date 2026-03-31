@@ -162,37 +162,40 @@ export class CatsClient extends EventEmitter {
   }
 
   async uploadFile(filePath: string, type: 'image' | 'file' = 'file'): Promise<UploadResult> {
-    const httpBaseUrl = this.config.httpBaseUrl || 'https://app.catsco.cc';
+    const httpBaseUrl = (this.config.httpBaseUrl || 'https://app.catsco.cc').replace(/\/$/, '');
     const url = `${httpBaseUrl}/api/upload?type=${type}`;
 
     const buffer = fs.readFileSync(filePath);
     const filename = path.basename(filePath);
 
-    const boundary = `----CatsBotBoundary${crypto.randomBytes(16).toString('hex')}`;
-    const header = Buffer.from(
-      `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
-      `Content-Type: application/octet-stream\r\n\r\n`,
-    );
-    const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
-    const body = Buffer.concat([header, buffer, footer]);
+    try {
+      console.log(`[DEBUG] 开始上传文件到: ${url}, 大小: ${buffer.length} bytes`);
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `ApiKey ${this.config.apiKey}`,
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-      },
-      body,
-    });
+      const formData = new FormData();
+      formData.append('file', new Blob([buffer]), filename);
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.log('[DEBUG] Upload failed:', res.status, errorText);
-      throw new Error(`Upload failed: ${res.status} - ${errorText}`);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `ApiKey ${this.config.apiKey}`,
+        },
+        body: formData,
+        signal: AbortSignal.timeout(60000),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.log('[DEBUG] Upload failed:', res.status, errorText);
+        throw new Error(`Upload failed: ${res.status} - ${errorText}`);
+      }
+
+      const result = await res.json() as UploadResult;
+      console.log('[DEBUG] 上传成功:', result.url);
+      return result;
+    } catch (err: any) {
+      console.log('[DEBUG] Upload error:', err.message, err.cause);
+      throw new Error(`Upload failed: ${err.message}`);
     }
-
-    return await res.json() as UploadResult;
   }
 
   async sendImage(topic: string, upload: UploadResult): Promise<number> {
