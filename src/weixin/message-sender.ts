@@ -90,9 +90,24 @@ export class MessageSender {
       }
     );
 
+    console.log('[DEBUG] 微信上传URL响应:', JSON.stringify(uploadResp.data));
+
+    let uploadParam: string;
+    if (uploadResp.data.upload_param) {
+      uploadParam = uploadResp.data.upload_param;
+    } else if (uploadResp.data.upload_full_url) {
+      const url = new URL(uploadResp.data.upload_full_url);
+      uploadParam = url.searchParams.get('encrypted_query_param') || '';
+      if (!uploadParam) {
+        throw new Error('无法从 upload_full_url 提取 encrypted_query_param');
+      }
+    } else {
+      throw new Error('微信 API 未返回 upload_param 或 upload_full_url');
+    }
+
     const downloadParam = await uploadBufferToCDN(
       this.cdnBaseUrl,
-      uploadResp.data.upload_param,
+      uploadParam,
       filekey,
       plaintext,
       aeskey
