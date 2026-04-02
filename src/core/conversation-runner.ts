@@ -1,4 +1,4 @@
-import { Message } from '../types';
+import { Message, ContentBlock } from '../types';
 import { AIService } from '../utils/ai-service';
 import { SkillActivationSignal } from '../types/skill';
 import { ToolCall, ToolDefinition, ToolExecutionContext, ToolExecutor, ToolResult, ToolTranscriptMode } from '../types/tool';
@@ -11,6 +11,12 @@ import {
   parseSkillActivationSignal,
   upsertSkillSystemMessage,
 } from '../skills/skill-activation-protocol';
+
+function contentToString(content: string | ContentBlock[] | null): string {
+  if (!content) return '';
+  if (typeof content === 'string') return content;
+  return content.map(block => block.type === 'text' ? block.text : '[图片]').join('');
+}
 
 const TOOL_NAME_ALIASES: Record<string, string> = {
   Bash: 'execute_shell',
@@ -65,8 +71,9 @@ export interface RunResult {
 interface ToolExecutionRecord {
   toolCall: ToolCall;
   toolName: string;
-  toolContent: string;
+  toolContent: string | ContentBlock[];
   result: ToolResult;
+  newMessages?: Message[];
 }
 
 /** ConversationRunner 构造选项 */
@@ -103,8 +110,11 @@ export class ConversationRunner {
   private sessionLabel: string;
 
   /** 截断字符串用于日志输出，避免日志过大 */
-  private static truncateForLog(text: string, maxLen = 200): string {
+  private static truncateForLog(text: any, maxLen = 200): string {
     if (!text) return '(empty)';
+    if (typeof text !== 'string') {
+      text = JSON.stringify(text);
+    }
     const oneLine = text.replace(/\n/g, '\\n');
     if (oneLine.length <= maxLen) return oneLine;
     return oneLine.slice(0, maxLen) + `...(${text.length}字符)`;
@@ -129,7 +139,7 @@ export class ConversationRunner {
     this.compressor = new ContextCompressor(this.aiService, {
       maxContextTokens: this.maxPromptTokens,
       compactionThreshold: 0.5,
-      keepRecentCount: 4,
+      keepRecentCount: 2,
     });
   }
 
@@ -152,12 +162,15 @@ export class ConversationRunner {
         break;
       }
 
-      if (this.enableCompression && this.compressor.needsCompaction(messages)) {
+      if (this.enableCompression) {
         const usage = this.compressor.getUsageInfo(messages);
-        Logger.info(`上下文使用率 ${usage.usagePercent}%，触发压缩...`);
-        const compacted = await this.compressor.compact(messages);
-        messages.length = 0;
-        messages.push(...compacted);
+        Logger.info(`[${this.sessionLabel}Turn ${turns}] 上下文: ${usage.usedTokens} tokens (${usage.usagePercent}%)`);
+        if (this.compressor.needsCompaction(messages)) {
+          Logger.info(`上下文使用率 ${usage.usagePercent}%，触发压缩...`);
+          const compacted = await this.compressor.compact(messages);
+          messages.length = 0;
+          messages.push(...compacted);
+        }
       }
 
       const activeTools = allTools;
@@ -279,7 +292,7 @@ export class ConversationRunner {
         const toolDuration = Date.now() - toolStart;
         Metrics.recordToolCall(toolName, toolDuration);
         Logger.info(`[${this.sessionLabel}Turn ${turns}] 工具完成: ${toolName} | 耗时: ${toolDuration}ms | 结果: ${ConversationRunner.truncateForLog(result.content, 300)}`);
-        callbacks?.onToolEnd?.(toolName, toolUseId, result.content);
+        callbacks?.onToolEnd?.(toolName, toolUseId, contentToString(result.content));
 
         const transcriptMode = this.getToolTranscriptMode(toolName, toolDefinitions);
         if (
@@ -292,7 +305,7 @@ export class ConversationRunner {
 
         let toolContent = result.content;
 
-        const activation = this.tryParseSkillActivation(toolCall, result.content);
+        const activation = this.tryParseSkillActivation(toolCall, contentToString(result.content));
         if (activation) {
           this.activeSkillName = activation.skillName;
 
@@ -309,12 +322,13 @@ export class ConversationRunner {
           toolContent = `Skill "${activation.skillName}" 已激活`;
         }
 
-        this.handleToolDisplay(toolCall, toolContent, callbacks);
+        this.handleToolDisplay(toolCall, contentToString(toolContent), callbacks);
         executionRecords.push({
           toolCall,
           toolName,
           toolContent,
           result,
+          newMessages: (result as any).newMessages, // 保存图片等额外消息
         });
 
         if (result.controlSignal === 'pause_turn' && !result.errorCode) {
@@ -407,6 +421,11 @@ export class ConversationRunner {
         tool_call_id: record.result.tool_call_id,
         name: record.result.name,
       });
+
+      // 插入额外消息（如图片）
+      if (record.newMessages) {
+        messages.push(...record.newMessages);
+      }
     }
 
     return messages;

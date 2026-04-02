@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Tool, ToolDefinition, ToolExecutionContext } from '../types/tool';
 import { isReadPathAllowed } from '../utils/safety';
+import { createImageBlock } from '../utils/image-utils';
 
 /**
  * Read 工具 - 读取文件内容
@@ -34,7 +35,7 @@ export class ReadTool implements Tool {
     }
   };
 
-  async execute(args: any, context: ToolExecutionContext): Promise<string> {
+  async execute(args: any, context: ToolExecutionContext): Promise<string | any> {
     const { file_path, offset = 0, limit, pages } = args;
 
     try {
@@ -108,11 +109,25 @@ export class ReadTool implements Tool {
     return result;
   }
 
-  private async readImage(absolutePath: string, file_path: string): Promise<string> {
+  private async readImage(absolutePath: string, file_path: string): Promise<any> {
+    const imageBlock = await createImageBlock(absolutePath);
+    if (imageBlock) {
+      const stats = fs.statSync(absolutePath);
+      const sizeKB = (stats.size / 1024).toFixed(2);
+      
+      // 返回元数据 + 独立的图片消息（参考 Claude Code）
+      return {
+        toolContent: `已读取图片: ${file_path} (${sizeKB} KB)`,
+        newMessages: [{
+          role: 'user',
+          content: [imageBlock]
+        }]
+      };
+    }
+    
     const stats = fs.statSync(absolutePath);
     const sizeKB = (stats.size / 1024).toFixed(2);
-
-    return `文件: ${file_path}\n类型: 图片文件\n大小: ${sizeKB} KB\n\n注意：图片文件无法直接显示文本内容。\n建议：\n1. 如果需要分析图片内容，请使用支持视觉的 AI 模型\n2. 如果需要提取图片中的文字，请使用 OCR 工具\n3. 图片路径: ${absolutePath}`;
+    return `文件: ${file_path}\n类型: 图片文件\n大小: ${sizeKB} KB\n\n无法读取图片（格式不支持或文件损坏）`;
   }
 
   private async readNotebook(absolutePath: string, file_path: string): Promise<string> {
