@@ -48,10 +48,15 @@ export class PromptManager {
     const platform = process.env.CURRENT_PLATFORM || '';
     const today = new Date().toISOString().slice(0, 10);
 
+    // 动态生成工作空间路径
+    const workspaceName = displayName || 'default';
+    const workspacePath = `~/xiaoba-workspace/${workspaceName}`;
+
     const runtimeInfo = [
       displayName ? `你在这个平台上的名字是：${displayName}` : '',
       platform ? `当前平台：${platform}` : '',
       `当前日期：${today}`,
+      `你的默认工作目录是：\`${workspacePath}\``,
     ].filter(Boolean).join('\n');
 
     return [basePrompt, behaviorPrompt, runtimeInfo].filter(Boolean).join('\n\n');
