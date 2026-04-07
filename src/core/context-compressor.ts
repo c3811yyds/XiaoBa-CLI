@@ -4,7 +4,12 @@ import { estimateMessagesTokens } from './token-estimator';
 import { Logger } from '../utils/logger';
 import { Metrics } from '../utils/metrics';
 
-function contentToString(content: string | ContentBlock[] | null): string {
+const COMPACT_BOUNDARY_PREFIX = '[compact_boundary]';
+
+/**
+ * 将消息内容转为可读字符串
+ */
+export function contentToString(content: string | ContentBlock[] | null): string {
   if (!content) return '';
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '[图片]';
@@ -12,29 +17,187 @@ function contentToString(content: string | ContentBlock[] | null): string {
 }
 
 /**
+ * 将 session 消息列表转换为用于压缩的文本表示
+ */
+export function messagesToConversationText(messages: Message[]): string {
+  const lines: string[] = [];
+  let pendingToolUses: Array<{ name: string; args: string }> = [];
+
+  for (const msg of messages) {
+    if (msg.role === 'user') {
+      const text = contentToString(msg.content);
+      lines.push(`[用户] ${text}`);
+      pendingToolUses = [];
+    } else if (msg.role === 'assistant') {
+      const text = contentToString(msg.content);
+      if (msg.tool_calls && msg.tool_calls.length > 0) {
+        const toolCalls = msg.tool_calls.map(tc => {
+          let argsObj: Record<string, unknown> = {};
+          try {
+            argsObj = JSON.parse(tc.function.arguments || '{}');
+          } catch {}
+          return `工具调用: ${tc.function.name}(${JSON.stringify(argsObj)})`;
+        }).join(', ');
+        lines.push(`[AI] ${text || '(无文本输出)'}。${toolCalls}`);
+        pendingToolUses = msg.tool_calls.map(tc => ({
+          name: tc.function.name,
+          args: tc.function.arguments,
+        }));
+      } else if (text) {
+        lines.push(`[AI] ${text}`);
+        pendingToolUses = [];
+      }
+    } else if (msg.role === 'tool') {
+      const text = contentToString(msg.content);
+      const name = msg.name || 'unknown';
+      // 截断过长的工具输出
+      const truncated = text.length > 800
+        ? text.slice(0, 800) + `...[共${text.length}字符]`
+        : text;
+      lines.push(`[工具 ${name}] ${truncated}`);
+    }
+  }
+
+  return lines.join('\n\n');
+}
+
+// ─── 压缩 Prompt ──────────────────────────────────────────
+
+const COMPACT_NO_TOOLS_PREAMBLE = `CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.
+
+- Do NOT use Read, Bash, Grep, Glob, Edit, Write, or ANY other tool.
+- You already have all the context you need in the conversation above.
+- Tool calls will be REJECTED and will waste your only turn.
+- Your entire response must be plain text: an <analysis> block followed by a <summary> block.`;
+
+/**
+ * 生成压缩用的 system prompt
+ */
+export function buildCompactSystemPrompt(customInstructions?: string): string {
+  let prompt = COMPACT_NO_TOOLS_PREAMBLE + '\n\n' + BASE_COMPACT_PROMPT;
+
+  if (customInstructions && customInstructions.trim()) {
+    prompt += `\n\nAdditional Instructions:\n${customInstructions}`;
+  }
+
+  prompt += `\n\nREMINDER: Do NOT call any tools. Respond with plain text only — an <analysis> block followed by a <summary> block.`;
+  return prompt;
+}
+
+const BASE_COMPACT_PROMPT = `Your task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.
+This summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context.
+
+Before providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts and ensure you've covered all necessary points. In your analysis process:
+
+1. Chronologically analyze each message and section of the conversation. For each section thoroughly identify:
+   - The user's explicit requests and intents
+   - Your approach to addressing the user's requests
+   - Key decisions, technical concepts and code patterns
+   - Specific details like:
+     - file names
+     - full code snippets
+     - function signatures
+     - file edits
+   - Errors that you ran into and how you fixed them
+   - Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.
+2. Double-check for technical accuracy and completeness, addressing each required element thoroughly.
+
+Your summary should include the following sections:
+
+1. Primary Request and Intent: Capture all of the user's explicit requests and intents in detail
+2. Key Technical Concepts: List all important technical concepts, technologies, and frameworks discussed.
+3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Pay special attention to the most recent messages and include full code snippets where applicable and include a summary of why this file read or edit is important.
+4. Errors and fixes: List all errors that you ran into, and how you fixed them. Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.
+5. Problem Solving: Document problems solved and any ongoing troubleshooting efforts.
+6. All user messages: List ALL user messages (not tool results) from the conversation.
+7. Pending Tasks: Outline any pending tasks that you have explicitly been asked to work on.
+8. Current Work: Describe in detail precisely what was being worked on immediately before this summary request, paying special attention to the most recent messages from both user and assistant. Include file names and code snippets where applicable.
+9. Optional Next Step: List the next step that you will take that is related to the most recent work you were doing. IMPORTANT: ensure that this step is DIRECTLY in line with the user's most recent explicit requests, and the task you were working on immediately before this summary request. If your last task was concluded, then only list next steps if they are explicitly in line with the users request. Do not start on tangential requests or really old requests that were already completed without confirming with the user first.
+
+Here's an example of how your output should be structured:
+
+<example>
+<analysis>
+[Your thought process, ensuring all points are covered thoroughly and accurately]
+</analysis>
+
+<summary>
+1. Primary Request and Intent:
+   [Detailed description]
+
+2. Key Technical Concepts:
+   - [Concept 1]
+   - [Concept 2]
+   - [...]
+
+3. Files and Code Sections:
+   - [File Name 1]
+      - [Summary of why this file is important]
+      - [Summary of the changes made to this file, if any]
+      - [Important Code Snippet]
+   - [File Name 2]
+      - [Important Code Snippet]
+   - [...]
+
+4. Errors and fixes:
+    - [Detailed description of error 1]:
+      - [How you fixed the error]
+      - [User feedback on the error if any]
+    - [...]
+
+5. Problem Solving:
+   [Description of solved problems and ongoing troubleshooting]
+
+6. All user messages:
+    - [Detailed non tool use user message]
+    - [...]
+
+7. Pending Tasks:
+   - [Task 1]
+   - [Task 2]
+   - [...]
+
+8. Current Work:
+   [Precise description of current work]
+
+9. Optional Next Step:
+   [Optional Next step to take]
+
+</summary>
+</example>
+
+Please provide your summary based on the conversation so far, following this structure and ensuring precision and thoroughness in your response.`;
+
+/**
+ * 从 LLM 输出中解析出 <summary> 内容，丢弃 <analysis>
+ */
+export function parseCompactSummary(raw: string): string {
+  const match = raw.match(/<summary>([\s\S]*?)<\/summary>/i);
+  return match ? match[1].trim() : raw.trim();
+}
+
+// ─── ContextCompressor ──────────────────────────────────────
+
+/**
  * ContextCompressor - 上下文压缩器
  *
- * 设计：到达门槛 → 一次 AI 调用整体摘要旧对话 → 替换为一条摘要消息
+ * 设计：到达门槛 → 一次 AI 调用整体摘要所有 session 消息 → 替换为一条摘要消息
  *
- * 压缩前: [system, user1, asst1, tool1, user2, asst2, tool2, ...]
- * 压缩后: [system, {summary}, ...recent]
+ * 压缩前: [system: base, system: surface, user, assistant tu, tool result, ...]
+ * 压缩后: [system: base, system: surface, {boundary}, {summary}, current_input]
  */
 export class ContextCompressor {
   private maxContextTokens: number;
   private compactionThreshold: number;
   private aiService: AIService;
-  /** 保留最近多少条非 system 消息不压缩 */
-  private keepRecentCount: number;
 
   constructor(aiService: AIService, options?: {
     maxContextTokens?: number;
     compactionThreshold?: number;
-    keepRecentCount?: number;
   }) {
     this.aiService = aiService;
     this.maxContextTokens = options?.maxContextTokens ?? 128000;
     this.compactionThreshold = options?.compactionThreshold ?? 0.7;
-    this.keepRecentCount = options?.keepRecentCount ?? 6;
   }
 
   /**
@@ -63,68 +226,76 @@ export class ContextCompressor {
   }
 
   /**
-   * 执行压缩 — 一次 AI 调用，整体摘要旧对话
+   * 执行全量压缩
    *
-   * 1. system 消息不动
-   * 2. 最近 N 条消息保持原样（AI 当前工作上下文）
-   * 3. 中间的旧消息 → 送给 AI 生成一段摘要 → 替换为一条 user 消息
+   * 1. 分离 system 消息（不参与压缩）
+   * 2. 对全部 session 消息生成摘要
+   * 3. 组装: [system..., boundary, summary, current_input]
+   *
+   * 注意：压缩发生在 handleMessage() 将用户输入 push 之前，
+   * 所以 current_input 在 messages 里不存在。
+   * 调用方负责在压缩后追加 current_input。
    */
-  async compact(messages: Message[]): Promise<Message[]> {
+  async compact(
+    messages: Message[],
+    customInstructions?: string,
+  ): Promise<Message[]> {
     const before = estimateMessagesTokens(messages);
 
     const system = messages.filter(m => m.role === 'system');
-    const nonSystem = messages.filter(m => m.role !== 'system');
+    const session = messages.filter(m => m.role !== 'system');
 
-    if (nonSystem.length <= this.keepRecentCount) {
-      Logger.info('[压缩] 消息太少，跳过');
-      return messages;
-    }
-
-    const old = nonSystem.slice(0, -this.keepRecentCount);
-    const recent = nonSystem.slice(-this.keepRecentCount);
-
-    if (old.length === 0) {
+    if (session.length === 0) {
       return messages;
     }
 
     // 构造待摘要的对话文本
-    const conversationText = old.map(m => {
-      const role = m.role === 'user' ? '用户'
-        : m.role === 'assistant' ? 'AI'
-        : `工具(${m.name || 'unknown'})`;
-      const content = contentToString(m.content);
-      // 单条消息限制 1500 字符，避免摘要 prompt 本身过大
-      const trimmed = content.length > 1500
-        ? content.slice(0, 1500) + `...[共${content.length}字符]`
-        : content;
-      return `[${role}] ${trimmed}`;
-    }).join('\n\n');
+    const conversationText = messagesToConversationText(session);
+
+    // 单条消息限制 2000 字符，避免摘要 prompt 本身过大
+    const truncated = conversationText.length > 2000
+      ? conversationText.slice(0, 2000) + `\n...[共${conversationText.length}字符]`
+      : conversationText;
 
     try {
       const summaryMessages: Message[] = [
         {
           role: 'system',
-          content: '你是一个对话压缩助手。将对话历史压缩为简洁摘要，保留所有关键信息：任务目标、重要发现、关键数据（名称、数字、URL）、已完成的操作、待办事项。去掉冗余的工具调用细节。输出纯文本摘要，不要用 markdown 标题。',
+          content: buildCompactSystemPrompt(customInstructions),
         },
         {
           role: 'user',
-          content: `请压缩以下 ${old.length} 条对话消息为简洁摘要：\n\n${conversationText}`,
+          content: `Please summarize the following ${session.length} messages:\n\n${truncated}`,
         },
       ];
 
       const resp = await this.aiService.chat(summaryMessages);
-      const summaryText = resp.content || '';
+      const rawSummary = resp.content || '';
 
       if (resp.usage) {
         Metrics.recordAICall('chat', resp.usage);
       }
 
-      const summaryMessage: Message = {
-        role: 'user',
-        content: `[以下是之前 ${old.length} 条对话的 AI 摘要]\n\n${summaryText}`,
+      const summaryText = parseCompactSummary(rawSummary);
+
+      // 构建压缩边界标记（role: system，标记这是压缩点）
+      const boundaryMessage: Message = {
+        role: 'system',
+        content: `${COMPACT_BOUNDARY_PREFIX} ${session.length} messages summarized. Pre-compact tokens: ${before}`,
       };
 
-      const result = [...system, summaryMessage, ...recent];
+      const summaryMessage: Message = {
+        role: 'user',
+        content: `[以下是之前 ${session.length} 条对话的 AI 摘要]\n\n${summaryText}`,
+      };
+
+      // 组装：system + boundary + summary（session 历史已被全量摘要，不再保留）
+      const result: Message[] = [
+        ...system,
+        boundaryMessage,
+        summaryMessage,
+      ];
+
       const after = estimateMessagesTokens(result);
 
       Logger.info(
@@ -134,43 +305,8 @@ export class ContextCompressor {
 
       return result;
     } catch (err: any) {
-      // AI 摘要失败，降级为机械截断
-      Logger.warning(`[压缩] AI 摘要失败: ${err.message}，降级为机械截断`);
-      return this.fallbackTrim(system, old, recent, before);
+      Logger.error(`[压缩] AI 摘要失败: ${err.message}`);
+      throw err;
     }
-  }
-
-  /**
-   * 降级方案：机械截断（AI 不可用时的兜底）
-   */
-  private fallbackTrim(
-    system: Message[],
-    old: Message[],
-    recent: Message[],
-    beforeTokens: number,
-  ): Message[] {
-    const trimmed: Message[] = [];
-    for (const msg of old) {
-      if (msg.role === 'tool') {
-        trimmed.push({ ...msg, content: `[工具 ${msg.name || 'unknown'} 的输出已省略]` });
-      } else if (msg.role === 'assistant') {
-        const content = msg.content || '';
-        trimmed.push({
-          ...msg,
-          content: content.length > 300 ? content.slice(0, 300) + '...' : content,
-          tool_calls: undefined,
-        });
-      } else {
-        trimmed.push(msg);
-      }
-    }
-
-    const result = [...system, ...trimmed, ...recent];
-    const after = estimateMessagesTokens(result);
-    Logger.info(
-      `[压缩-降级] ${system.length + old.length + recent.length} 条 → ${result.length} 条，` +
-      `${beforeTokens} tokens → ${after} tokens`
-    );
-    return result;
   }
 }

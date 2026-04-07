@@ -1,22 +1,28 @@
 ---
 name: skill-publish
-description: "发布 Skill 到官方 Skill Hub：将本地 skill 推送到 GitHub 并向 XiaoBa-Skill-Hub 提交 PR，让所有 XiaoBa 用户都能安装。"
+description: "发布 Skill 到官方 Skill Hub：通过 fork 方式提交 PR，无需 GitHub token。让所有 XiaoBa 用户都能安装。"
 invocable: user
 autoInvocable: false
 argument-hint: "<skill名称>"
-max-turns: 25
+max-turns: 20
 ---
 
-# Skill Publish
+# Skill Publish (简化版)
 
-将本地已有的 skill 发布到 XiaoBa 官方 Skill Hub，让所有用户都能通过商店安装。
+将本地已有的 skill 发布到 XiaoBa 官方 Skill Hub。
 
-## 前置条件
+## 核心变化
 
-用户机器上需要：
-- `git` 命令可用
-- GitHub 账号，且已配置 `git` 的用户名和邮箱
-- GitHub Personal Access Token（有 `repo` 和 `workflow` 权限），通过环境变量 `GITHUB_TOKEN` 提供，或者在执行过程中询问用户
+**旧流程（需要 token）：**
+1. 创建 `xiaoba-skill-<name>` 仓库 ❌
+2. Fork Hub
+3. 更新 registry.json
+4. 创建 PR
+
+**新流程（不需要 token）：**
+1. 用户手动 fork Hub（网页操作）
+2. 本地添加 skill 文件到 fork
+3. 提交 PR
 
 ## 执行流程
 
@@ -26,94 +32,114 @@ max-turns: 25
 
 1. 检查 `skills/$ARGUMENTS/SKILL.md` 是否存在
 2. 读取 SKILL.md 的 frontmatter，提取 name、description、category 等信息
-3. 如果缺少 category，询问用户选择一个：核心、工具、效率、科研、运维、其他
+3. 如果缺少 category，询问用户选择：核心、工具、效率、科研、运维、其他
 4. 向用户确认发布信息
 
-如果用户没有指定 skill 名称，列出所有可用的 skill 让用户选择。
+### Step 2：告知用户手动 Fork Hub
 
-### Step 2：创建 GitHub 仓库并推送 skill
+告诉用户执行以下操作（需要 GitHub 登录）：
 
-1. 确认用户的 GitHub 用户名：
+1. 打开 https://github.com/buildsense-ai/XiaoBa-Skill-Hub
+2. 点击右上角 **Fork** 按钮
+3. Fork 到你自己的账号
+
+完成后告知你。
+
+### Step 3：获取用户 fork 的仓库地址
+
+用户 fork 完成后，获取 fork 地址：
+
+```json
+{"command":"echo '请提供你的 fork 仓库地址，例如: https://github.com/YOUR_USER/XiaoBa-Skill-Hub'","description":"提示用户提供 fork 地址"}
+```
+
+### Step 4：Clone fork 并添加 skill
+
+1. 获取 GitHub 用户名：
 ```json
 {"command":"git config user.name","description":"获取 GitHub 用户名"}
 ```
 
-2. 检查是否有 GITHUB_TOKEN：
+2. 创建临时目录并 clone fork：
 ```json
-{"command":"echo $GITHUB_TOKEN | head -c 4","description":"检查 token 是否存在"}
-```
-如果没有 token，提示用户：
-> 需要 GitHub Token 才能自动创建仓库和提交 PR。
-> 请到 https://github.com/settings/tokens 创建 Personal Access Token（勾选 repo 权限）。
-> 然后设置环境变量：export GITHUB_TOKEN=你的token
->
-> 或者你可以告诉我 token，我直接使用（仅本次会话有效）。
-
-3. 在用户的 GitHub 账号下创建仓库 `xiaoba-skill-<name>`：
-```json
-{"command":"curl -s -H 'Authorization: token <TOKEN>' https://api.github.com/user/repos -d '{\"name\":\"xiaoba-skill-<name>\",\"description\":\"<skill description>\",\"public\":true}'","description":"创建 GitHub 仓库"}
+{"command":"mkdir -p /tmp/xiaoba-publish && cd /tmp/xiaoba-publish && rm -rf XiaoBa-Skill-Hub && git clone https://github.com/<user>/XiaoBa-Skill-Hub.git","description":"Clone fork"}
 ```
 
-4. 初始化 git 并推送 skill 内容：
+3. 检查 fork 的内容：
 ```json
-{"command":"cd skills/<name> && git init && git add -A && git commit -m 'Initial commit: <name> skill' && git branch -M main && git remote add origin https://<TOKEN>@github.com/<user>/xiaoba-skill-<name>.git && git push -u origin main","description":"推送 skill 到 GitHub"}
+{"command":"cd /tmp/xiaoba-publish/XiaoBa-Skill-Hub && ls -la && cat registry.json | head -50","description":"查看 fork 内容"}
 ```
 
-### Step 3：Fork Skill Hub 并提交 PR
+### Step 5：复制 skill 文件到 fork
 
-1. Fork 官方 Skill Hub：
 ```json
-{"command":"curl -s -H 'Authorization: token <TOKEN>' -X POST https://api.github.com/repos/buildsense-ai/XiaoBa-Skill-Hub/forks","description":"Fork Skill Hub"}
+{"command":"cd /tmp/xiaoba-publish/XiaoBa-Skill-Hub && mkdir -p skills/<name> && cp -r /path/to/skills/<name>/* skills/<name>/","description":"复制 skill 文件"}
 ```
 
-2. 克隆 fork 到临时目录：
+### Step 6：更新 registry.json
+
+用 Python 脚本安全更新 JSON：
 ```json
-{"command":"cd /tmp && git clone https://<TOKEN>@github.com/<user>/XiaoBa-Skill-Hub.git xiaoba-hub-pr && cd xiaoba-hub-pr && git checkout -b add-skill-<name>","description":"克隆 fork 并创建分支"}
+{"command":"cd /tmp/xiaoba-publish/XiaoBa-Skill-Hub && python3 -c \"\nimport json\nd=json.load(open('registry.json'))\nnew_entry={'name':'<name>','description':'<desc>','category':'<cat>','recommended':False,'repo':'https://github.com/<user>/XiaoBa-Skill-Hub/tree/main/skills/<name>'}\nd.append(new_entry)\njson.dump(d,open('registry.json','w'),indent=2,ensure_ascii=False)\nprint('registry.json updated')\n\"","description":"更新 registry.json"}
 ```
 
-3. 读取现有 registry.json，追加新 skill 条目，写回文件：
+### Step 7：提交并推送
 
-新条目格式：
 ```json
-{
-  "name": "<name>",
-  "description": "<description>",
-  "category": "<category>",
-  "recommended": false,
-  "repo": "https://github.com/<user>/xiaoba-skill-<name>"
-}
+{"command":"cd /tmp/xiaoba-publish/XiaoBa-Skill-Hub && git add skills/<name> registry.json && git status","description":"添加文件并检查状态"}
 ```
 
-用 Python 或 Node 脚本来修改 JSON（不要手动拼接字符串）：
 ```json
-{"command":"python -c \"import json; d=json.load(open('registry.json')); d.append({'name':'<name>','description':'<desc>','category':'<cat>','recommended':False,'repo':'https://github.com/<user>/xiaoba-skill-<name>'}); json.dump(d,open('registry.json','w'),indent=2,ensure_ascii=False)\"","description":"更新 registry.json"}
+{"command":"cd /tmp/xiaoba-publish/XiaoBa-Skill-Hub && git commit -m 'Add skill: <name>' && git branch -M main","description":"提交更改"}
 ```
 
-4. 提交并推送：
 ```json
-{"command":"cd /tmp/xiaoba-hub-pr && git add registry.json && git commit -m 'Add skill: <name>' && git push origin add-skill-<name>","description":"推送更新到 fork"}
+{"command":"cd /tmp/xiaoba-publish/XiaoBa-Skill-Hub && git remote -v","description":"检查远程地址"}
 ```
 
-5. 创建 Pull Request：
+### Step 8：设置远程推送地址
+
+由于不需要 token，用 SSH 方式推送（依赖用户本地的 SSH key）：
+
 ```json
-{"command":"curl -s -H 'Authorization: token <TOKEN>' https://api.github.com/repos/buildsense-ai/XiaoBa-Skill-Hub/pulls -d '{\"title\":\"Add skill: <name>\",\"head\":\"<user>:add-skill-<name>\",\"base\":\"main\",\"body\":\"## New Skill: <name>\\n\\n<description>\\n\\nCategory: <category>\\nRepo: https://github.com/<user>/xiaoba-skill-<name>\"}'","description":"创建 PR"}
+{"command":"cd /tmp/xiaoba-publish/XiaoBa-Skill-Hub && git remote set-url origin git@github.com:<user>/XiaoBa-Skill-Hub.git && git remote -v","description":"设置为 SSH URL"}
 ```
 
-6. 清理临时目录：
+### Step 9：推送到 fork
+
 ```json
-{"command":"rm -rf /tmp/xiaoba-hub-pr","description":"清理临时文件"}
+{"command":"cd /tmp/xiaoba-publish/XiaoBa-Skill-Hub && git push origin main","description":"推送更改"}
 ```
 
-### Step 4：汇报结果
+### Step 10：创建 PR
 
-向用户汇报：
-- Skill 仓库地址：`https://github.com/<user>/xiaoba-skill-<name>`
-- PR 地址：从创建 PR 的 API 返回中提取 `html_url`
-- 说明 PR 被合并后，所有 XiaoBa 用户在商店刷新就能看到并安装这个 skill
+告诉用户去网页上创建 PR：
+1. 打开 https://github.com/YOUR_USER/XiaoBa-Skill-Hub
+2. 点击 **Compare & pull request**
+3. 确认信息后提交
+
+或者用 gh CLI（如果安装的话）：
+```json
+{"command":"which gh && gh pr create --repo buildsense-ai/XiaoBa-Skill-Hub --title 'Add skill: <name>' --body '## New Skill: <name>\n\n<description>' || echo 'gh not installed'","description":"尝试用 gh 创建 PR"}
+```
+
+### Step 11：清理
+
+```json
+{"command":"rm -rf /tmp/xiaoba-publish","description":"清理临时目录"}
+```
 
 ## 注意事项
 
-- **绝对不要**把 GITHUB_TOKEN 输出到回复中或记录到日志
-- 如果任何步骤失败，给用户清晰的错误信息和手动操作指引
-- Windows 上 `/tmp` 不存在，改用系统临时目录（通过 `echo %TEMP%` 或 `python -c "import tempfile;print(tempfile.gettempdir())"` 获取）
-- 如果用户的 skill 包含 Python 依赖，提醒用户在仓库里包含 `requirements.txt`
+- **SSH Key**：确保用户本地有 SSH key 并配置到 GitHub
+- **Windows**：临时目录改用 `%TEMP%`
+- **如果 SSH 推送失败**：让用户在 GitHub 网页上手动上传文件
+- **Skill 依赖**：提醒用户 skill 如果有依赖，需要在 README 里说明
+
+## 简化流程总结
+
+```
+用户手动 fork → 用户告知 fork 地址 → 脚本 clone/fork → 添加文件 → 更新 registry → SSH push → 用户手动创建 PR
+```
+
+这样就不需要 GitHub token 了！
