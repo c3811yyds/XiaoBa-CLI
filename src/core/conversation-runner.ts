@@ -140,7 +140,6 @@ export class ConversationRunner {
     this.compressor = new ContextCompressor(this.aiService, {
       maxContextTokens: this.maxPromptTokens,
       compactionThreshold: 0.5,
-      keepRecentCount: 2,
     });
   }
 
