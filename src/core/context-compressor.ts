@@ -1,10 +1,13 @@
 import { Message, ContentBlock } from '../types';
 import { AIService } from '../utils/ai-service';
-import { estimateMessagesTokens } from './token-estimator';
+import { estimateMessagesTokens, estimateTokens } from './token-estimator';
 import { Logger } from '../utils/logger';
 import { Metrics } from '../utils/metrics';
 
 const COMPACT_BOUNDARY_PREFIX = '[compact_boundary]';
+
+/** 摘要内容的 token 预算（给 LLM 留足够空间） */
+const SUMMARY_CONTENT_BUDGET = 50000;
 
 /**
  * 将消息内容转为可读字符串
@@ -21,13 +24,11 @@ export function contentToString(content: string | ContentBlock[] | null): string
  */
 export function messagesToConversationText(messages: Message[]): string {
   const lines: string[] = [];
-  let pendingToolUses: Array<{ name: string; args: string }> = [];
 
   for (const msg of messages) {
     if (msg.role === 'user') {
       const text = contentToString(msg.content);
       lines.push(`[用户] ${text}`);
-      pendingToolUses = [];
     } else if (msg.role === 'assistant') {
       const text = contentToString(msg.content);
       if (msg.tool_calls && msg.tool_calls.length > 0) {
@@ -39,26 +40,139 @@ export function messagesToConversationText(messages: Message[]): string {
           return `工具调用: ${tc.function.name}(${JSON.stringify(argsObj)})`;
         }).join(', ');
         lines.push(`[AI] ${text || '(无文本输出)'}。${toolCalls}`);
-        pendingToolUses = msg.tool_calls.map(tc => ({
-          name: tc.function.name,
-          args: tc.function.arguments,
-        }));
       } else if (text) {
         lines.push(`[AI] ${text}`);
-        pendingToolUses = [];
       }
     } else if (msg.role === 'tool') {
       const text = contentToString(msg.content);
       const name = msg.name || 'unknown';
-      // 截断过长的工具输出
-      const truncated = text.length > 800
-        ? text.slice(0, 800) + `...[共${text.length}字符]`
-        : text;
-      lines.push(`[工具 ${name}] ${truncated}`);
+      lines.push(`[工具 ${name}] ${text}`);
     }
   }
 
   return lines.join('\n\n');
+}
+
+/**
+ * 将单条消息转换为摘要文本（智能截断）
+ */
+function messageToSummaryText(msg: Message): { text: string; tokens: number } {
+  if (msg.role === 'user') {
+    // user 消息：完整保留（一般较短）
+    const text = contentToString(msg.content);
+    return { text: `[用户] ${text}`, tokens: estimateTokens(text) + 10 };
+  }
+
+  if (msg.role === 'assistant') {
+    const text = contentToString(msg.content);
+    if (msg.tool_calls && msg.tool_calls.length > 0) {
+      // assistant + tool_calls：保留文字 + 工具签名
+      const toolCalls = msg.tool_calls.map(tc => {
+        let argsObj: Record<string, unknown> = {};
+        try {
+          argsObj = JSON.parse(tc.function.arguments || '{}');
+        } catch {}
+        return `工具调用: ${tc.function.name}(${JSON.stringify(argsObj)})`;
+      }).join(', ');
+      const fullText = `[AI] ${text || '(无文本输出)'}。${toolCalls}`;
+      return { text: fullText, tokens: estimateTokens(fullText) + 10 };
+    }
+    return { text: `[AI] ${text}`, tokens: estimateTokens(text) + 10 };
+  }
+
+  if (msg.role === 'tool') {
+    // tool 消息：智能截断长文本，保留关键信息
+    const text = contentToString(msg.content);
+    const name = msg.name || 'unknown';
+    const tokens = estimateTokens(text);
+
+    if (tokens <= 300) {
+      // 短文本：完整保留
+      return { text: `[工具 ${name}] ${text}`, tokens: tokens + 10 };
+    }
+
+    // 长文本：保留关键部分
+    const truncated = truncateLongText(text, 600);
+    return { text: `[工具 ${name}] ${truncated}`, tokens: estimateTokens(truncated) + 10 };
+  }
+
+  return { text: '', tokens: 0 };
+}
+
+/**
+ * 截断长文本，优先保留文件路径、行号等关键信息
+ */
+function truncateLongText(text: string, maxChars: number): string {
+  if (text.length <= maxChars) {
+    return text;
+  }
+
+  // 尝试提取文件路径
+  const filePathMatch = text.match(/\/[\w\-\.\/]+\.\w+/);
+  const lineMatch = text.match(/行?\s*[:：]?\s*(\d+)/);
+
+  let prefix = '';
+  if (filePathMatch) {
+    prefix = `[文件: ${filePathMatch[0]}] `;
+  }
+  if (lineMatch) {
+    prefix += `[行号: ${lineMatch[1]}] `;
+  }
+
+  // 保留前缀 + 截断的正文
+  const availableChars = maxChars - prefix.length - 30; // 留空间给省略号
+  if (availableChars > 100) {
+    return prefix + text.slice(0, availableChars) + `\n...[共 ${text.length} 字符]`;
+  }
+
+  // 空间不够，只保留前缀
+  return prefix + text.slice(0, maxChars - 30) + `\n...[共 ${text.length} 字符]`;
+}
+
+/**
+ * 按 token 预算从最新消息往前构建摘要文本
+ *
+ * @param messages 消息数组（已过滤掉 system 消息）
+ * @param budget token 预算
+ * @returns 摘要文本
+ */
+export function truncateForSummary(messages: Message[], budget: number = SUMMARY_CONTENT_BUDGET): string {
+  // 反序遍历：从最新到最早
+  const reversed = [...messages].reverse();
+  const result: string[] = [];
+  let usedTokens = 0;
+  let skippedCount = 0;
+
+  for (const msg of reversed) {
+    const { text, tokens } = messageToSummaryText(msg);
+
+    if (usedTokens + tokens > budget) {
+      // 超出预算
+      if (skippedCount === 0) {
+        // 只有一条消息就超预算了，强制截断
+        const truncated = truncateLongText(text, 500);
+        result.push(truncated);
+      } else {
+        // 多条消息，停止添加
+        break;
+      }
+    } else {
+      result.push(text);
+      usedTokens += tokens;
+    }
+    skippedCount++;
+  }
+
+  // 构建最终文本（需要正序）
+  const truncatedText = result.reverse().join('\n\n');
+
+  // 如果有跳过的消息，添加标记
+  const totalSkipped = messages.length - result.length;
+  if (totalSkipped > 0) {
+    return `[早期 ${totalSkipped} 条消息已截断，共 ${messages.length} 条消息]\n\n${truncatedText}`;
+  }
+
+  return truncatedText;
 }
 
 // ─── 压缩 Prompt ──────────────────────────────────────────
@@ -249,13 +363,8 @@ export class ContextCompressor {
       return messages;
     }
 
-    // 构造待摘要的对话文本
-    const conversationText = messagesToConversationText(session);
-
-    // 单条消息限制 2000 字符，避免摘要 prompt 本身过大
-    const truncated = conversationText.length > 2000
-      ? conversationText.slice(0, 2000) + `\n...[共${conversationText.length}字符]`
-      : conversationText;
+    // 按 token 预算从最新消息往前构建摘要文本
+    const truncated = truncateForSummary(session, SUMMARY_CONTENT_BUDGET);
 
     try {
       const summaryMessages: Message[] = [

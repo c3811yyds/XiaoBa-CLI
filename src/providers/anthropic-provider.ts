@@ -242,7 +242,17 @@ export class AnthropicProvider implements AIProvider {
     if (system) params.system = system;
     if (tools && tools.length > 0) params.tools = this.transformTools(tools);
 
+    // [CONTEXT_DEBUG] SDK 调用前：记录完整的请求参数
+    ContextDebugLogger.dumpSdkBoundary('before', undefined, {
+      baseURL: this.client.baseURL,
+      params
+    });
+
     const response = await this.client.messages.create(params);
+
+    // [CONTEXT_DEBUG] SDK 调用后：记录完整的响应
+    ContextDebugLogger.dumpSdkBoundary('after', undefined, { response });
+
     return this.parseResponse(response);
   }
 

@@ -3,7 +3,7 @@ name: self-evolution
 description: 自我进化：引导创建新的 skill 或 Python tool，扩展 XiaoBa 的能力边界。
 invocable: both
 argument-hint: "<'skill' 或 'tool'> <简要描述想要的功能>"
-max-turns: 30
+
 ---
 
 # 自我进化（Self Evolution）

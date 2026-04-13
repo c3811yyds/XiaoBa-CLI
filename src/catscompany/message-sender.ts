@@ -136,7 +136,7 @@ export class MessageSender {
     try {
       if (!fs.existsSync(filePath)) {
         Logger.error(`文件不存在: ${filePath}`);
-        return;
+        throw new Error(`文件不存在: ${filePath}`);
       }
 
       const ext = path.extname(fileName).toLowerCase();
