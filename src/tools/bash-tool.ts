@@ -2,6 +2,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { Tool, ToolDefinition, ToolExecutionContext } from '../types/tool';
 import { Logger } from '../utils/logger';
+import { resolveRuntimeEnvironment } from '../utils/runtime-environment';
 import { isToolAllowed, isBashCommandAllowed } from '../utils/safety';
 
 const execAsync = promisify(exec);
@@ -54,10 +55,15 @@ export class ShellTool implements Tool {
     Logger.info(`工作目录: ${context.workingDirectory}`);
 
     const startTime = Date.now();
+    const runtimeEnvironment = resolveRuntimeEnvironment({
+      env: process.env,
+      probeVersion: false,
+    });
 
     try {
       const { stdout, stderr } = await execAsync(command, {
         cwd: context.workingDirectory,
+        env: runtimeEnvironment.env,
         encoding: 'utf-8',
         timeout: timeout,
         maxBuffer: 10 * 1024 * 1024, // 10MB

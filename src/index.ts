@@ -6,89 +6,74 @@ import { chatCommand } from './commands/chat';
 import { configCommand } from './commands/config';
 import { registerSkillCommand } from './commands/skill';
 import { feishuCommand } from './commands/feishu';
+import { runtimeCommand } from './commands/runtime';
 import { APP_VERSION } from './version';
-// import { LogUploadScheduler } from './utils/log-upload-scheduler';
-
-// 启动日志上传调度器
-// const uploadScheduler = new LogUploadScheduler();
-// uploadScheduler.start();
-
-// 优雅退出
-// process.on('SIGINT', () => {
-//   uploadScheduler.stop();
-//   process.exit(0);
-// });
 
 function main() {
   const program = new Command();
 
-  // 显示品牌标识
   Logger.brand();
 
   program
     .name('xiaoba')
-    .description('XiaoBa - 您的智能AI命令行助手')
+    .description('XiaoBa agent CLI')
     .version(APP_VERSION)
-    .option('-s, --skill <name>', '启动时绑定指定 skill');
+    .option('-s, --skill <name>', 'Bind a skill at startup');
 
-  // 聊天命令
   program
     .command('chat')
-    .description('开始与XiaoBa对话')
-    .option('-i, --interactive', '进入交互式对话模式')
-    .option('-m, --message <message>', '发送单条消息')
-    .option('-s, --skill <name>', '启动时绑定指定 skill')
+    .description('Start a XiaoBa chat session')
+    .option('-i, --interactive', 'Enter interactive mode')
+    .option('-m, --message <message>', 'Send a single message')
+    .option('-s, --skill <name>', 'Bind a skill at startup')
     .action(chatCommand);
 
-  // 配置命令
   program
     .command('config')
-    .description('配置XiaoBa的API设置')
+    .description('Configure XiaoBa API settings')
     .action(configCommand);
 
-  // 飞书机器人命令
   program
     .command('feishu')
-    .description('启动飞书机器人（WebSocket 长连接模式）')
+    .description('Start the Feishu bot')
     .action(feishuCommand);
 
-  // Cats Company 机器人命令
   program
     .command('catscompany')
-    .description('启动 Cats Company 机器人（WebSocket 长连接模式）')
+    .description('Start the Cats Company bot')
     .action(async () => {
       const { catscompanyCommand } = await import('./commands/catscompany');
       await catscompanyCommand();
     });
 
-  // 微信机器人命令
   program
     .command('weixin')
-    .description('启动微信机器人')
+    .description('Start the Weixin bot')
     .action(async () => {
       const { weixinCommand } = await import('./commands/weixin');
       await weixinCommand();
     });
 
-  // Dashboard 命令
   program
     .command('dashboard')
-    .description('启动 XiaoBa Dashboard 管理面板')
-    .option('-p, --port <port>', '指定端口号', '3800')
+    .description('Start the XiaoBa Dashboard')
+    .option('-p, --port <port>', 'Specify the port number', '3800')
     .action(async (options) => {
       const { dashboardCommand } = await import('./commands/dashboard');
       await dashboardCommand(options);
     });
 
-  // Skill 管理命令
+  program
+    .command('runtime')
+    .description('Show the resolved node, python, and git runtimes')
+    .action(runtimeCommand);
+
   registerSkillCommand(program);
 
-  // 默认命令 - 进入交互模式
-  program
-    .action(() => {
-      const opts = program.opts();
-      chatCommand({ interactive: true, skill: opts.skill });
-    });
+  program.action(() => {
+    const options = program.opts();
+    chatCommand({ interactive: true, skill: options.skill });
+  });
 
   program.parse();
 }

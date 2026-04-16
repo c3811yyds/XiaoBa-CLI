@@ -12,14 +12,16 @@
     "start": "node dist/index.js",
     "start:cli": "node dist/index.js",
     "electron:dev": "npm run build && electron .",
-    "electron:build": "npm run build && electron-builder --publish never",
-    "electron:build:mac": "npm run build && electron-builder --mac --publish never",
-    "electron:build:win": "npm run build && electron-builder --win --publish never",
-    "electron:build:linux": "npm run build && electron-builder --linux --publish never",
+    "electron:build": "npm run build && npm run prepare:runtime && electron-builder --publish never",
+    "electron:build:mac": "npm run build && npm run prepare:runtime && electron-builder --mac --publish never",
+    "electron:build:win": "npm run build && npm run prepare:runtime && electron-builder --win --publish never",
+    "electron:build:linux": "npm run build && npm run prepare:runtime && electron-builder --linux --publish never",
     "watch": "tsc --watch",
     "test": "tsx --test tests/**/*.test.ts",
     "report": "node dist/index.js chat --exec '/report'",
-    "clean-logs": "node scripts/clean-logs.mjs"
+    "clean-logs": "node scripts/clean-logs.mjs",
+    "prepare:runtime": "node scripts/prepare-runtime.mjs",
+    "prepare:runtime:refresh": "node scripts/prepare-runtime.mjs --refresh"
   },
   "keywords": [
     "cli",
@@ -124,8 +126,8 @@
     ],
     "extraFiles": [
       {
-        "from": "build-resources/node",
-        "to": "node",
+        "from": "build-resources/runtime",
+        "to": "runtime",
         "filter": [
           "**/*"
         ]
@@ -178,3 +180,5 @@
     }
   }
 }
+
+

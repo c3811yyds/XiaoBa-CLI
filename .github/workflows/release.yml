@@ -23,6 +23,12 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Cache runtime downloads
+        uses: actions/cache@v4
+        with:
+          path: .cache/runtime-downloads
+          key: ${{ runner.os }}-${{ runner.arch }}-runtime-${{ hashFiles('scripts/runtime-manifest.json') }}
+
       - name: Install dependencies
         run: npm ci ${{ env.NPM_INSTALL_FLAGS }}
 
@@ -55,6 +61,12 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Cache runtime downloads
+        uses: actions/cache@v4
+        with:
+          path: .cache/runtime-downloads
+          key: ${{ runner.os }}-${{ runner.arch }}-runtime-${{ hashFiles('scripts/runtime-manifest.json') }}
+
       - name: Install dependencies
         run: npm ci ${{ env.NPM_INSTALL_FLAGS }}
 
@@ -86,6 +98,12 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: package-lock.json
+
+      - name: Cache runtime downloads
+        uses: actions/cache@v4
+        with:
+          path: .cache/runtime-downloads
+          key: ${{ runner.os }}-${{ runner.arch }}-runtime-${{ hashFiles('scripts/runtime-manifest.json') }}
 
       - name: Install dependencies
         run: npm ci ${{ env.NPM_INSTALL_FLAGS }}

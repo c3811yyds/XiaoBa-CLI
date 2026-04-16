@@ -1,0 +1,169 @@
+{
+  "downloadCacheDir": ".cache/runtime-downloads",
+  "runtimes": {
+    "node": {
+      "version": "20.12.2",
+      "targets": {
+        "win32-x64": {
+          "archiveType": "zip",
+          "targetSubdir": "node",
+          "sources": [
+            {
+              "url": "https://nodejs.org/dist/v20.12.2/node-v20.12.2-win-x64.zip",
+              "sha256": "66dda1717cae30a13be6bb17ad96ee54b69f2c23c85acd9c3299b095fa26b452"
+            },
+            {
+              "url": "https://nodejs.org/download/release/v20.12.2/node-v20.12.2-win-x64.zip",
+              "sha256": "66dda1717cae30a13be6bb17ad96ee54b69f2c23c85acd9c3299b095fa26b452"
+            }
+          ]
+        },
+        "win32-arm64": {
+          "archiveType": "zip",
+          "targetSubdir": "node",
+          "sources": [
+            {
+              "url": "https://nodejs.org/dist/v20.12.2/node-v20.12.2-win-arm64.zip",
+              "sha256": "010d488af3adad98e44b2d3f61afb7e3d87b5a620f7a406fe75ab0909b72e7ca"
+            },
+            {
+              "url": "https://nodejs.org/download/release/v20.12.2/node-v20.12.2-win-arm64.zip",
+              "sha256": "010d488af3adad98e44b2d3f61afb7e3d87b5a620f7a406fe75ab0909b72e7ca"
+            }
+          ]
+        },
+        "darwin-x64": {
+          "archiveType": "tar.xz",
+          "targetSubdir": "node",
+          "sources": [
+            {
+              "url": "https://nodejs.org/dist/v20.12.2/node-v20.12.2-darwin-x64.tar.xz",
+              "sha256": "226c2d475091da92892c46e40d058668cf236eb298c1769a3b27151352932b42"
+            },
+            {
+              "url": "https://nodejs.org/download/release/v20.12.2/node-v20.12.2-darwin-x64.tar.xz",
+              "sha256": "226c2d475091da92892c46e40d058668cf236eb298c1769a3b27151352932b42"
+            }
+          ]
+        },
+        "darwin-arm64": {
+          "archiveType": "tar.xz",
+          "targetSubdir": "node",
+          "sources": [
+            {
+              "url": "https://nodejs.org/dist/v20.12.2/node-v20.12.2-darwin-arm64.tar.xz",
+              "sha256": "37a0cf0d1ea5067040586b34c76d4e2b78bd2246c51106218489e60008475209"
+            },
+            {
+              "url": "https://nodejs.org/download/release/v20.12.2/node-v20.12.2-darwin-arm64.tar.xz",
+              "sha256": "37a0cf0d1ea5067040586b34c76d4e2b78bd2246c51106218489e60008475209"
+            }
+          ]
+        },
+        "linux-x64": {
+          "archiveType": "tar.xz",
+          "targetSubdir": "node",
+          "sources": [
+            {
+              "url": "https://nodejs.org/dist/v20.12.2/node-v20.12.2-linux-x64.tar.xz",
+              "sha256": "595272130310cbe12301430756f23d153f7ab95d00174c02adc11a2e3703d183"
+            },
+            {
+              "url": "https://nodejs.org/download/release/v20.12.2/node-v20.12.2-linux-x64.tar.xz",
+              "sha256": "595272130310cbe12301430756f23d153f7ab95d00174c02adc11a2e3703d183"
+            }
+          ]
+        },
+        "linux-arm64": {
+          "archiveType": "tar.xz",
+          "targetSubdir": "node",
+          "sources": [
+            {
+              "url": "https://nodejs.org/dist/v20.12.2/node-v20.12.2-linux-arm64.tar.xz",
+              "sha256": "b5fc7983fb9506b8c3de53dfa85ff63f9f49cedc94984e29e4c89328536ba4b9"
+            },
+            {
+              "url": "https://nodejs.org/download/release/v20.12.2/node-v20.12.2-linux-arm64.tar.xz",
+              "sha256": "b5fc7983fb9506b8c3de53dfa85ff63f9f49cedc94984e29e4c89328536ba4b9"
+            }
+          ]
+        }
+      }
+    },
+    "python": {
+      "version": "3.12.7+20241016",
+      "targets": {
+        "win32-x64": {
+          "archiveType": "tar.gz",
+          "targetSubdir": "python",
+          "sources": [
+            {
+              "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.12.7%2B20241016-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
+              "sha256": "fa8ac308a7cd1774d599ad9a29f1e374fbdc11453b12a8c50cc4afdb5c4bfd1a"
+            },
+            {
+              "url": "https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.12.7%2B20241016-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
+              "sha256": "fa8ac308a7cd1774d599ad9a29f1e374fbdc11453b12a8c50cc4afdb5c4bfd1a"
+            }
+          ]
+        },
+        "darwin-x64": {
+          "archiveType": "tar.gz",
+          "targetSubdir": "python",
+          "sources": [
+            {
+              "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.12.7%2B20241016-x86_64-apple-darwin-install_only_stripped.tar.gz",
+              "sha256": "8e92d65b245b572fa6f520d428a9807a9da36428c7379a11d41ae428e69ed921"
+            },
+            {
+              "url": "https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.12.7%2B20241016-x86_64-apple-darwin-install_only_stripped.tar.gz",
+              "sha256": "8e92d65b245b572fa6f520d428a9807a9da36428c7379a11d41ae428e69ed921"
+            }
+          ]
+        },
+        "darwin-arm64": {
+          "archiveType": "tar.gz",
+          "targetSubdir": "python",
+          "sources": [
+            {
+              "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.12.7%2B20241016-aarch64-apple-darwin-install_only_stripped.tar.gz",
+              "sha256": "95dd397e3aef4cc1846867cf20be704bdd74edd16ea8032caf01e48f0c53d65d"
+            },
+            {
+              "url": "https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.12.7%2B20241016-aarch64-apple-darwin-install_only_stripped.tar.gz",
+              "sha256": "95dd397e3aef4cc1846867cf20be704bdd74edd16ea8032caf01e48f0c53d65d"
+            }
+          ]
+        },
+        "linux-x64": {
+          "archiveType": "tar.gz",
+          "targetSubdir": "python",
+          "sources": [
+            {
+              "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.12.7%2B20241016-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+              "sha256": "3a4d53a7ba3916c0c1f35cbbe57068e2571b138389f29cf5c35367fec8f4c617"
+            },
+            {
+              "url": "https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.12.7%2B20241016-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+              "sha256": "3a4d53a7ba3916c0c1f35cbbe57068e2571b138389f29cf5c35367fec8f4c617"
+            }
+          ]
+        },
+        "linux-arm64": {
+          "archiveType": "tar.gz",
+          "targetSubdir": "python",
+          "sources": [
+            {
+              "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20241016/cpython-3.12.7%2B20241016-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz",
+              "sha256": "c8f5ed70ee3c19da72d117f7b306adc6ca1eaf26afcbe1cc1be57d1e18df184c"
+            },
+            {
+              "url": "https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.12.7%2B20241016-aarch64-unknown-linux-gnu-install_only_stripped.tar.gz",
+              "sha256": "c8f5ed70ee3c19da72d117f7b306adc6ca1eaf26afcbe1cc1be57d1e18df184c"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

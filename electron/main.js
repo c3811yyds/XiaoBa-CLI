@@ -16,36 +16,23 @@ try {
 }
 
 function getAppRoot() {
-  // asar 已关闭
-  // 打包后: Resources/app/electron/main.js -> Resources/app/
-  // 开发时: electron/main.js -> ./
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'app');
   }
   return path.join(__dirname, '..');
 }
 
-/**
- * 获取内嵌的 node.exe 路径（打包版）或系统 node（开发版）
- */
-function getNodeExePath() {
+function getRuntimeRoot() {
   if (app.isPackaged) {
-    // extraFiles 将 build-resources/node/ 复制到 Contents/node/
-    const nodeFileName = process.platform === 'win32' ? 'node.exe' : 'node';
-    // macOS: process.execPath = Contents/MacOS/XiaoBa, 需要 ../node/node
-    // Windows: process.execPath = XiaoBa.exe, 需要 ./node/node.exe
     const contentsDir = process.platform === 'darwin'
       ? path.join(path.dirname(process.execPath), '..')
       : path.dirname(process.execPath);
-    const embeddedNode = path.join(contentsDir, 'node', nodeFileName);
-    const fs = require('fs');
-    if (fs.existsSync(embeddedNode)) {
-      return embeddedNode;
-    }
-    console.warn('Embedded node not found at', embeddedNode, ', falling back to system node');
+    return path.join(contentsDir, 'runtime');
   }
-  return 'node';
+  return path.join(getAppRoot(), 'build-resources', 'runtime');
 }
+
+
 
 /**
  * 获取 node_modules 路径（打包版在 extraResources 中）
@@ -122,6 +109,7 @@ async function startServer() {
 
   // 告诉 dashboard server app 的实际位置（asar 内）
   process.env.XIAOBA_APP_ROOT = appRoot;
+  process.env.XIAOBA_RUNTIME_ROOT = getRuntimeRoot();
 
   // 打包版：设置 NODE_PATH 让子进程能找到 node_modules
   const nodeModulesPath = getNodeModulesPath();
@@ -131,8 +119,18 @@ async function startServer() {
     require('module').Module._initPaths();
   }
 
-  // 设置内嵌 node.exe 路径供 service-manager 使用
-  process.env.XIAOBA_NODE_EXE = getNodeExePath();
+  const runtimeEnvironmentModulePath = path.join(appRoot, 'dist', 'utils', 'runtime-environment');
+  const { resolveRuntimeEnvironment, formatRuntimeSummary } = require(runtimeEnvironmentModulePath);
+  const runtimeEnvironment = resolveRuntimeEnvironment({
+    env: process.env,
+    appRoot,
+    runtimeRoot: process.env.XIAOBA_RUNTIME_ROOT,
+    isPackaged: app.isPackaged,
+  });
+  Object.assign(process.env, runtimeEnvironment.env);
+  console.log('[runtime]', formatRuntimeSummary(runtimeEnvironment.binaries.node));
+  console.log('[runtime]', formatRuntimeSummary(runtimeEnvironment.binaries.python));
+  console.log('[runtime]', formatRuntimeSummary(runtimeEnvironment.binaries.git));
 
   // 直接在主进程启动dashboard server
   const { startDashboard } = require(path.join(appRoot, 'dist', 'dashboard', 'server'));
