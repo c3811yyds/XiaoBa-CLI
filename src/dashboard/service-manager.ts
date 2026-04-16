@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as dotenv from 'dotenv';
 import { EventEmitter } from 'events';
+import { resolveRuntimeEnvironment } from '../utils/runtime-environment';
 
 const isWindows = process.platform === 'win32';
 
@@ -49,13 +50,20 @@ export class ServiceManager extends EventEmitter {
   private registerBuiltinServices() {
     const packaged = this.isPackaged();
     const appRoot = this.getAppRoot();
+    const runtimeEnvironment = resolveRuntimeEnvironment({
+      env: process.env,
+      appRoot,
+      runtimeRoot: process.env.XIAOBA_RUNTIME_ROOT,
+      isPackaged: packaged,
+      probeVersion: false,
+    });
 
     let command: string;
     let args: (name: string) => string[];
 
     if (packaged) {
       // 打包版：优先使用内嵌的 node.exe，否则回退系统 node
-      command = process.env.XIAOBA_NODE_EXE || 'node';
+      command = runtimeEnvironment.binaries.node.executable || 'node';
       const distEntry = path.join(appRoot, 'dist', 'index.js');
       args = (name) => [distEntry, name];
     } else {
@@ -146,6 +154,15 @@ export class ServiceManager extends EventEmitter {
     if (this.isPackaged() && process.env.XIAOBA_NODE_MODULES) {
       envVars.NODE_PATH = process.env.XIAOBA_NODE_MODULES;
     }
+
+    const runtimeEnvironment = resolveRuntimeEnvironment({
+      env: envVars,
+      appRoot: this.getAppRoot(),
+      runtimeRoot: envVars.XIAOBA_RUNTIME_ROOT,
+      isPackaged: this.isPackaged(),
+      probeVersion: false,
+    });
+    envVars = runtimeEnvironment.env;
 
     const child = spawn(svc.info.command, svc.info.args, {
       cwd: spawnCwd,

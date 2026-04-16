@@ -38,3 +38,5 @@ Thumbs.db
 
 # 系统文件
 bash.exe.stackdump
+
+build-resources/runtime/
