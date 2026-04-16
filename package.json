@@ -20,7 +20,8 @@
     "test": "tsx --test tests/**/*.test.ts",
     "report": "node dist/index.js chat --exec '/report'",
     "clean-logs": "node scripts/clean-logs.mjs",
-    "prepare:runtime": "node scripts/prepare-runtime.mjs"
+    "prepare:runtime": "node scripts/prepare-runtime.mjs",
+    "prepare:runtime:refresh": "node scripts/prepare-runtime.mjs --refresh"
   },
   "keywords": [
     "cli",
@@ -179,3 +180,5 @@
     }
   }
 }
+
+
