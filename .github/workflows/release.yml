@@ -14,7 +14,7 @@ jobs:
     runs-on: macos-latest
     environment: cn_jiasu
     env:
-      XIAOBA_UPDATE_BASE_URL: ${{ secrets.XIAOBA_UPDATE_BASE_URL }}
+      XIAOBA_UPDATE_BASE_URL: https://github-hk.tos-cn-hongkong.volces.com/update
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -55,7 +55,7 @@ jobs:
     runs-on: windows-latest
     environment: cn_jiasu
     env:
-      XIAOBA_UPDATE_BASE_URL: ${{ secrets.XIAOBA_UPDATE_BASE_URL }}
+      XIAOBA_UPDATE_BASE_URL: https://github-hk.tos-cn-hongkong.volces.com/update
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -96,7 +96,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: cn_jiasu
     env:
-      XIAOBA_UPDATE_BASE_URL: ${{ secrets.XIAOBA_UPDATE_BASE_URL }}
+      XIAOBA_UPDATE_BASE_URL: https://github-hk.tos-cn-hongkong.volces.com/update
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -147,12 +147,12 @@ jobs:
     env:
       VOLC_TOS_ACCESS_KEY_ID: ${{ secrets.VOLC_TOS_ACCESS_KEY_ID }}
       VOLC_TOS_SECRET_ACCESS_KEY: ${{ secrets.VOLC_TOS_SECRET_ACCESS_KEY }}
-      VOLC_TOS_BUCKET: ${{ secrets.VOLC_TOS_BUCKET }}
-      VOLC_TOS_REGION: ${{ secrets.VOLC_TOS_REGION }}
-      XIAOBA_UPDATE_BASE_URL: ${{ secrets.XIAOBA_UPDATE_BASE_URL }}
+      VOLC_TOS_BUCKET: github-hk
+      VOLC_TOS_REGION: cn-hongkong
+      XIAOBA_UPDATE_BASE_URL: https://github-hk.tos-cn-hongkong.volces.com/update
       AWS_ACCESS_KEY_ID: ${{ secrets.VOLC_TOS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.VOLC_TOS_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: ${{ secrets.VOLC_TOS_REGION }}
+      AWS_DEFAULT_REGION: 'cn-hongkong'
       AWS_EC2_METADATA_DISABLED: 'true'
     steps:
       - name: Download macOS artifacts
