@@ -214,7 +214,6 @@ jobs:
 
             aws s3 cp "$source_file" "s3://${TOS_SOURCE_BUCKET}/$target_key" \
               --endpoint-url "$SOURCE_ENDPOINT_URL" \
-              --acl public-read \
               --cache-control "$IMMUTABLE_CACHE_CONTROL" \
               --only-show-errors
           }
@@ -272,6 +271,25 @@ jobs:
             [ -n "$key" ] || continue
             wait_for_target_object "$key"
           done < replicated-keys.txt
+
+      - name: Expose replicated payloads in Guangzhou bucket
+        if: env.VOLC_TOS_ACCESS_KEY_ID != '' && env.VOLC_TOS_SECRET_ACCESS_KEY != ''
+        run: |
+          set -euo pipefail
+
+          TARGET_ENDPOINT_URL="https://tos-s3-${TOS_TARGET_REGION}.volces.com"
+
+          while IFS= read -r key; do
+            [ -n "$key" ] || continue
+
+            aws s3api put-object-acl \
+              --bucket "$TOS_TARGET_BUCKET" \
+              --key "$key" \
+              --acl public-read \
+              --endpoint-url "$TARGET_ENDPOINT_URL" \
+              >/dev/null
+          done < replicated-keys.txt
+
 
       - name: Publish latest metadata to Guangzhou bucket
         if: env.VOLC_TOS_ACCESS_KEY_ID != '' && env.VOLC_TOS_SECRET_ACCESS_KEY != ''
