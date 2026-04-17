@@ -26,14 +26,6 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      - name: Reuse hosted Node headers
-        shell: bash
-        run: |
-          set -euo pipefail
-          NODE_DIR="$(node -p "require('path').dirname(require('path').dirname(process.execPath))")"
-          echo "npm_config_nodedir=$NODE_DIR" >> "$GITHUB_ENV"
-          echo "NPM_CONFIG_NODEDIR=$NODE_DIR" >> "$GITHUB_ENV"
-
       - name: Cache runtime downloads
         uses: actions/cache@v4
         with:
@@ -44,8 +36,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            NODE_DIR="$(node -p "require('path').dirname(process.execPath)")"
+          else
+            NODE_DIR="$(node -p "require('path').dirname(require('path').dirname(process.execPath))")"
+          fi
+
           for attempt in 1 2 3; do
-            if npm ci ${{ env.NPM_INSTALL_FLAGS }}; then
+            if npm_config_nodedir="$NODE_DIR" NPM_CONFIG_NODEDIR="$NODE_DIR" npm ci ${{ env.NPM_INSTALL_FLAGS }}; then
               exit 0
             fi
 
@@ -90,14 +89,6 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      - name: Reuse hosted Node headers
-        shell: bash
-        run: |
-          set -euo pipefail
-          NODE_DIR="$(node -p "require('path').dirname(require('path').dirname(process.execPath))")"
-          echo "npm_config_nodedir=$NODE_DIR" >> "$GITHUB_ENV"
-          echo "NPM_CONFIG_NODEDIR=$NODE_DIR" >> "$GITHUB_ENV"
-
       - name: Cache runtime downloads
         uses: actions/cache@v4
         with:
@@ -108,8 +99,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            NODE_DIR="$(node -p "require('path').dirname(process.execPath)")"
+          else
+            NODE_DIR="$(node -p "require('path').dirname(require('path').dirname(process.execPath))")"
+          fi
+
           for attempt in 1 2 3; do
-            if npm ci ${{ env.NPM_INSTALL_FLAGS }}; then
+            if npm_config_nodedir="$NODE_DIR" NPM_CONFIG_NODEDIR="$NODE_DIR" npm ci ${{ env.NPM_INSTALL_FLAGS }}; then
               exit 0
             fi
 
@@ -154,14 +152,6 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      - name: Reuse hosted Node headers
-        shell: bash
-        run: |
-          set -euo pipefail
-          NODE_DIR="$(node -p "require('path').dirname(require('path').dirname(process.execPath))")"
-          echo "npm_config_nodedir=$NODE_DIR" >> "$GITHUB_ENV"
-          echo "NPM_CONFIG_NODEDIR=$NODE_DIR" >> "$GITHUB_ENV"
-
       - name: Cache runtime downloads
         uses: actions/cache@v4
         with:
@@ -172,8 +162,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            NODE_DIR="$(node -p "require('path').dirname(process.execPath)")"
+          else
+            NODE_DIR="$(node -p "require('path').dirname(require('path').dirname(process.execPath))")"
+          fi
+
           for attempt in 1 2 3; do
-            if npm ci ${{ env.NPM_INSTALL_FLAGS }}; then
+            if npm_config_nodedir="$NODE_DIR" NPM_CONFIG_NODEDIR="$NODE_DIR" npm ci ${{ env.NPM_INSTALL_FLAGS }}; then
               exit 0
             fi
 
