@@ -109,6 +109,14 @@ export class AgentSession {
     return 'chat';
   }
 
+  runWithLogContext<T>(fn: () => T): T {
+    return Logger.withSessionContext(this.key, this.sessionTurnLogger, fn);
+  }
+
+  private withLogContext<T>(fn: () => T): T {
+    return this.runWithLogContext(fn);
+  }
+
   /** 注入主动唤醒回调（由平台 SessionManager 在创建/获取 session 时调用） */
   setWakeupReply(callback: (text: string) => Promise<void>): void {
     this.wakeupReply = callback;
@@ -188,25 +196,27 @@ export class AgentSession {
    * 用于 --skill 参数，在会话开始前绑定 skill 上下文。
    */
   async activateSkill(skillName: string): Promise<boolean> {
-    const skill = this.services.skillManager.getSkill(skillName);
-    if (!skill) {
-      Logger.warning(`Skill "${skillName}" 未找到`);
-      return false;
-    }
+    return this.withLogContext(async () => {
+      const skill = this.services.skillManager.getSkill(skillName);
+      if (!skill) {
+        Logger.warning(`Skill "${skillName}" 未找到`);
+        return false;
+      }
 
-    await this.init();
+      await this.init();
 
-    const context: SkillInvocationContext = {
-      skillName,
-      arguments: [],
-      rawArguments: '',
-      userMessage: '',
-    };
-    const activation = buildSkillActivationSignal(skill, context);
-    this.applySkillActivation(activation);
+      const context: SkillInvocationContext = {
+        skillName,
+        arguments: [],
+        rawArguments: '',
+        userMessage: '',
+      };
+      const activation = buildSkillActivationSignal(skill, context);
+      this.applySkillActivation(activation);
 
-    Logger.info(`[${this.key}] 启动时激活 skill: ${skill.metadata.name}${skill.metadata.maxTurns ? ` (maxTurns=${skill.metadata.maxTurns})` : ''}`);
-    return true;
+      Logger.info(`[${this.key}] 启动时激活 skill: ${skill.metadata.name}${skill.metadata.maxTurns ? ` (maxTurns=${skill.metadata.maxTurns})` : ''}`);
+      return true;
+    });
   }
 
   // ─── 消息处理 ───────────────────────────────────────
@@ -236,229 +246,231 @@ export class AgentSession {
     text: string | import('../types').ContentBlock[],
     callbacksOrOptions?: SessionCallbacks | HandleMessageOptions,
   ): Promise<HandleMessageResult> {
-    // 兼容旧签名：如果传入的对象有 onText/onToolStart 等字段，视为 SessionCallbacks
-    let callbacks: SessionCallbacks | undefined;
-    let channel: ChannelCallbacks | undefined;
+    return this.withLogContext(async () => {
+      // 兼容旧签名：如果传入的对象有 onText/onToolStart 等字段，视为 SessionCallbacks
+      let callbacks: SessionCallbacks | undefined;
+      let channel: ChannelCallbacks | undefined;
 
-    if (callbacksOrOptions) {
-      if ('channel' in callbacksOrOptions || 'callbacks' in callbacksOrOptions) {
-        // 新签名 HandleMessageOptions
-        const opts = callbacksOrOptions as HandleMessageOptions;
-        callbacks = opts.callbacks;
-        channel = opts.channel;
-      } else {
-        // 旧签名 SessionCallbacks
-        callbacks = callbacksOrOptions as SessionCallbacks;
+      if (callbacksOrOptions) {
+        if ('channel' in callbacksOrOptions || 'callbacks' in callbacksOrOptions) {
+          // 新签名 HandleMessageOptions
+          const opts = callbacksOrOptions as HandleMessageOptions;
+          callbacks = opts.callbacks;
+          channel = opts.channel;
+        } else {
+          // 旧签名 SessionCallbacks
+          callbacks = callbacksOrOptions as SessionCallbacks;
+        }
       }
-    }
 
-    if (this.busy) {
-      return { text: BUSY_MESSAGE, visibleToUser: true };
-    }
+      if (this.busy) {
+        return { text: BUSY_MESSAGE, visibleToUser: true };
+      }
 
-    // 按"单次消息"统计 metrics，避免跨轮次累积导致定位困难
-    Metrics.reset();
+      // 按"单次消息"统计 metrics，避免跨轮次累积导致定位困难
+      Metrics.reset();
 
-    this.busy = true;
-    this.interruptRequested = false;
-    this.lastActiveAt = Date.now();
+      this.busy = true;
+      this.interruptRequested = false;
+      this.lastActiveAt = Date.now();
 
-    // 检查是否需要压缩上下文
-    if (this.compressor.needsCompaction(this.messages)) {
-      const usage = this.compressor.getUsageInfo(this.messages);
-      Logger.info(`[${this.key}] 上下文即将压缩: ${usage.usedTokens}/${usage.maxTokens} tokens (${usage.usagePercent}%)`);
+      // 检查是否需要压缩上下文
+      if (this.compressor.needsCompaction(this.messages)) {
+        const usage = this.compressor.getUsageInfo(this.messages);
+        Logger.info(`[${this.key}] 上下文即将压缩: ${usage.usedTokens}/${usage.maxTokens} tokens (${usage.usagePercent}%)`);
+        try {
+          this.messages = await this.compressor.compact(this.messages);
+          Logger.info(`[${this.key}] 压缩完成，当前消息数: ${this.messages.length}`);
+        } catch (err) {
+          Logger.error(`[${this.key}] 压缩失败: ${err}`);
+        }
+      }
+
       try {
-        this.messages = await this.compressor.compact(this.messages);
-        Logger.info(`[${this.key}] 压缩完成，当前消息数: ${this.messages.length}`);
-      } catch (err) {
-        Logger.error(`[${this.key}] 压缩失败: ${err}`);
-      }
-    }
-
-    try {
-      await this.init();
-      const textContent = typeof text === 'string' ? text : '';
-      this.tryAutoActivateSkill(textContent);
-      this.messages.push({ role: 'user', content: text });
+        await this.init();
+        const textContent = typeof text === 'string' ? text : '';
+        this.tryAutoActivateSkill(textContent);
+        this.messages.push({ role: 'user', content: text });
 
 
-      // 构建上下文消息
-      let contextMessages: Message[] = [...this.messages];
+        // 构建上下文消息
+        let contextMessages: Message[] = [...this.messages];
 
-      // 注入后台子智能体状态（临时上下文，不持久化）
-      const subAgentManager = SubAgentManager.getInstance();
-      const runningSubAgents = subAgentManager.listByParent(this.key);
-      if (runningSubAgents.length > 0) {
-        const statusLines = runningSubAgents.map(s => {
-          const statusLabel = s.status === 'running' ? '运行中' : s.status === 'completed' ? '已完成' : s.status === 'failed' ? '失败' : '已停止';
-          const latest = s.progressLog[s.progressLog.length - 1] ?? '';
-          const summary = s.status === 'completed' && s.resultSummary ? `\n  结果: ${s.resultSummary.slice(0, 200)}` : '';
-          return `- [${s.id}] ${s.taskDescription} (${statusLabel}) ${latest}${summary}`;
-        }).join('\n');
+        // 注入后台子智能体状态（临时上下文，不持久化）
+        const subAgentManager = SubAgentManager.getInstance();
+        const runningSubAgents = subAgentManager.listByParent(this.key);
+        if (runningSubAgents.length > 0) {
+          const statusLines = runningSubAgents.map(s => {
+            const statusLabel = s.status === 'running' ? '运行中' : s.status === 'completed' ? '已完成' : s.status === 'failed' ? '失败' : '已停止';
+            const latest = s.progressLog[s.progressLog.length - 1] ?? '';
+            const summary = s.status === 'completed' && s.resultSummary ? `\n  结果: ${s.resultSummary.slice(0, 200)}` : '';
+            return `- [${s.id}] ${s.taskDescription} (${statusLabel}) ${latest}${summary}`;
+          }).join('\n');
 
-        const subagentStatusMsg: Message = {
-          role: 'system',
-          content: `${TRANSIENT_SUBAGENT_STATUS_PREFIX}\n当前有 ${runningSubAgents.length} 个后台子任务：\n${statusLines}\n\n用户如果询问任务进度，请基于以上信息回答。如果用户要求停止任务，使用 stop_subagent 工具。`,
-        };
-        // 插入到最后一条用户消息之前
-        const lastUserIdx = contextMessages.length - 1;
-        contextMessages.splice(lastUserIdx, 0, subagentStatusMsg);
-      }
-
-      // 动态注入当前可用 skills 列表（临时上下文，不持久化）
-      // 每次处理消息时重新从磁盘加载 skills，确保 Dashboard 的禁用/启用/安装/删除立即生效
-      await this.services.skillManager.loadSkills();
-
-      const skills = this.services.skillManager.getUserInvocableSkills();
-      if (skills.length > 0) {
-        const skillList = skills.map(s => `- ${s.metadata.name}: ${s.metadata.description}`).join('\n');
-        const skillsListMsg: Message = {
-          role: 'system',
-          content: `${TRANSIENT_SKILLS_LIST_PREFIX}\n你可以使用以下skills（通过skill工具调用）：\n\n${skillList}`,
-        };
-        const lastUserIdx = contextMessages.length - 1;
-        contextMessages.splice(lastUserIdx, 0, skillsListMsg);
-      }
-
-      // 运行对话循环（优先用显式设置的 maxTurns，否则从 messages 中检测已激活 skill）
-      const detectedSkillName = this.activeSkillName ?? this.detectActiveSkillName();
-      if (detectedSkillName) {
-        const detectedSkill = this.services.skillManager.getSkill(detectedSkillName);
-        this.activeSkillName = detectedSkillName;
-        this.activeSkillMaxTurns = detectedSkill?.metadata.maxTurns;
-      }
-
-      const effectiveMaxTurns = this.activeSkillMaxTurns ?? this.detectSkillMaxTurns();
-      const surface = this.isCatsCompanySession()
-        ? 'catscompany'
-        : this.isFeishuSession()
-          ? 'feishu'
-          : 'cli';
-      const runner = new ConversationRunner(
-        this.services.aiService,
-        this.services.toolManager,
-        {
-          ...(effectiveMaxTurns ? { maxTurns: effectiveMaxTurns } : {}),
-          initialSkillName: this.activeSkillName,
-          shouldContinue: () => !this.interruptRequested,
-          toolExecutionContext: {
-            sessionId: this.key,
-            surface,
-            permissionProfile: 'strict',
-            channel,
-          },
-        },
-      );
-      const runnerCallbacks: RunnerCallbacks = {
-        onText: callbacks?.onText,
-        onToolStart: callbacks?.onToolStart,
-        onToolEnd: callbacks?.onToolEnd,
-        onToolDisplay: callbacks?.onToolDisplay,
-        onRetry: callbacks?.onRetry,
-      };
-
-      const result = await runner.run(contextMessages, runnerCallbacks);
-      const persistedMessages = this.removeTransientMessages(result.messages);
-      this.messages = [...persistedMessages];
-
-      // 同步 skill 激活状态
-      for (const msg of result.newMessages) {
-        const activation = this.parseActivationFromSystemMessage(msg);
-        if (activation) {
-          this.applySkillActivation(activation);
-        }
-      }
-
-      // 输出本次请求的 metrics 摘要
-      const metrics = Metrics.getSummary();
-      if (metrics.aiCalls > 0 || metrics.toolCalls > 0) {
-        Logger.info(
-          `[Metrics] AI调用: ${metrics.aiCalls}次, ` +
-          `tokens: ${metrics.totalPromptTokens}+${metrics.totalCompletionTokens}=${metrics.totalTokens}, ` +
-          `工具调用: ${metrics.toolCalls}次, 工具耗时: ${metrics.toolDurationMs}ms`
-        );
-      }
-
-      // 替换 base64 图片数据为路径占位符，避免撑爆 context
-      for (const msg of this.messages) {
-        if (Array.isArray(msg.content)) {
-          msg.content = msg.content.map(block => {
-            if (block.type === 'image' && block.source?.data) {
-              const filePath = (block as any).filePath || '未知路径';
-              return { type: 'text' as const, text: `[图片: ${filePath}]` };
-            }
-            return block;
-          });
-        }
-      }
-
-      // 清除 skill 激活状态（turn-scoped，避免状态泄漏到下一轮）
-      this.activeSkillName = undefined;
-      this.activeSkillMaxTurns = undefined;
-
-      // 移除 skill 系统消息（下一轮需要时会重新注入）
-      this.messages = this.messages.filter(m => {
-        if (m.role === 'system' && typeof m.content === 'string') {
-          return !m.content.match(/^\[skill:[^\]]+\]/);
-        }
-        return true;
-      });
-
-      // 记录本轮对话到 session log
-      const toolCalls = result.newMessages
-        .filter(m => m.role === 'assistant' && m.tool_calls)
-        .flatMap(m => m.tool_calls || [])
-        .map(tc => {
-          const resultMsg = result.newMessages.find(m => m.role === 'tool' && m.tool_call_id === tc.id);
-          const resultContent = resultMsg?.content || '';
-          const resultStr = typeof resultContent === 'string'
-            ? resultContent
-            : resultContent.map(b => b.type === 'text' ? (b as any).text : '[非文本内容]').join('');
-
-          return {
-            id: tc.id,
-            name: tc.function.name,
-            arguments: tc.function.arguments,
-            result: resultStr,
+          const subagentStatusMsg: Message = {
+            role: 'system',
+            content: `${TRANSIENT_SUBAGENT_STATUS_PREFIX}\n当前有 ${runningSubAgents.length} 个后台子任务：\n${statusLines}\n\n用户如果询问任务进度，请基于以上信息回答。如果用户要求停止任务，使用 stop_subagent 工具。`,
           };
+          // 插入到最后一条用户消息之前
+          const lastUserIdx = contextMessages.length - 1;
+          contextMessages.splice(lastUserIdx, 0, subagentStatusMsg);
+        }
+
+        // 动态注入当前可用 skills 列表（临时上下文，不持久化）
+        // 每次处理消息时重新从磁盘加载 skills，确保 Dashboard 的禁用/启用/安装/删除立即生效
+        await this.services.skillManager.loadSkills();
+
+        const skills = this.services.skillManager.getUserInvocableSkills();
+        if (skills.length > 0) {
+          const skillList = skills.map(s => `- ${s.metadata.name}: ${s.metadata.description}`).join('\n');
+          const skillsListMsg: Message = {
+            role: 'system',
+            content: `${TRANSIENT_SKILLS_LIST_PREFIX}\n你可以使用以下skills（通过skill工具调用）：\n\n${skillList}`,
+          };
+          const lastUserIdx = contextMessages.length - 1;
+          contextMessages.splice(lastUserIdx, 0, skillsListMsg);
+        }
+
+        // 运行对话循环（优先用显式设置的 maxTurns，否则从 messages 中检测已激活 skill）
+        const detectedSkillName = this.activeSkillName ?? this.detectActiveSkillName();
+        if (detectedSkillName) {
+          const detectedSkill = this.services.skillManager.getSkill(detectedSkillName);
+          this.activeSkillName = detectedSkillName;
+          this.activeSkillMaxTurns = detectedSkill?.metadata.maxTurns;
+        }
+
+        const effectiveMaxTurns = this.activeSkillMaxTurns ?? this.detectSkillMaxTurns();
+        const surface = this.isCatsCompanySession()
+          ? 'catscompany'
+          : this.isFeishuSession()
+            ? 'feishu'
+            : 'cli';
+        const runner = new ConversationRunner(
+          this.services.aiService,
+          this.services.toolManager,
+          {
+            ...(effectiveMaxTurns ? { maxTurns: effectiveMaxTurns } : {}),
+            initialSkillName: this.activeSkillName,
+            shouldContinue: () => !this.interruptRequested,
+            toolExecutionContext: {
+              sessionId: this.key,
+              surface,
+              permissionProfile: 'strict',
+              channel,
+            },
+          },
+        );
+        const runnerCallbacks: RunnerCallbacks = {
+          onText: callbacks?.onText,
+          onToolStart: callbacks?.onToolStart,
+          onToolEnd: callbacks?.onToolEnd,
+          onToolDisplay: callbacks?.onToolDisplay,
+          onRetry: callbacks?.onRetry,
+        };
+
+        const result = await runner.run(contextMessages, runnerCallbacks);
+        const persistedMessages = this.removeTransientMessages(result.messages);
+        this.messages = [...persistedMessages];
+
+        // 同步 skill 激活状态
+        for (const msg of result.newMessages) {
+          const activation = this.parseActivationFromSystemMessage(msg);
+          if (activation) {
+            this.applySkillActivation(activation);
+          }
+        }
+
+        // 输出本次请求的 metrics 摘要
+        const metrics = Metrics.getSummary();
+        if (metrics.aiCalls > 0 || metrics.toolCalls > 0) {
+          Logger.info(
+            `[Metrics] AI调用: ${metrics.aiCalls}次, ` +
+            `tokens: ${metrics.totalPromptTokens}+${metrics.totalCompletionTokens}=${metrics.totalTokens}, ` +
+            `工具调用: ${metrics.toolCalls}次, 工具耗时: ${metrics.toolDurationMs}ms`
+          );
+        }
+
+        // 替换 base64 图片数据为路径占位符，避免撑爆 context
+        for (const msg of this.messages) {
+          if (Array.isArray(msg.content)) {
+            msg.content = msg.content.map(block => {
+              if (block.type === 'image' && block.source?.data) {
+                const filePath = (block as any).filePath || '未知路径';
+                return { type: 'text' as const, text: `[图片: ${filePath}]` };
+              }
+              return block;
+            });
+          }
+        }
+
+        // 清除 skill 激活状态（turn-scoped，避免状态泄漏到下一轮）
+        this.activeSkillName = undefined;
+        this.activeSkillMaxTurns = undefined;
+
+        // 移除 skill 系统消息（下一轮需要时会重新注入）
+        this.messages = this.messages.filter(m => {
+          if (m.role === 'system' && typeof m.content === 'string') {
+            return !m.content.match(/^\[skill:[^\]]+\]/);
+          }
+          return true;
         });
 
-      this.sessionTurnLogger.logTurn(
-        text,
-        result.response || '',
-        toolCalls,
-        { prompt: metrics.totalPromptTokens, completion: metrics.totalCompletionTokens }
-      );
+        // 记录本轮对话到 session log
+        const toolCalls = result.newMessages
+          .filter(m => m.role === 'assistant' && m.tool_calls)
+          .flatMap(m => m.tool_calls || [])
+          .map(tc => {
+            const resultMsg = result.newMessages.find(m => m.role === 'tool' && m.tool_call_id === tc.id);
+            const resultContent = resultMsg?.content || '';
+            const resultStr = typeof resultContent === 'string'
+              ? resultContent
+              : resultContent.map(b => b.type === 'text' ? (b as any).text : '[非文本内容]').join('');
 
-      return {
-        text: result.finalResponseVisible ? (result.response || '[无回复]') : '',
-        visibleToUser: result.finalResponseVisible,
-        newMessages: result.newMessages,
-      };
-    } catch (err: any) {
-      // 不删除用户消息，而是添加一个错误回复，保持上下文连贯
-      // 这样用户说"继续"时可以接上
-      Logger.error(`[会话 ${this.key}] 处理失败: ${err.message}`);
+            return {
+              id: tc.id,
+              name: tc.function.name,
+              arguments: tc.function.arguments,
+              result: resultStr,
+            };
+          });
 
-      // 识别多模态相关错误
-      const errorMsg = err.message || String(err);
-      const isVisionError = errorMsg.match(/image|vision|multimodal|media_type|base64.*not supported/i);
+        this.sessionTurnLogger.logTurn(
+          text,
+          result.response || '',
+          toolCalls,
+          { prompt: metrics.totalPromptTokens, completion: metrics.totalCompletionTokens }
+        );
 
-      let errorReply = ERROR_MESSAGE;
-      if (isVisionError) {
-        errorReply = '当前模型不支持图片识别。请使用支持多模态的模型（如 Claude 3.5 Sonnet 或 GPT-4V），或者用文字描述图片内容。';
+        return {
+          text: result.finalResponseVisible ? (result.response || '[无回复]') : '',
+          visibleToUser: result.finalResponseVisible,
+          newMessages: result.newMessages,
+        };
+      } catch (err: any) {
+        // 不删除用户消息，而是添加一个错误回复，保持上下文连贯
+        // 这样用户说"继续"时可以接上
+        Logger.error(`[会话 ${this.key}] 处理失败: ${err.message}`);
+
+        // 识别多模态相关错误
+        const errorMsg = err.message || String(err);
+        const isVisionError = errorMsg.match(/image|vision|multimodal|media_type|base64.*not supported/i);
+
+        let errorReply = ERROR_MESSAGE;
+        if (isVisionError) {
+          errorReply = '当前模型不支持图片识别。请使用支持多模态的模型（如 Claude 3.5 Sonnet 或 GPT-4V），或者用文字描述图片内容。';
+        }
+
+        // 添加错误回复到上下文，保持对话连贯性
+        this.messages.push({
+          role: 'assistant',
+          content: `[处理失败: ${err.message}]`
+        });
+
+        return { text: errorReply, visibleToUser: true };
+      } finally {
+        this.busy = false;
       }
-
-      // 添加错误回复到上下文，保持对话连贯性
-      this.messages.push({
-        role: 'assistant',
-        content: `[处理失败: ${err.message}]`
-      });
-
-      return { text: errorReply, visibleToUser: true };
-    } finally {
-      this.busy = false;
-    }
+    });
   }
 
   // ─── 命令处理 ───────────────────────────────────────
@@ -469,46 +481,48 @@ export class AgentSession {
     args: string[],
     callbacks?: SessionCallbacks,
   ): Promise<CommandResult> {
-    const commandName = command.toLowerCase();
+    return this.withLogContext(async () => {
+      const commandName = command.toLowerCase();
 
-    // /stop - 中断当前正在运行的请求
-    if (commandName === 'stop') {
-      this.requestInterrupt();
-      return { handled: true, reply: '正在停止当前请求...' };
-    }
-
-    // /clear
-    if (commandName === 'clear') {
-      if (args.includes('--all')) {
-        this.clear();
-        return { handled: true, reply: '历史已清空，文件已删除' };
+      // /stop - 中断当前正在运行的请求
+      if (commandName === 'stop') {
+        this.requestInterrupt();
+        return { handled: true, reply: '正在停止当前请求...' };
       }
-      this.reset();
-      return { handled: true, reply: '历史已清空' };
-    }
 
-    // /skills
-    if (commandName === 'skills') {
-      return this.handleSkillsCommand();
-    }
+      // /clear
+      if (commandName === 'clear') {
+        if (args.includes('--all')) {
+          this.clear();
+          return { handled: true, reply: '历史已清空，文件已删除' };
+        }
+        this.reset();
+        return { handled: true, reply: '历史已清空' };
+      }
 
-    // /history
-    if (commandName === 'history') {
-      return {
-        handled: true,
-        reply: `对话历史信息:\n当前历史长度: ${this.messages.length} 条消息\n上下文压缩: 由 ConversationRunner 自动管理`,
-      };
-    }
+      // /skills
+      if (commandName === 'skills') {
+        return this.handleSkillsCommand();
+      }
 
-    // /exit
-    if (commandName === 'exit') {
-      await this.summarizeAndDestroy();
-      return { handled: true, reply: '再见！期待下次与你对话。' };
-    }
+      // /history
+      if (commandName === 'history') {
+        return {
+          handled: true,
+          reply: `对话历史信息:\n当前历史长度: ${this.messages.length} 条消息\n上下文压缩: 由 ConversationRunner 自动管理`,
+        };
+      }
+
+      // /exit
+      if (commandName === 'exit') {
+        await this.summarizeAndDestroy();
+        return { handled: true, reply: '再见！期待下次与你对话。' };
+      }
 
 
-    // skill 斜杠命令
-    return this.handleSkillCommand(commandName, args, callbacks);
+      // skill 斜杠命令
+      return this.handleSkillCommand(commandName, args, callbacks);
+    });
   }
 
   // ─── 生命周期 ──────────────────────────────────────
@@ -529,16 +543,17 @@ export class AgentSession {
   }
 
   async summarizeAndDestroy(): Promise<boolean> {
-    const hasUserMessages = this.messages.some(m => m.role === 'user');
-    if (this.messages.length === 0 || !hasUserMessages) {
-      return false;
-    }
+    return this.withLogContext(async () => {
+      const hasUserMessages = this.messages.some(m => m.role === 'user');
+      if (this.messages.length === 0 || !hasUserMessages) {
+        return false;
+      }
 
-    try {
-      const conversationText = this.messages
-        .filter(m => m.role === 'user' || m.role === 'assistant')
-        .map(m => `${m.role === 'user' ? '\u7528\u6237' : 'AI'}: ${m.content}`)
-        .join('\n');
+      try {
+        const conversationText = this.messages
+          .filter(m => m.role === 'user' || m.role === 'assistant')
+          .map(m => `${m.role === 'user' ? '\u7528\u6237' : 'AI'}: ${m.content}`)
+          .join('\n');
 
       // \u540c\u65f6\u751f\u6210\u6458\u8981 + \u5224\u65ad\u662f\u5426\u9700\u8981\u4e3b\u52a8\u5524\u9192\uff08\u4e0d\u589e\u52a0\u989d\u5916 AI \u8c03\u7528\uff09
       const summaryPrompt = this.wakeupReply
@@ -566,15 +581,15 @@ ${conversationText}
 
 \u8bf7\u751f\u6210\u6458\u8981\uff1a`;
 
-      const result = await this.services.aiService.chat([
-        { role: 'user', content: summaryPrompt },
-      ]);
+        const result = await this.services.aiService.chat([
+          { role: 'user', content: summaryPrompt },
+        ]);
 
       // \u89e3\u6790 AI \u8fd4\u56de\u7684\u7ed3\u679c
-      let summaryText: string;
-      let wakeupMessage: string | null = null;
+        let summaryText: string;
+        let wakeupMessage: string | null = null;
 
-      if (this.wakeupReply) {
+        if (this.wakeupReply) {
         // \u5c1d\u8bd5\u89e3\u6790 JSON \u683c\u5f0f
         try {
           const raw = result.content || '{}';
@@ -588,46 +603,48 @@ ${conversationText}
           summaryText = `[\u5bf9\u8bdd\u6458\u8981 - ${new Date().toISOString()}]\n${result.content || ''}`;
           Logger.warning(`[\u4f1a\u8bdd ${this.key}] \u6458\u8981+\u5524\u9192 JSON \u89e3\u6790\u5931\u8d25\uff0c\u964d\u7ea7\u4e3a\u7eaf\u6458\u8981`);
         }
-      } else {
-        summaryText = `[\u5bf9\u8bdd\u6458\u8981 - ${new Date().toISOString()}]\n${result.content || ''}`;
-      }
+        } else {
+          summaryText = `[\u5bf9\u8bdd\u6458\u8981 - ${new Date().toISOString()}]\n${result.content || ''}`;
+        }
 
       // \u4e3b\u52a8\u5524\u9192\uff1a\u5982\u679c AI \u5224\u65ad\u9700\u8981\u901a\u77e5\u7528\u6237\uff0c\u4e14\u6709\u56de\u8c03\u53ef\u7528
-      if (wakeupMessage && this.wakeupReply) {
-        try {
-          await this.wakeupReply(wakeupMessage);
-          Logger.info(`[\u4f1a\u8bdd ${this.key}] \u4e3b\u52a8\u5524\u9192\u7528\u6237: ${wakeupMessage.slice(0, 100)}`);
-        } catch (err: any) {
-          Logger.warning(`[\u4f1a\u8bdd ${this.key}] \u4e3b\u52a8\u5524\u9192\u5931\u8d25: ${err.message}`);
+        if (wakeupMessage && this.wakeupReply) {
+          try {
+            await this.wakeupReply(wakeupMessage);
+            Logger.info(`[\u4f1a\u8bdd ${this.key}] \u4e3b\u52a8\u5524\u9192\u7528\u6237: ${wakeupMessage.slice(0, 100)}`);
+          } catch (err: any) {
+            Logger.warning(`[\u4f1a\u8bdd ${this.key}] \u4e3b\u52a8\u5524\u9192\u5931\u8d25: ${err.message}`);
+          }
         }
-      }
 
 
       // \u5f52\u6863\u6301\u4e45\u5316\u6587\u4ef6
 
-      this.messages = [];
-      return true;
-    } catch (error) {
-      Logger.error('\u538b\u7f29\u5386\u53f2\u5931\u8d25: ' + String(error));
-      return false;
-      return false;
-    }
+        this.messages = [];
+        return true;
+      } catch (error) {
+        Logger.error('\u538b\u7f29\u5386\u53f2\u5931\u8d25: ' + String(error));
+        return false;
+        return false;
+      }
+    });
   }
 
   /** 过期或退出时清理内存（保存完整 context） */
   async cleanup(options?: { checkWakeup?: boolean }): Promise<void> {
-    if (this.messages.length === 0) return;
+    return this.withLogContext(async () => {
+      if (this.messages.length === 0) return;
 
-    try {
-      // 判断是否需要主动唤醒用户（仅在会话过期时）
-      if (options?.checkWakeup && this.wakeupReply) {
-        const hasUserMessages = this.messages.some(m => m.role === 'user');
-        if (hasUserMessages) {
-          const conversationText = this.messages
-            .filter(m => m.role === 'user' || m.role === 'assistant')
-            .slice(-10)
-            .map(m => `${m.role === 'user' ? '用户' : 'AI'}: ${m.content}`)
-            .join('\n');
+      try {
+        // 判断是否需要主动唤醒用户（仅在会话过期时）
+        if (options?.checkWakeup && this.wakeupReply) {
+          const hasUserMessages = this.messages.some(m => m.role === 'user');
+          if (hasUserMessages) {
+            const conversationText = this.messages
+              .filter(m => m.role === 'user' || m.role === 'assistant')
+              .slice(-10)
+              .map(m => `${m.role === 'user' ? '用户' : 'AI'}: ${m.content}`)
+              .join('\n');
 
           const wakeupPrompt = `请判断以下对话是否需要主动唤醒用户。返回 JSON 格式（不要包含 markdown 代码块）：
 { "wakeup": null 或 "一条自然的消息" }
@@ -641,34 +658,34 @@ ${conversationText}
 对话内容：
 ${conversationText}`;
 
-          try {
-            const result = await this.services.aiService.chat([
-              { role: 'user', content: wakeupPrompt },
-            ]);
+            try {
+              const result = await this.services.aiService.chat([
+                { role: 'user', content: wakeupPrompt },
+              ]);
 
-            const raw = result.content || '{}';
-            const jsonStr = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?\s*```$/i, '').trim();
-            const parsed = JSON.parse(jsonStr);
+              const raw = result.content || '{}';
+              const jsonStr = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?\s*```$/i, '').trim();
+              const parsed = JSON.parse(jsonStr);
 
-            if (parsed && parsed.wakeup && this.wakeupReply) {
-              await this.wakeupReply(parsed.wakeup);
-              Logger.info(`[会话 ${this.key}] 主动唤醒用户: ${parsed.wakeup.slice(0, 100)}`);
+              if (parsed && parsed.wakeup && this.wakeupReply) {
+                await this.wakeupReply(parsed.wakeup);
+                Logger.info(`[会话 ${this.key}] 主动唤醒用户: ${parsed.wakeup.slice(0, 100)}`);
+              }
+            } catch (err: any) {
+              Logger.warning(`[会话 ${this.key}] 唤醒判断失败: ${err.message}`);
             }
-          } catch (err: any) {
-            Logger.warning(`[会话 ${this.key}] 唤醒判断失败: ${err.message}`);
           }
         }
+        // 保存完整 context 到 SessionStore
+        SessionStore.getInstance().saveContext(this.key, this.messages);
+        Logger.info(`会话已保存: ${this.key}, ${this.messages.length} 条消息`);
+
+        // 清理内存
+        this.messages = [];
+      } catch (error) {
+        Logger.error(`清理会话失败: ${error}`);
       }
-
-      // 保存完整 context 到 SessionStore
-      SessionStore.getInstance().saveContext(this.key, this.messages);
-      Logger.info(`会话已保存: ${this.key}, ${this.messages.length} 条消息`);
-
-      // 清理内存
-      this.messages = [];
-    } catch (error) {
-      Logger.error(`清理会话失败: ${error}`);
-    }
+    });
   }
 
   // ─── 查询方法 ──────────────────────────────────────
@@ -685,13 +702,15 @@ ${conversationText}`;
 
   /** 从 DB 恢复消息（进程重启后调用） */
   restoreFromStore(): boolean {
-    const store = SessionStore.getInstance();
-    if (!store.hasSession(this.key)) return false;
-    const msgs = store.loadContext(this.key);
-    if (msgs.length === 0) return false;
-    this.pendingRestore = msgs;
-    Logger.info(`[会话 ${this.key}] 标记从 DB 恢复 ${msgs.length} 条消息`);
-    return true;
+    return this.withLogContext(() => {
+      const store = SessionStore.getInstance();
+      if (!store.hasSession(this.key)) return false;
+      const msgs = store.loadContext(this.key);
+      if (msgs.length === 0) return false;
+      this.pendingRestore = msgs;
+      Logger.info(`[会话 ${this.key}] 标记从 DB 恢复 ${msgs.length} 条消息`);
+      return true;
+    });
   }
 
   // ─── 私有方法 ──────────────────────────────────────

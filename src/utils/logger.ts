@@ -1,13 +1,21 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { styles } from '../theme/colors';
 import ora, { Ora } from 'ora';
+import type { SessionTurnLogger } from './session-turn-logger';
+
+interface LoggerContextStore {
+  sessionId?: string;
+  sessionLogger?: SessionTurnLogger;
+}
 
 export class Logger {
   private static spinner: Ora | null = null;
   private static logStream: fs.WriteStream | null = null;
   private static logFilePath: string | null = null;
   private static silentMode: boolean = false;
+  private static logContext = new AsyncLocalStorage<LoggerContextStore>();
 
   private static stripAnsi(str: string): string {
     // eslint-disable-next-line no-control-regex
@@ -15,18 +23,40 @@ export class Logger {
   }
 
   private static writeToFile(level: string, message: string): void {
-    if (!this.logStream) return;
+    const store = this.logContext.getStore();
+    if (store?.sessionLogger) {
+      store.sessionLogger.logRuntime(level, this.stripAnsi(message));
+      return;
+    }
+
+    if (!this.logStream) {
+      return;
+    }
+
     const now = new Date();
-    const Y = now.getFullYear();
-    const M = String(now.getMonth() + 1).padStart(2, '0');
-    const D = String(now.getDate()).padStart(2, '0');
-    const h = String(now.getHours()).padStart(2, '0');
-    const m = String(now.getMinutes()).padStart(2, '0');
-    const s = String(now.getSeconds()).padStart(2, '0');
-    const ms = String(now.getMilliseconds()).padStart(3, '0');
-    const ts = `${Y}-${M}-${D} ${h}:${m}:${s}.${ms}`;
-    const clean = this.stripAnsi(message);
-    this.logStream.write(`[${ts}] [${level}] ${clean}\n`);
+    const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}.${String(now.getMilliseconds()).padStart(3, '0')}`;
+    this.logStream.write(`[${ts}] [${level}] ${this.stripAnsi(message)}\n`);
+  }
+
+  static withSessionContext<T>(sessionId: string | undefined, fn: () => T): T;
+  static withSessionContext<T>(sessionId: string | undefined, sessionLogger: SessionTurnLogger, fn: () => T): T;
+  static withSessionContext<T>(
+    sessionId: string | undefined,
+    sessionLoggerOrFn: SessionTurnLogger | (() => T),
+    maybeFn?: () => T,
+  ): T {
+    const normalizedSessionId = typeof sessionId === 'string'
+      ? sessionId.replace(/\s+/g, ' ').trim()
+      : '';
+    const sessionLogger = typeof sessionLoggerOrFn === 'function' ? undefined : sessionLoggerOrFn;
+    const fn = typeof sessionLoggerOrFn === 'function' ? sessionLoggerOrFn : maybeFn;
+    if (!fn) {
+      throw new Error('Logger.withSessionContext missing callback');
+    }
+    if (!normalizedSessionId) {
+      return fn();
+    }
+    return this.logContext.run({ sessionId: normalizedSessionId, sessionLogger }, fn);
   }
 
   static openLogFile(sessionType: string, sessionKey?: string, silent: boolean = false): void {
@@ -38,12 +68,11 @@ export class Logger {
     const ss = String(now.getSeconds()).padStart(2, '0');
     const suffix = sessionKey ? `${sessionType}_${sessionKey}` : sessionType;
     const fileName = `${hh}-${mm}-${ss}_${suffix}.log`;
-
     const dir = path.resolve('logs', dateDir);
-    fs.mkdirSync(dir, { recursive: true });
 
+    fs.mkdirSync(dir, { recursive: true });
     this.logFilePath = path.join(dir, fileName);
-    this.logStream = fs.createWriteStream(path.join(dir, fileName), { flags: 'a' });
+    this.logStream = fs.createWriteStream(this.logFilePath, { flags: 'a' });
   }
 
   static closeLogFile(): void {
