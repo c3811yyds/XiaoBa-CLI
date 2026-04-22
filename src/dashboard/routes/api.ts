@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { SkillManager } from '../../skills/skill-manager';
 import { ConfigManager } from '../../utils/config';
 import { ServiceManager } from '../service-manager';
+import type { UpdateController } from '../server';
 import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -35,11 +36,12 @@ function installSkillNpmDeps(skillDir: string): void {
   }
 }
 
-export function createApiRouter(serviceManager: ServiceManager): Router {
+export function createApiRouter(serviceManager: ServiceManager, updateController?: UpdateController): Router {
   const router = Router();
 
   // ==================== 总览 ====================
 
+  
   router.get('/status', (_req, res) => {
     const config = ConfigManager.getConfig();
     const services = serviceManager.getAll();
@@ -53,6 +55,77 @@ export function createApiRouter(serviceManager: ServiceManager): Router {
       skillsPath: PathResolver.getSkillsPath(),
       services,
     });
+  });
+  const updaterUnavailable = () => ({
+    enabled: false,
+    stage: 'disabled',
+    message: '当前环境不可用更新器',
+  });
+
+  router.get('/update/status', (_req, res) => {
+    if (!updateController) {
+      return res.json(updaterUnavailable());
+    }
+    try {
+      return res.json(updateController.getStatus());
+    } catch (e: any) {
+      return res.status(500).json({
+        ...updaterUnavailable(),
+        stage: 'error',
+        error: e?.message || String(e),
+      });
+    }
+  });
+
+  router.post('/update/check', async (_req, res) => {
+    if (!updateController) {
+      return res.json(updaterUnavailable());
+    }
+    try {
+      const status = await updateController.checkForUpdates(true);
+      return res.json(status);
+    } catch (e: any) {
+      return res.status(500).json({
+        error: e?.message || String(e),
+        reason: e?.reason || 'UPDATE_CHECK_FAILED',
+      });
+    }
+  });
+
+  router.post('/update/download', async (_req, res) => {
+    if (!updateController) {
+      return res.status(400).json({
+        error: '当前环境不可用更新器',
+        reason: 'UPDATER_UNAVAILABLE',
+      });
+    }
+    try {
+      const status = await updateController.downloadUpdate();
+      return res.json(status);
+    } catch (e: any) {
+      return res.status(500).json({
+        error: e?.message || String(e),
+        reason: e?.reason || 'UPDATE_DOWNLOAD_FAILED',
+      });
+    }
+  });
+
+  router.post('/update/install', (_req, res) => {
+    if (!updateController) {
+      return res.status(400).json({
+        error: '当前环境不可用更新器',
+        reason: 'UPDATER_UNAVAILABLE',
+      });
+    }
+    try {
+      updateController.installUpdate();
+      return res.json({ ok: true });
+    } catch (e: any) {
+      return res.status(500).json({
+        error: e?.message || String(e),
+        reason: e?.reason || 'UPDATE_INSTALL_FAILED',
+      });
+    }
   });
 
   // ==================== 服务管理 ====================

@@ -5,8 +5,21 @@ import { createApiRouter } from './routes/api';
 import { ServiceManager } from './service-manager';
 
 const DEFAULT_PORT = 3800;
+export interface UpdateController {
+  getStatus: () => any;
+  checkForUpdates: (manual?: boolean) => Promise<any>;
+  downloadUpdate: () => Promise<any>;
+  installUpdate: () => void;
+}
 
-export async function startDashboard(port: number = DEFAULT_PORT): Promise<void> {
+export interface DashboardControllers {
+  updateController?: UpdateController;
+}
+
+export async function startDashboard(
+  port: number = DEFAULT_PORT,
+  controllers: DashboardControllers = {}
+): Promise<void> {
   const app = express();
   const projectRoot = process.cwd();
   const serviceManager = new ServiceManager(projectRoot);
@@ -14,7 +27,7 @@ export async function startDashboard(port: number = DEFAULT_PORT): Promise<void>
   app.use(express.json());
 
   // API routes
-  app.use('/api', createApiRouter(serviceManager));
+  app.use('/api', createApiRouter(serviceManager, controllers.updateController));
 
   // Serve frontend
   const frontendPath = path.join(__dirname, '../../dashboard');

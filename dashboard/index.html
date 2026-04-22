@@ -1364,9 +1364,165 @@
     /* Collapsible config groups */
     .config-group-title { cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; }
     .config-group-title::after { content: ''; display: inline-block; width: 8px; height: 8px; border-right: 2px solid var(--text3); border-bottom: 2px solid var(--text3); transform: rotate(45deg); transition: transform 0.2s ease; flex-shrink: 0; }
-    .config-group.collapsed .config-group-title::after { transform: rotate(-45deg); }
+    
     .config-group-body { transition: max-height 0.3s ease, opacity 0.2s ease; overflow: hidden; }
+    
     .config-group.collapsed .config-group-body { max-height: 0 !important; opacity: 0; }
+    
+    .update-status-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .update-message {
+      color: var(--text2);
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+
+    .update-version-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--text3);
+      margin-bottom: 6px;
+    }
+
+    .update-version-line code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: var(--text);
+      background: rgba(255,255,255,0.04);
+      border-radius: 8px;
+      padding: 2px 8px;
+      max-width: 65%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .update-progress-wrap {
+      margin-top: 12px;
+      margin-bottom: 14px;
+    }
+
+    .update-progress-track {
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.09);
+      overflow: hidden;
+    }
+
+    .update-progress-bar {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: var(--accent-gradient);
+      transition: width 0.2s ease;
+    }
+
+    .update-progress-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-top: 8px;
+      color: var(--text3);
+      font-size: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .update-error-box {
+      display: none;
+      margin-top: 8px;
+      margin-bottom: 14px;
+      border: 1px solid rgba(220,93,115,0.35);
+      background: rgba(220,93,115,0.12);
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: #ffc3cf;
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .update-fallback-box {
+      display: none;
+      margin-top: -2px;
+      margin-bottom: 14px;
+      border: 1px solid rgba(79,140,255,0.18);
+      background: rgba(79,140,255,0.08);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+
+    .update-fallback-title {
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .update-fallback-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .update-fallback-note {
+      margin-top: 8px;
+      color: var(--text2);
+      font-size: 12px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .update-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    
+    #update-modal .modal {
+      width: min(540px, 100%);
+      max-height: min(70vh, 620px);
+      border-radius: 20px;
+    }
+
+    #update-modal .modal-body {
+      font-family: inherit;
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: normal;
+      word-break: normal;
+      padding: 16px 18px 18px;
+    }
+
+    .sidebar-update-btn {
+      margin-top: 12px;
+      width: 100%;
+      justify-content: center;
+      border-radius: 12px;
+      min-height: 36px;
+      font-size: 12px;
+      font-weight: 700;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.16);
+      color: #e8ebff;
+    }
+
+    .sidebar-update-btn:hover {
+      background: rgba(255,255,255,0.2);
+      transform: none;
+    }
   
   </style>
 </head>
@@ -1399,6 +1555,7 @@
         <span id="topbar-status" style="display:inline-block;margin-bottom:4px;font-size:11px;padding:3px 8px;border-radius:999px;background:rgba(30,169,113,0.15);color:#1ea971;font-weight:700">在线</span><br/>
         <span id="footer-platform">-</span><br/>
         <span id="footer-node">-</span>
+        <button class="btn sidebar-update-btn" id="sidebar-update-btn" onclick="showUpdateModal(true)">检查更新</button>
       </div>
     </div>
   </aside>
@@ -1458,9 +1615,54 @@
       <div class="modal-body" id="logs-body">暂无日志</div>
     </div>
   </div>
+  <!-- Update Modal -->
+  <div class="modal-overlay" id="update-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>更新中心</h3>
+        <button class="modal-close" onclick="closeUpdateModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="update-status-pill" id="update-stage">待机</div>
+        <div class="update-message" id="update-message">更新器已就绪。</div>
+
+        <div class="update-version-line"><span>当前版本</span><code id="update-current-version">-</code></div>
+        <div class="update-version-line"><span>最新版本</span><code id="update-available-version">-</code></div>
+
+        <div class="update-progress-wrap">
+          <div class="update-progress-track">
+            <div class="update-progress-bar" id="update-progress-bar"></div>
+          </div>
+          <div class="update-progress-meta">
+            <span id="update-percent">0%</span>
+            <span id="update-speed">0 B/s</span>
+            <span id="update-size">0 B / 0 B</span>
+          </div>
+        </div>
+
+        <div class="update-error-box" id="update-error-box"></div>
+
+        <div class="update-fallback-box" id="update-fallback-box">
+          <div class="update-fallback-title">&#x81EA;&#x52A8;&#x66F4;&#x65B0;&#x5931;&#x8D25;&#x65F6;&#xFF0C;&#x53EF;&#x5148;&#x624B;&#x52A8;&#x83B7;&#x53D6;&#x6700;&#x65B0;&#x5B89;&#x88C5;&#x5305;&#x3002;</div>
+          <div class="update-fallback-actions">
+            <button class="btn btn-ghost" id="update-copy-manual-btn" onclick="copyManualInstallerUrl()" style="display:none">&#x590D;&#x5236;&#x5B89;&#x88C5;&#x5305;&#x5730;&#x5740;</button>
+            <button class="btn btn-ghost" id="update-copy-release-btn" onclick="copyReleasePageUrl()" style="display:none">&#x590D;&#x5236; GitHub &#x53D1;&#x5E03;&#x9875;</button>
+          </div>
+          <div class="update-fallback-note" id="update-fallback-note"></div>
+        </div>
+
+        <div class="update-actions">
+          <button class="btn" id="update-check-btn" onclick="checkForUpdates()">检查更新</button>
+          <button class="btn btn-primary" id="update-download-btn" onclick="downloadUpdate()" style="display:none">下载更新</button>
+          <button class="btn btn-success" id="update-install-btn" onclick="installUpdate()" style="display:none">安装并重启</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
     const API = '';
+    let appStatusSnapshot = {};
     const pageTitles = { services:'服务', config:'配置', skills:'Skills', store:'商店' };
 
     function switchPage(name) {
@@ -1477,6 +1679,7 @@
       try {
         const res = await fetch(API+'/api/status');
         const data = await res.json();
+        appStatusSnapshot = data || {};
         document.querySelector('.sidebar-brand-ver').textContent = 'v' + (data.version || '-');
         renderStatus(data);
         renderServices(data.services || []);
@@ -1533,6 +1736,278 @@
       try{const r=await fetch(API+'/api/services/'+n+'/logs?lines=200');const logs=await r.json();document.getElementById('logs-body').textContent=logs.length?logs.join('\n'):'暂无日志';}catch(e){document.getElementById('logs-body').textContent='加载失败';}
     }
     function closeLogs(){document.getElementById('logs-modal').classList.remove('show');}
+    const updateUi = {
+      modalOpen: false,
+      pollingTimer: null,
+      lastStage: null,
+    };
+
+    function normalizeClientUrl(value){
+      if (!value) return "";
+      return String(value).trim().replace(/\/+$/, "");
+    }
+
+    function resolveManualInstallerUrl(state){
+      const baseUrl = normalizeClientUrl(state?.updateBaseUrl);
+      const version = state?.availableVersion;
+      const platform = appStatusSnapshot.platform || "";
+
+      if (!baseUrl || !version || !platform) return "";
+
+      if (platform === "win32") return `${baseUrl}/XiaoBa-${version}-win.exe`;
+      if (platform === "darwin") return `${baseUrl}/XiaoBa-${version}-mac.dmg`;
+      if (platform === "linux") return `${baseUrl}/XiaoBa-${version}-linux.AppImage`;
+      return "";
+    }
+
+    async function copyTextValue(value, label){
+      if (!value) {
+        alert(label + " \u6682\u4E0D\u53EF\u7528");
+        return;
+      }
+
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(value);
+        } else {
+          const textarea = document.createElement("textarea");
+          textarea.value = value;
+          textarea.setAttribute("readonly", "readonly");
+          textarea.style.position = "fixed";
+          textarea.style.opacity = "0";
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand("copy");
+          document.body.removeChild(textarea);
+        }
+
+        alert(label + " \u5DF2\u590D\u5236");
+      } catch (e) {
+        alert("\u590D\u5236\u5931\u8D25: " + (e.message || String(e)));
+      }
+    }
+
+    function copyManualInstallerUrl(){
+      const url = document.getElementById("update-copy-manual-btn")?.dataset.url || "";
+      return copyTextValue(url, "\u5B89\u88C5\u5305\u5730\u5740");
+    }
+
+    function copyReleasePageUrl(){
+      const url = document.getElementById("update-copy-release-btn")?.dataset.url || "";
+      return copyTextValue(url, "GitHub \u53D1\u5E03\u9875\u5730\u5740");
+    }
+    function formatBytes(value){
+      const bytes = Number(value || 0);
+      if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+      const units = ['B','KB','MB','GB','TB'];
+      let size = bytes;
+      let unit = 0;
+      while (size >= 1024 && unit < units.length - 1) {
+        size /= 1024;
+        unit += 1;
+      }
+      const fixed = size >= 100 ? 0 : size >= 10 ? 1 : 2;
+      return size.toFixed(fixed) + ' ' + units[unit];
+    }
+
+    function formatSpeed(value){
+      return formatBytes(value) + '/s';
+    }
+
+    function stageMeta(stage){
+      const map = {
+        disabled: { label: '不可用', color: '#8a8f9f', bg: 'rgba(138,143,159,0.18)' },
+        idle: { label: '待机', color: '#1ea971', bg: 'rgba(30,169,113,0.15)' },
+        checking: { label: '检查中', color: '#f7b955', bg: 'rgba(247,185,85,0.18)' },
+        available: { label: '可更新', color: '#4f8cff', bg: 'rgba(79,140,255,0.18)' },
+        downloading: { label: '下载中', color: '#4f8cff', bg: 'rgba(79,140,255,0.18)' },
+        downloaded: { label: '已下载', color: '#1ea971', bg: 'rgba(30,169,113,0.15)' },
+        installing: { label: '安装中', color: '#f7b955', bg: 'rgba(247,185,85,0.18)' },
+        error: { label: '失败', color: '#dc5d73', bg: 'rgba(220,93,115,0.16)' },
+      };
+      return map[stage] || { label: stage || '未知', color: '#8a8f9f', bg: 'rgba(138,143,159,0.18)' };
+    }
+
+    function localizeUpdateMessage(state){
+      const stage = state?.stage || 'unknown';
+      const version = state?.availableVersion || '';
+      if (stage === 'disabled') return '当前环境不支持自动更新。';
+      if (stage === 'checking') return '正在检查更新...';
+      if (stage === 'available') return version ? ('发现新版本 ' + version + '，可立即下载。') : '发现新版本，可立即下载。';
+      if (stage === 'downloading') return '正在下载更新包，请稍候...';
+      if (stage === 'downloaded') return version ? ('更新 ' + version + ' 已下载完成，点击“安装并重启”。') : '更新已下载完成，点击“安装并重启”。';
+      if (stage === 'installing') return '正在安装更新并准备重启...';
+      if (stage === 'idle') return '当前已是最新版本。';
+      if (stage === 'error') {
+        const reason = state?.lastError?.reason || 'UPDATE_ERROR';
+        return '更新失败：' + reason;
+      }
+      return state?.message || '-';
+    }
+    async function fetchUpdateStatus(autoOpen = false){
+      try{
+        const r = await fetch(API + '/api/update/status');
+        const data = await r.json();
+        renderUpdateStatus(data, autoOpen);
+      } catch (e) {
+        renderUpdateStatus({
+          enabled: false,
+          stage: 'error',
+          message: '获取更新状态失败',
+          lastError: { reason: 'STATUS_REQUEST_FAILED', message: e.message || String(e) },
+        }, autoOpen);
+      }
+    }
+
+    function renderUpdateStatus(state, autoOpen){
+      const stage = state?.stage || 'unknown';
+      const meta = stageMeta(stage);
+
+      const stageEl = document.getElementById('update-stage');
+      const msgEl = document.getElementById('update-message');
+      const currentEl = document.getElementById('update-current-version');
+      const latestEl = document.getElementById('update-available-version');
+      const barEl = document.getElementById('update-progress-bar');
+      const percentEl = document.getElementById('update-percent');
+      const speedEl = document.getElementById('update-speed');
+      const sizeEl = document.getElementById('update-size');
+      const errEl = document.getElementById('update-error-box');
+      const fallbackEl = document.getElementById('update-fallback-box');
+      const fallbackNoteEl = document.getElementById('update-fallback-note');
+      const manualBtn = document.getElementById('update-copy-manual-btn');
+      const releaseBtn = document.getElementById('update-copy-release-btn');
+      const checkBtn = document.getElementById('update-check-btn');
+      const downloadBtn = document.getElementById('update-download-btn');
+      const installBtn = document.getElementById('update-install-btn');
+
+      if (!stageEl || !msgEl || !currentEl || !latestEl || !barEl || !percentEl || !speedEl || !sizeEl || !errEl || !fallbackEl || !fallbackNoteEl || !manualBtn || !releaseBtn || !checkBtn || !downloadBtn || !installBtn) {
+        return;
+      }
+
+      stageEl.textContent = meta.label;
+      stageEl.style.color = meta.color;
+      stageEl.style.background = meta.bg;
+
+      msgEl.textContent = localizeUpdateMessage(state);
+      currentEl.textContent = state?.currentVersion || '-';
+      latestEl.textContent = state?.availableVersion || '-';
+
+      const percent = Math.max(0, Math.min(100, Number(state?.percent || 0)));
+      barEl.style.width = percent.toFixed(1) + '%';
+      percentEl.textContent = percent.toFixed(1) + '%';
+      speedEl.textContent = formatSpeed(state?.bytesPerSecond || 0);
+      sizeEl.textContent = formatBytes(state?.transferred || 0) + ' / ' + formatBytes(state?.total || 0);
+
+      checkBtn.disabled = !state?.enabled || stage === 'checking' || stage === 'downloading' || stage === 'installing';
+      checkBtn.textContent = stage === 'checking' ? '检查中...' : '检查更新';
+
+      downloadBtn.style.display = (stage === 'available' || stage === 'downloading') ? 'inline-block' : 'none';
+      downloadBtn.disabled = !state?.enabled || stage === 'downloading' || stage === 'installing';
+      downloadBtn.textContent = stage === 'downloading' ? '下载中...' : '下载更新';
+
+      installBtn.style.display = (stage === 'downloaded' || stage === 'installing') ? 'inline-block' : 'none';
+      installBtn.disabled = !state?.enabled || stage === 'installing';
+      installBtn.textContent = stage === 'installing' ? '安装中...' : '安装并重启';
+
+      if (state?.lastError?.message) {
+        const reason = state?.lastError?.reason || 'UPDATE_ERROR';
+        errEl.style.display = 'block';
+        errEl.textContent = '\u5931\u8D25\u539F\u56E0: ' + reason + '\n' + state.lastError.message;
+      } else {
+        errEl.style.display = 'none';
+        errEl.textContent = '';
+      }
+
+      const releaseUrl = normalizeClientUrl(state?.releasePageUrl);
+      const manualUrl = resolveManualInstallerUrl(state);
+      const showFallback = stage === 'error' && Boolean(releaseUrl || manualUrl);
+
+      fallbackEl.style.display = showFallback ? 'block' : 'none';
+      manualBtn.style.display = manualUrl ? 'inline-flex' : 'none';
+      manualBtn.dataset.url = manualUrl || '';
+      releaseBtn.style.display = releaseUrl ? 'inline-flex' : 'none';
+      releaseBtn.dataset.url = releaseUrl || '';
+
+      if (showFallback) {
+        if (manualUrl && releaseUrl) {
+          fallbackNoteEl.textContent = '\u81EA\u52A8\u66F4\u65B0\u5931\u8D25\u65F6\uFF0C\u53EF\u5148\u590D\u5236\u5F53\u524D\u5E73\u53F0\u5B89\u88C5\u5305\u5730\u5740\uFF1B\u5982\u679C\u4ECD\u4E0D\u65B9\u4FBF\uFF0C\u518D\u8D70 GitHub \u53D1\u5E03\u9875\u3002';
+        } else if (manualUrl) {
+          fallbackNoteEl.textContent = '\u81EA\u52A8\u66F4\u65B0\u5931\u8D25\u65F6\uFF0C\u53EF\u5148\u590D\u5236\u5F53\u524D\u5E73\u53F0\u5B89\u88C5\u5305\u5730\u5740\u624B\u52A8\u66F4\u65B0\u3002';
+        } else {
+          fallbackNoteEl.textContent = '\u81EA\u52A8\u66F4\u65B0\u5931\u8D25\u65F6\uFF0C\u53EF\u5148\u590D\u5236 GitHub \u53D1\u5E03\u9875\u5730\u5740\u624B\u52A8\u66F4\u65B0\u3002';
+        }
+      } else {
+        fallbackNoteEl.textContent = '';
+      }
+
+      if (autoOpen && !updateUi.modalOpen && stage !== updateUi.lastStage) {
+        if (stage === 'available' || stage === 'downloading' || stage === 'downloaded' || stage === 'error') {
+          showUpdateModal(false);
+        }
+      }
+
+      updateUi.lastStage = stage;
+    }
+
+    function showUpdateModal(triggerCheck){
+      const modal = document.getElementById('update-modal');
+      if (!modal) return;
+      updateUi.modalOpen = true;
+      modal.classList.add('show');
+      fetchUpdateStatus(false);
+      if (updateUi.pollingTimer) clearInterval(updateUi.pollingTimer);
+      updateUi.pollingTimer = setInterval(() => fetchUpdateStatus(false), 1000);
+      if (triggerCheck) checkForUpdates();
+    }
+
+    function closeUpdateModal(){
+      const modal = document.getElementById('update-modal');
+      if (modal) modal.classList.remove('show');
+      updateUi.modalOpen = false;
+      if (updateUi.pollingTimer) {
+        clearInterval(updateUi.pollingTimer);
+        updateUi.pollingTimer = null;
+      }
+    }
+
+    async function parseUpdateResponse(resp){
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        const reason = data?.reason || 'UPDATE_REQUEST_FAILED';
+        const message = data?.error || ('HTTP ' + resp.status);
+        throw new Error(reason + ': ' + message);
+      }
+      return data;
+    }
+
+    async function checkForUpdates(){
+      try {
+        await parseUpdateResponse(await fetch(API + '/api/update/check', { method: 'POST' }));
+      } catch (e) {
+        alert('检查更新失败: ' + (e.message || String(e)));
+      } finally {
+        fetchUpdateStatus(false);
+      }
+    }
+
+    async function downloadUpdate(){
+      try {
+        await parseUpdateResponse(await fetch(API + '/api/update/download', { method: 'POST' }));
+      } catch (e) {
+        alert('下载更新失败: ' + (e.message || String(e)));
+      } finally {
+        fetchUpdateStatus(false);
+      }
+    }
+
+    async function installUpdate(){
+      if (!confirm('是否立即安装已下载更新并重启？')) return;
+      try {
+        await parseUpdateResponse(await fetch(API + '/api/update/install', { method: 'POST' }));
+      } catch (e) {
+        alert('安装更新失败: ' + (e.message || String(e)));
+      }
+    }
     async function toggleSkill(n,c){await fetch(API+'/api/skills/'+encodeURIComponent(n)+'/'+(c?'disable':'enable'),{method:'POST'});fetchSkills();}
     async function deleteSkill(n){if(!confirm('确定要删除 skill "'+n+'" 吗？此操作不可恢复。'))return;await fetch(API+'/api/skills/'+encodeURIComponent(n),{method:'DELETE'});fetchSkills();}
     function formatUptime(s){if(s<60)return Math.floor(s)+'s';if(s<3600)return Math.floor(s/60)+'m';return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m';}
@@ -1647,10 +2122,11 @@
     }
 
     // Init
-    fetchStatus();fetchSkills();fetchConfig();fetchStore();
-    setInterval(fetchStatus,5000);setInterval(fetchSkills,30000);
-    document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLogs();});
+    fetchStatus();fetchSkills();fetchConfig();fetchStore();fetchUpdateStatus(true);
+    setInterval(fetchStatus,5000);setInterval(fetchSkills,30000);setInterval(()=>fetchUpdateStatus(true),5000);
+    document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLogs();closeUpdateModal();}});
     document.getElementById('logs-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeLogs();});
+    document.getElementById('update-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeUpdateModal();});
   </script>
 </body>
 </html>
