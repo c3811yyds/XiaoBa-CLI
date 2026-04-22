@@ -5,7 +5,8 @@ import { Message, ContentBlock } from '../types';
 const SESSION_LOG_DIR = path.resolve('logs/sessions');
 const MAX_TOOL_RESULT_LENGTH = Number(process.env.XIAOBA_SESSION_TOOL_RESULT_LIMIT || 10000);
 
-interface TurnLog {
+export interface SessionTurnLogEntry {
+  entry_type: 'turn';
   turn: number;
   timestamp: string;
   session_id: string;
@@ -23,6 +24,17 @@ interface TurnLog {
     completion: number;
   };
 }
+
+export interface SessionRuntimeLogEntry {
+  entry_type: 'runtime';
+  timestamp: string;
+  session_id: string;
+  session_type: string;
+  level: string;
+  message: string;
+}
+
+export type SessionLogEntry = SessionTurnLogEntry | SessionRuntimeLogEntry;
 
 interface ToolCallLog {
   id: string;
@@ -53,7 +65,11 @@ export class SessionTurnLogger {
 
     fs.mkdirSync(dir, { recursive: true });
     const safeSessionId = sessionId.replace(/[:<>"|?*]/g, '_');
-    this.logFilePath = path.join(dir, `${safeSessionId}.jsonl`);
+    this.logFilePath = path.join(dir, `${sessionType}_${safeSessionId}.jsonl`);
+  }
+
+  getLogFilePath(): string {
+    return this.logFilePath;
   }
 
   /**
@@ -70,7 +86,8 @@ export class SessionTurnLogger {
     const userText = this.extractText(userInput);
     const userImages = this.extractImages(userInput);
 
-    const turnLog: TurnLog = {
+    const turnLog: SessionTurnLogEntry = {
+      entry_type: 'turn',
       turn: this.turnCounter,
       timestamp: new Date().toISOString(),
       session_id: this.sessionId,
@@ -90,6 +107,18 @@ export class SessionTurnLogger {
     };
 
     this.appendLog(turnLog);
+  }
+
+  logRuntime(level: string, message: string): void {
+    const runtimeEntry: SessionRuntimeLogEntry = {
+      entry_type: 'runtime',
+      timestamp: new Date().toISOString(),
+      session_id: this.sessionId,
+      session_type: this.sessionType,
+      level,
+      message,
+    };
+    this.appendLog(runtimeEntry);
   }
 
   private extractText(content: string | ContentBlock[]): string {
@@ -112,7 +141,7 @@ export class SessionTurnLogger {
     return text.slice(0, maxLength) + '... [truncated]';
   }
 
-  private appendLog(entry: any): void {
+  private appendLog(entry: SessionLogEntry): void {
     try {
       fs.appendFileSync(this.logFilePath, JSON.stringify(entry) + '\n');
     } catch (error) {

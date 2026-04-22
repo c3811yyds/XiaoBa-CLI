@@ -20,6 +20,7 @@ export type WakeupSendFn = (channelId: string, text: string) => Promise<void>;
  * - 群聊和私聊独立
  */
 export class MessageSessionManager {
+  private static managers = new Map<string, MessageSessionManager>();
   private sessions = new Map<string, AgentSession>();
   private destroying = new Set<string>();
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
@@ -37,7 +38,12 @@ export class MessageSessionManager {
   ) {
     this.sessionType = sessionType;
     this.ttl = ttl ?? DEFAULT_SESSION_TTL;
+    MessageSessionManager.managers.set(sessionType, this);
     this.startCleanup();
+  }
+
+  static getManager(sessionType: string): MessageSessionManager | null {
+    return this.managers.get(sessionType) || null;
   }
 
   /** 注入唤醒发送函数（用于过期时主动唤醒） */
@@ -64,7 +70,7 @@ export class MessageSessionManager {
         this.contextInjector(session);
       }
       this.sessions.set(key, session);
-      Logger.info(`新建会话: ${key}`);
+      session.runWithLogContext(() => Logger.info(`新建会话: ${key}`));
     }
 
     if (channelId) {
@@ -76,6 +82,11 @@ export class MessageSessionManager {
     return session;
   }
 
+  injectContext(key: string, text: string, channelId?: string): void {
+    const session = this.getOrCreate(key, channelId);
+    session.injectContext(text);
+  }
+
   /** 为 session 注入主动唤醒回调 */
   private injectWakeupReply(session: AgentSession, key: string): void {
     if (!this.wakeupSendFn) return;
@@ -83,7 +94,7 @@ export class MessageSessionManager {
     session.setWakeupReply(async (text: string) => {
       const channelId = this.lastChannelIdMap.get(key);
       if (!channelId) {
-        Logger.warning(`[${key}] 主动唤醒失败: 无 channelId`);
+        session.runWithLogContext(() => Logger.warning(`[${key}] 主动唤醒失败: 无 channelId`));
         return;
       }
       await sendFn(channelId, text);
@@ -99,9 +110,9 @@ export class MessageSessionManager {
         if (now - session.lastActiveAt > this.ttl) {
           this.destroying.add(key);
           this.sessions.delete(key);
-          Logger.info(`会话已过期清理: ${key}`);
+          session.runWithLogContext(() => Logger.info(`会话已过期清理: ${key}`));
           session.cleanup({ checkWakeup: true })
-            .catch(err => Logger.warning(`会话 ${key} 清理失败: ${err}`))
+            .catch(err => session.runWithLogContext(() => Logger.warning(`会话 ${key} 清理失败: ${err}`)))
             .finally(() => this.destroying.delete(key));
         }
       }
@@ -118,11 +129,12 @@ export class MessageSessionManager {
     // 保存所有活跃会话
     const cleanupPromises = Array.from(this.sessions.values()).map(session =>
       session.cleanup().catch(err =>
-        Logger.warning(`会话 ${session.key} 清理失败: ${err}`)
+        session.runWithLogContext(() => Logger.warning(`会话 ${session.key} 清理失败: ${err}`))
       )
     );
     await Promise.all(cleanupPromises);
 
     this.sessions.clear();
+    MessageSessionManager.managers.delete(this.sessionType);
   }
 }
