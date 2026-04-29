@@ -7,6 +7,7 @@ import { AIService } from '../utils/ai-service';
 import { ToolManager } from '../tools/tool-manager';
 import { SkillManager } from '../skills/skill-manager';
 import { AgentServices, BUSY_MESSAGE } from '../core/agent-session';
+import { ContentBlock } from '../types';
 import { Logger } from '../utils/logger';
 import { SubAgentManager } from '../core/sub-agent-manager';
 import { ChannelCallbacks } from '../types/tool';
@@ -30,9 +31,11 @@ interface PendingAnswer {
 }
 
 interface QueuedMessage {
-  userMessage: string | import('../types').ContentBlock[];
+  userMessage: string | ContentBlock[];
   topic: string;
   senderId: string;
+  seq: number;
+  receivedAt: number;
 }
 
 interface PendingTextMerge {
@@ -296,9 +299,15 @@ export class CatsCompanyBot {
     // 并发保护：忙时消息静默入队，空闲后自动处理
     if (session.isBusy()) {
       const queue = this.messageQueue.get(key) ?? [];
-      queue.push({ userMessage, topic: msg.topic, senderId: msg.senderId });
+      queue.push({
+        userMessage,
+        topic: msg.topic,
+        senderId: msg.senderId,
+        seq: msg.seq,
+        receivedAt: Date.now(),
+      });
       this.messageQueue.set(key, queue);
-      Logger.info(`[${key}] 主会话忙，消息已入队 (队列长度: ${queue.length})`);
+      Logger.info(`[${key}] 主会话忙，消息已暂存，当前步骤完成后会合并处理 (队列长度: ${queue.length})`);
       return;
     }
 
@@ -314,6 +323,7 @@ export class CatsCompanyBot {
     try {
       const result = await session.handleMessage(userMessage, {
         channel,
+        pendingUserInputProvider: () => this.consumeQueuedUserInput(key),
         callbacks: {
           onRetry: async (attempt, maxRetries) => {
             try {
@@ -440,7 +450,7 @@ export class CatsCompanyBot {
       topic: ctx.topic,
       chatType,
       senderId: ctx.senderId,
-      seq: 0,  // 简化：不需要seq
+      seq: ctx.seq ?? 0,
       text: text || (file ? `[${file.type === 'image' ? '图片' : '文件'}] ${file.fileName}` : ''),
       rawContent: ctx.content,
       file,
@@ -525,7 +535,10 @@ export class CatsCompanyBot {
     });
 
     try {
-      const result = await session.handleMessage(msg.userMessage, { channel });
+      const result = await session.handleMessage(msg.userMessage, {
+        channel,
+        pendingUserInputProvider: () => this.consumeQueuedUserInput(sessionKey),
+      });
       if (result.text !== BUSY_MESSAGE && result.visibleToUser && result.text) {
         try {
           await this.sender.sendText(msg.topic, result.text);
@@ -545,6 +558,54 @@ export class CatsCompanyBot {
     }
 
     await this.drainMessageQueue(sessionKey);
+  }
+
+  private consumeQueuedUserInput(sessionKey: string): string | ContentBlock[] | null {
+    const queue = this.messageQueue.get(sessionKey);
+    if (!queue || queue.length === 0) return null;
+
+    this.messageQueue.delete(sessionKey);
+    const messages = [...queue].sort((a, b) => {
+      if (a.seq > 0 && b.seq > 0 && a.seq !== b.seq) return a.seq - b.seq;
+      return a.receivedAt - b.receivedAt;
+    });
+
+    Logger.info(`[${sessionKey}] 合并 ${messages.length} 条处理期间新到的用户消息`);
+    return this.mergeQueuedMessages(messages);
+  }
+
+  private mergeQueuedMessages(messages: QueuedMessage[]): string | ContentBlock[] {
+    if (messages.length === 1) {
+      return messages[0].userMessage;
+    }
+
+    const header = [
+      `用户在你处理上一轮时又补充了 ${messages.length} 条消息。`,
+      '请把这些补充消息作为当前最新需求一起处理；如果前后要求冲突，以最后一条为准。',
+    ].join('\n');
+
+    const hasRichContent = messages.some(item => Array.isArray(item.userMessage));
+    if (!hasRichContent) {
+      const body = messages
+        .map((item, index) => `${index + 1}. ${item.senderId}: ${item.userMessage as string}`)
+        .join('\n');
+      return `${header}\n\n${body}`;
+    }
+
+    const blocks: ContentBlock[] = [{ type: 'text', text: `${header}\n` }];
+    for (const [index, item] of messages.entries()) {
+      blocks.push({
+        type: 'text',
+        text: `\n[补充消息 ${index + 1} / ${messages.length}，来自 ${item.senderId}]\n`,
+      });
+      if (Array.isArray(item.userMessage)) {
+        blocks.push(...item.userMessage);
+      } else {
+        blocks.push({ type: 'text', text: item.userMessage });
+      }
+    }
+
+    return blocks;
   }
 
   /**

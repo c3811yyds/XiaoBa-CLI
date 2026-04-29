@@ -1,6 +1,6 @@
 ---
 name: advanced-reader
-description: Conservative fallback skill for reading images, screenshots, scanned files, and PDFs only when attachment understanding is required. Use it when the user needs content extracted from an attachment and the current model cannot read the attachment reliably.
+description: 通用附件读取兜底技能。仅当用户需要读取图片、截图、扫描件或 PDF，而当前主模型无法可靠理解附件内容时使用。它会调用 Cats reader proxy 提取内容，再让主模型继续回答。
 category: tools
 invocable: both
 argument-hint: "<file_path_or_url> [analysis_prompt]"
@@ -9,88 +9,100 @@ max-turns: 8
 
 # Advanced Reader
 
-Use this skill only as a fallback when the user provides an image, screenshot,
-scanned document, or PDF and the current model cannot read the attachment
-reliably.
+这是一个保守的附件读取兜底技能，用于“必须打开附件才能回答”的场景。
 
-The role of this skill is narrow:
+它的职责很窄：
 
-1. Send the attachment to the Cats `POST /api/reader/analyze` proxy.
-2. Return extracted content or tightly bounded attachment understanding.
-3. Let XiaoBa's main model produce the final answer afterward.
+1. 把附件发送到 Cats 后端的 `POST /api/reader/analyze` 代理接口。
+2. 返回文本提取、版面结构或必要的附件理解结果。
+3. 让 XiaoBa 的主模型基于读取结果继续推理和最终回答。
 
-## Core Rules
+## 核心规则
 
-- Do not call the API if the user question can be answered without opening the attachment.
-- Do not guess attachment content from the file name or path.
-- Treat this skill as a reader, not as the final response generator.
-- Prefer extraction-oriented prompts over interpretive prompts.
-- For PDFs, keep the default conservative mode unless the user clearly asks for full-document coverage.
-- If the API call fails, explain that attachment parsing failed and ask the user for another try or extra text context.
+- 如果不读取附件也能回答，不要调用这个技能。
+- 不要根据文件名、路径、缩略图猜内容。
+- 把这个技能当作“读取器”，不要把它当成最终回答生成器。
+- 优先做提取，不要主动做诊断、推断、总结背景。
+- PDF 默认保守读取；只有用户明确要求完整覆盖时，才使用更大范围读取。
+- 如果接口失败，说明附件解析失败，并请用户重试或补充文本上下文。
 
-## Default Call
-
-Run:
+## 默认调用
 
 ```bash
 python "<SKILL_DIR>/scripts/invoke_reader_api.py" "<file_path_or_url>" "<analysis_prompt>"
 ```
 
-The helper script reads:
+脚本会读取这些环境变量：
 
 - `CATSCOMPANY_HTTP_BASE_URL`
 - `CATSCOMPANY_API_KEY`
-- optional: `CATSCOMPANY_READER_API_URL`
-- optional overrides: `READER_PROXY_URL`, `READER_PROXY_API_KEY`, `READER_PROXY_BEARER_TOKEN`
-- Default value: `https://app.catsco.cc/api/reader`
+- 可选：`CATSCOMPANY_READER_API_URL`
+- 可选覆盖：`READER_PROXY_URL`
+- 可选覆盖：`READER_PROXY_API_KEY`
+- 可选覆盖：`READER_PROXY_BEARER_TOKEN`
 
-The skill no longer calls `advanced-reader` directly. Cats backend handles
-service-to-service forwarding and upstream signing.
+默认接口地址是：
 
-## Escalated Call
+```text
+https://app.catsco.cc/api/reader
+```
 
-Use broader coverage only when the user explicitly needs it:
+这个技能不会直连上游大模型。Cats 后端负责服务间转发、鉴权和上游签名。
+
+## 扩展调用
+
+只有用户明确需要更完整覆盖时才使用：
 
 ```bash
 python "<SKILL_DIR>/scripts/invoke_reader_api.py" --full "<file_path_or_url>" "<analysis_prompt>"
 python "<SKILL_DIR>/scripts/invoke_reader_api.py" --force-vision "<file_path_or_url>" "<analysis_prompt>"
 ```
 
-## Preferred Prompts
+## 推荐 Prompt
 
-- General extraction:
+- 通用提取：
   `Extract the visible text and structure from this file. If there is little text, describe only the clearly visible content without adding conclusions.`
-- Screenshot reading:
+- 截图读取：
   `Extract the visible text, UI labels, error messages, and layout from this screenshot. Do not diagnose yet.`
-- PDF extraction:
+- PDF 提取：
   `Extract the document text and preserve section structure as much as possible.`
-- OCR-style reading:
+- OCR 风格读取：
   `Read all visible text from this file and keep the original order and hierarchy as much as possible.`
 
-## When To Use
+## 什么时候使用
 
-- The user asks what is written in an image or screenshot.
-- The user uploads a PDF and wants the content extracted or summarized later.
-- The user asks you to read a scan, OCR-like image, or screenshot text.
-- The answer depends on the attachment and the current model cannot read it reliably.
+- 用户问图片、截图、扫描件里写了什么。
+- 用户上传 PDF，并希望后续基于内容总结或分析。
+- 用户要求读取 OCR 类图片或截图文字。
+- 回答依赖附件内容，而当前主模型无法可靠读取附件。
 
-## When Not To Use
+## 什么时候不要使用
 
-- The user question is purely textual and does not depend on the attachment.
-- The user already pasted the relevant text into the conversation.
-- The current model has already read the attachment successfully.
-- The user only needs a meta-level answer that does not require opening the file.
+- 用户问题是纯文本问题，不依赖附件。
+- 用户已经把关键内容贴到对话里。
+- 当前模型已经成功读取附件。
+- 用户只问不需要打开文件的元信息问题。
 
-## Flow
+## 处理流程
 
-1. Locate the local attachment path or remote attachment URL.
-2. Build a prompt that asks for extraction first, not interpretation.
-3. Call the helper script.
-4. Read the extracted result.
-5. Continue the conversation using that result as input to the main model.
+1. 找到本地附件路径或远程附件 URL。
+2. 构造偏“提取”的 prompt，而不是偏“解释/推断”的 prompt。
+3. 调用 helper 脚本。
+4. 读取接口返回结果。
+5. 把读取结果作为附件上下文，交给主模型继续回答。
 
-## Output Rules
+## 输出规则
 
-- Use the API result as attachment context for the next answer.
-- Do not treat the API result as the final user-facing answer unless the user asked for raw extraction only.
-- Do not say you cannot see the image before trying this fallback when attachment reading is truly required.
+- 把 API 结果当作“附件上下文”，不是天然最终答案。
+- 除非用户明确要原始提取结果，否则不要直接把 API 输出当最终回答。
+- 如果确实需要读附件，不要在尝试这个兜底前说“我看不到图片”。
+
+## 实现说明
+
+`vision-analysis` 是图片/截图场景的兼容入口，但它会转调本技能的同一份脚本。
+
+因此鉴权、上传、reader proxy、错误处理都集中维护在：
+
+```text
+skills/advanced-reader/scripts/invoke_reader_api.py
+```

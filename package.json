@@ -1,6 +1,6 @@
 {
   "name": "xiaoba-cli",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "XiaoBa - 一个智能的AI对话助手CLI工具",
   "main": "electron/main.js",
   "bin": {
@@ -20,6 +20,8 @@
     "electron:build:linux": "npm run build && npm run prepare:runtime && electron-builder --config electron-builder.config.cjs --linux --publish never",
     "watch": "tsc --watch",
     "test": "tsx --test tests/**/*.test.ts",
+    "release:check": "node scripts/check-release-branding.mjs",
+    "version:sync": "node scripts/inject-version.js",
     "report": "node dist/index.js chat --exec '/report'",
     "clean-logs": "node scripts/clean-logs.mjs",
     "prepare:runtime": "node scripts/prepare-runtime.mjs",

@@ -28,7 +28,7 @@ export async function catscompanyCommand(): Promise<void> {
     sessionTTL: config.catscompany?.sessionTTL,
   };
 
-  console.log('[DEBUG] botConfig:', JSON.stringify(botConfig, null, 2));
+  Logger.info(`[CatsCompany] 连接配置: serverUrl=${serverUrl}, httpBaseUrl=${httpBaseUrl || '(default)'}, apiKey=${maskApiKey(apiKey)}`);
 
   const bot = new CatsCompanyBot(botConfig);
 
@@ -43,4 +43,9 @@ export async function catscompanyCommand(): Promise<void> {
 
   await bot.start();
   await startRuntimeCommandSupport();
+}
+
+function maskApiKey(value: string): string {
+  if (value.length <= 10) return '***';
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
