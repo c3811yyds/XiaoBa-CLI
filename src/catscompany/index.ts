@@ -283,7 +283,11 @@ export class CatsCompanyBot {
         return;
       }
       const queuedAttachments = this.consumePendingAttachments(key);
-      userMessage = await this.buildMultimodalMessage(msg.text, queuedAttachments);
+      userMessage = await this.buildMultimodalMessage(
+        msg.text,
+        queuedAttachments,
+        session.getRecentTextContext(),
+      );
       Logger.info(`[${key}] 附件消息（attachments=${queuedAttachments.length})`);
     } else {
       let queuedAttachments = this.consumePendingAttachments(key);
@@ -291,7 +295,11 @@ export class CatsCompanyBot {
         queuedAttachments = await this.waitForTrailingAttachments(key, msg.senderId, msg.text);
       }
       if (queuedAttachments.length > 0) {
-        userMessage = await this.buildMultimodalMessage(msg.text, queuedAttachments);
+        userMessage = await this.buildMultimodalMessage(
+          msg.text,
+          queuedAttachments,
+          session.getRecentTextContext(),
+        );
         Logger.info(`[${key}] 追加 ${queuedAttachments.length} 个附件`);
       }
     }
@@ -670,10 +678,16 @@ export class CatsCompanyBot {
     if (!input) return false;
     if (input.startsWith('/')) return false;
 
-    return /(图片|图里|看图|识图|截图|照片|附图|附件|文件|pdf|文档|ocr|界面|页面)/i.test(input);
+    // Cats web composer sends text and attachment as two nearby messages.
+    // Any text typed while an attachment is pending should be treated as the attachment caption/question.
+    return true;
   }
 
-  private async buildMultimodalMessage(text: string, attachments: PendingAttachment[]): Promise<import('../types').ContentBlock[]> {
+  private async buildMultimodalMessage(
+    text: string,
+    attachments: PendingAttachment[],
+    sessionContext = '',
+  ): Promise<import('../types').ContentBlock[]> {
     const canModelReadImagesDirectly = this.agentServices.aiService.supportsDirectImageInput();
     const blocks: import('../types').ContentBlock[] = [];
 
@@ -702,7 +716,7 @@ export class CatsCompanyBot {
           Logger.warning(`[多模态] 图片块创建失败，回退到 reader: ${att.fileName} at ${att.localPath}`);
         }
 
-        const fallbackBlock = await this.buildReaderFallbackBlock(att);
+        const fallbackBlock = await this.buildReaderFallbackBlock(att, text, sessionContext);
         blocks.push(fallbackBlock);
         if (fallbackBlock.text.startsWith('[Reader result')) {
           Logger.info(`[多模态] 已注入 reader 结果: ${att.fileName} (${fallbackBlock.text.length} chars)`);
@@ -718,8 +732,12 @@ export class CatsCompanyBot {
     return blocks;
   }
 
-  private async buildReaderFallbackBlock(attachment: PendingAttachment): Promise<{ type: 'text'; text: string }> {
-    const analysis = await this.readImageAttachment(attachment);
+  private async buildReaderFallbackBlock(
+    attachment: PendingAttachment,
+    userText: string,
+    sessionContext: string,
+  ): Promise<{ type: 'text'; text: string }> {
+    const analysis = await this.readImageAttachment(attachment, userText, sessionContext);
     if (analysis) {
       return {
         type: 'text',
@@ -740,7 +758,11 @@ export class CatsCompanyBot {
     };
   }
 
-  private async readImageAttachment(attachment: PendingAttachment): Promise<string | null> {
+  private async readImageAttachment(
+    attachment: PendingAttachment,
+    userText: string,
+    sessionContext: string,
+  ): Promise<string | null> {
     if (!this.readerProxyApiKey) {
       Logger.warning(`[多模态] reader proxy API key missing, skip image pre-read: ${attachment.fileName}`);
       return null;
@@ -751,7 +773,7 @@ export class CatsCompanyBot {
       const formData = new FormData();
       const contentType = this.guessContentType(attachment.fileName);
       const fileBlob = new Blob([fileBytes], { type: contentType });
-      formData.append('prompt', STRICT_IMAGE_READER_PROMPT);
+      formData.append('prompt', this.buildReaderAnalyzePrompt(userText, sessionContext));
       formData.append('file', fileBlob, attachment.fileName);
 
       const response = await fetch(`${this.readerProxyBaseUrl}/api/reader/analyze`, {
@@ -782,6 +804,26 @@ export class CatsCompanyBot {
       Logger.warning(`[多模态] reader proxy request error for ${attachment.fileName}: ${error.message}`);
       return null;
     }
+  }
+
+  private buildReaderAnalyzePrompt(userText: string, sessionContext: string): string {
+    const trimmedText = (userText || '').trim();
+    const trimmedContext = (sessionContext || '').trim();
+    const contextRules = [
+      'Use the user text and session background only to decide what visible parts of the image deserve attention.',
+      'Do not invent image content from the background. If something is not visible in the image, say it is not visible.',
+      'Prefer the current turn image over any earlier image or attachment mentioned in the session.',
+    ];
+
+    return [
+      STRICT_IMAGE_READER_PROMPT,
+      '[CURRENT USER TEXT]',
+      trimmedText || '[none]',
+      '[RECENT SESSION BACKGROUND]',
+      trimmedContext || '[none]',
+      '[CONTEXT RULES]',
+      ...contextRules,
+    ].join('\n');
   }
 
   private guessContentType(fileName: string): string {

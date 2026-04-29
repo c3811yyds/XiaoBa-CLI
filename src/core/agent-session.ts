@@ -124,6 +124,34 @@ export class AgentSession {
     this.wakeupReply = callback;
   }
 
+  getRecentTextContext(maxMessages = 6, maxChars = 1600): string {
+    const lines: string[] = [];
+
+    for (let i = this.messages.length - 1; i >= 0 && lines.length < maxMessages; i--) {
+      const msg = this.messages[i];
+      if (msg.role === 'system' || msg.role === 'tool') continue;
+
+      const text = this.extractTextFromMessageContent(msg.content);
+      if (!text) continue;
+
+      lines.unshift(`${msg.role}: ${text}`);
+    }
+
+    const context = lines.join('\n').trim();
+    if (context.length <= maxChars) return context;
+    return context.slice(context.length - maxChars).trimStart();
+  }
+
+  private extractTextFromMessageContent(content: Message['content']): string {
+    if (typeof content === 'string') return content.trim();
+    if (!Array.isArray(content)) return '';
+
+    return content
+      .map(block => block.type === 'text' ? block.text : '[image]')
+      .join('\n')
+      .trim();
+  }
+
   // ─── 初始化 ─────────────────────────────────────────
 
   /** 构建系统提示词（幂等，仅首次生效） */
