@@ -10,7 +10,22 @@ env:
   NPM_INSTALL_FLAGS: '--prefer-offline --no-audit --fund=false'
 
 jobs:
+  release-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Validate release branding
+        run: npm run release:check
+
   build-mac:
+    needs: release-preflight
     runs-on: macos-latest
     environment: release-prod
     strategy:
@@ -89,6 +104,7 @@ jobs:
             release/latest-mac-${{ matrix.arch }}.yml
 
   build-win:
+    needs: release-preflight
     runs-on: windows-latest
     environment: release-prod
     env:
@@ -152,6 +168,7 @@ jobs:
             release/latest.yml
 
   build-linux:
+    needs: release-preflight
     runs-on: ubuntu-latest
     environment: release-prod
     env:

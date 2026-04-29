@@ -8,7 +8,7 @@ import {
   buildSkillActivationSignal,
   upsertSkillSystemMessage,
 } from '../skills/skill-activation-protocol';
-import { ConversationRunner, RunnerCallbacks } from './conversation-runner';
+import { ConversationRunner, RunnerCallbacks, PendingUserInputProvider } from './conversation-runner';
 import { SubAgentManager } from './sub-agent-manager';
 import { PromptManager } from '../utils/prompt-manager';
 import { Logger } from '../utils/logger';
@@ -49,6 +49,8 @@ export interface HandleMessageOptions {
   callbacks?: SessionCallbacks;
   /** 平台通道回调，注入到 ToolExecutionContext 供工具使用 */
   channel?: ChannelCallbacks;
+  /** 当前 run 忙碌期间新到的用户消息，在 turn 边界合并进上下文。 */
+  pendingUserInputProvider?: PendingUserInputProvider;
 }
 
 /** 命令处理结果 */
@@ -250,6 +252,7 @@ export class AgentSession {
       // 兼容旧签名：如果传入的对象有 onText/onToolStart 等字段，视为 SessionCallbacks
       let callbacks: SessionCallbacks | undefined;
       let channel: ChannelCallbacks | undefined;
+      let pendingUserInputProvider: PendingUserInputProvider | undefined;
 
       if (callbacksOrOptions) {
         if ('channel' in callbacksOrOptions || 'callbacks' in callbacksOrOptions) {
@@ -257,6 +260,7 @@ export class AgentSession {
           const opts = callbacksOrOptions as HandleMessageOptions;
           callbacks = opts.callbacks;
           channel = opts.channel;
+          pendingUserInputProvider = opts.pendingUserInputProvider;
         } else {
           // 旧签名 SessionCallbacks
           callbacks = callbacksOrOptions as SessionCallbacks;
@@ -356,6 +360,7 @@ export class AgentSession {
             ...(effectiveMaxTurns ? { maxTurns: effectiveMaxTurns } : {}),
             initialSkillName: this.activeSkillName,
             shouldContinue: () => !this.interruptRequested,
+            pendingUserInputProvider,
             toolExecutionContext: {
               sessionId: this.key,
               surface,
