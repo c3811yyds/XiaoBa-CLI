@@ -5,16 +5,14 @@ import { FeishuConfig } from './types';
 import { MessageHandler } from './message-handler';
 import { MessageSender } from './message-sender';
 import { MessageSessionManager } from '../core/message-session-manager';
-import { AIService } from '../utils/ai-service';
-import { ToolManager } from '../tools/tool-manager';
-import { SkillManager } from '../skills/skill-manager';
-import { AgentServices, BUSY_MESSAGE, ERROR_MESSAGE } from '../core/agent-session';
+import { AgentServices, BUSY_MESSAGE, ERROR_MESSAGE, RuntimeFeedbackInput } from '../core/agent-session';
 import { Logger } from '../utils/logger';
 import { SubAgentManager } from '../core/sub-agent-manager';
 import { BridgeServer, GroupMessage } from '../bridge/bridge-server';
 import { BridgeClient } from '../bridge/bridge-client';
 import { ChimeInJudge } from '../bridge/chime-in-judge';
 import { ChannelCallbacks } from '../types/tool';
+import { AdapterRuntimeBundle, createAdapterRuntime } from '../runtime/adapter-runtime';
 import { randomUUID } from 'crypto';
 
 interface PendingAttachment {
@@ -37,9 +35,18 @@ interface QueuedMessage {
   userText: string;
   chatId: string;
   senderId: string;
+  runtimeFeedback?: RuntimeFeedbackInput[];
 }
 
 const PENDING_ANSWER_TIMEOUT_MS = 120_000;
+
+export function createFeishuRuntime(sessionTTL?: number): AdapterRuntimeBundle {
+  return createAdapterRuntime({
+    surface: 'feishu',
+    sessionTTL,
+    promptSnapshotMode: 'fixed',
+  });
+}
 
 /** 从 Group/*.md 解析同事档案 */
 interface TeammateInfo { name: string; role: string; expertise: string }
@@ -75,6 +82,7 @@ export class FeishuBot {
   private sender: MessageSender;
   private sessionManager: MessageSessionManager;
   private agentServices: AgentServices;
+  private runtime: AdapterRuntimeBundle;
   private bridgeServer: BridgeServer | null = null;
   private bridgeClient: BridgeClient | null = null;
   private bridgeConfig: FeishuConfig['bridge'] | undefined;
@@ -117,8 +125,10 @@ export class FeishuBot {
     }
     this.sender = new MessageSender(this.client);
 
-    const aiService = new AIService();
-    const toolManager = new ToolManager();
+    const runtime = createFeishuRuntime(config.sessionTTL);
+    this.runtime = runtime;
+    this.agentServices = runtime.services;
+    const { toolManager } = this.agentServices;
 
     // 加载同事档案 + 已知 chat_id（供 bridge 和 session 使用）
     const teammates = loadTeammateProfiles();
@@ -141,21 +151,11 @@ export class FeishuBot {
     Logger.info(`已注册 ${toolManager.getToolCount()} 个基础工具 (message mode)`);
     Logger.info(`运行时可用工具数量将根据 skill toolPolicy 动态过滤`);
 
-    const skillManager = new SkillManager();
-
-    // 组装 AgentServices
-    this.agentServices = {
-      aiService,
-      toolManager,
-      skillManager,
-    };
-
     this.sessionManager = new MessageSessionManager(
       this.agentServices,
       'feishu',
-      config.sessionTTL,
+      runtime.sessionManagerOptions,
     );
-    this.sessionManager.setWakeupSendFn((channelId, text) => this.sender.reply(channelId, text));
 
     // H1: 注入同事档案到 session
     const teammateCtx = buildTeammateContext(teammates);
@@ -173,15 +173,7 @@ export class FeishuBot {
     Logger.info('正在启动飞书机器人...');
 
     // 加载 skills
-    try {
-      await this.agentServices.skillManager.loadSkills();
-      const skillCount = this.agentServices.skillManager.getAllSkills().length;
-      if (skillCount > 0) {
-        Logger.info(`已加载 ${skillCount} 个 skills`);
-      }
-    } catch (error: any) {
-      Logger.warning(`Skills 加载失败: ${error.message}`);
-    }
+    await this.runtime.loadSkills();
 
     // 启动 Bridge Server（群聊广播模式）
     if (this.bridgeConfig) {
@@ -283,7 +275,7 @@ export class FeishuBot {
     }
 
     // 获取或创建会话（传入 chatId 用于过期时主动唤醒）
-    const session = this.sessionManager.getOrCreate(key, msg.chatId);
+    const session = this.sessionManager.getOrCreate(key);
 
     // 注册持久化平台回调到 SubAgentManager
     // 子智能体完成后通过 injectMessage 通知主 Agent
@@ -314,6 +306,7 @@ export class FeishuBot {
     Logger.info(`[${key}] 收到消息: ${msg.text.slice(0, 50)}...`);
 
     let userText = msg.text;
+    const runtimeFeedback: RuntimeFeedbackInput[] = [];
     // 合并转发消息：拉取子消息内容拼接为文本
     if (msg.mergeForwardIds && msg.mergeForwardIds.length > 0) {
       Logger.info(`[${key}] 合并转发消息，拉取 ${msg.mergeForwardIds.length} 条子消息...`);
@@ -328,19 +321,23 @@ export class FeishuBot {
         msg.file.fileName,
       );
       if (!localPath) {
-        await this.sender.reply(msg.chatId, `文件下载失败：${msg.file.fileName}\n请重试上传。`);
-        return;
+        runtimeFeedback.push({
+          source: 'feishu.file_download',
+          message: `文件下载失败: ${msg.file.fileName}`,
+          actionHint: '请告知用户该附件没有成功读取，并让用户重试上传或改用文字说明。',
+        });
+        userText = `[用户上传了文件：${msg.file.fileName}，但平台未能下载该附件]`;
+      } else {
+        this.enqueuePendingAttachment(key, {
+          fileName: msg.file.fileName,
+          localPath,
+          type: msg.file.type,
+          receivedAt: Date.now(),
+        });
+        const queuedAttachments = this.consumePendingAttachments(key);
+        userText = this.buildAttachmentOnlyPrompt(queuedAttachments);
+        Logger.info(`[${key}] 附件消息已交给 Agent 自主判断（attachments=${queuedAttachments.length})`);
       }
-
-      this.enqueuePendingAttachment(key, {
-        fileName: msg.file.fileName,
-        localPath,
-        type: msg.file.type,
-        receivedAt: Date.now(),
-      });
-      const queuedAttachments = this.consumePendingAttachments(key);
-      userText = this.buildAttachmentOnlyPrompt(queuedAttachments);
-      Logger.info(`[${key}] 附件消息已交给 Agent 自主判断（attachments=${queuedAttachments.length})`);
     } else {
       // 普通文本消息：若有待处理附件，拼接上下文后一并交给 Agent
       const queuedAttachments = this.consumePendingAttachments(key);
@@ -357,7 +354,7 @@ export class FeishuBot {
         Logger.warning(`[${key}] 检测到用户中断请求，已请求中止当前回合`);
       }
       const queue = this.messageQueue.get(key) ?? [];
-      queue.push({ userText, chatId: msg.chatId, senderId: msg.senderId });
+      queue.push({ userText, chatId: msg.chatId, senderId: msg.senderId, runtimeFeedback });
       this.messageQueue.set(key, queue);
       Logger.info(`[${key}] 主会话忙，消息已入队 (队列长度: ${queue.length})`);
       return;
@@ -370,7 +367,7 @@ export class FeishuBot {
     });
 
     try {
-      const result = await session.handleMessage(userText, { channel });
+      const result = await session.handleMessage(userText, { channel, runtimeFeedback });
       if (result.text === BUSY_MESSAGE || result.text === ERROR_MESSAGE) {
         await this.sender.reply(msg.chatId, result.text);
       }
@@ -447,6 +444,7 @@ export class FeishuBot {
     const mergedText = messages.length === 1
       ? messages[0].userText
       : messages.map((m, i) => `[队列消息 ${i + 1}] ${m.userText}`).join('\n');
+    const runtimeFeedback = messages.flatMap(message => message.runtimeFeedback || []);
 
     const last = messages[messages.length - 1];
     const session = this.sessionManager.getOrCreate(sessionKey);
@@ -456,7 +454,7 @@ export class FeishuBot {
     });
 
     try {
-      const result = await session.handleMessage(mergedText, { channel });
+      const result = await session.handleMessage(mergedText, { channel, runtimeFeedback });
       if (result.text === ERROR_MESSAGE) {
         await this.sender.reply(last.chatId, result.text);
       }
@@ -602,7 +600,7 @@ export class FeishuBot {
   private buildAttachmentOnlyPrompt(attachments: PendingAttachment[]): string {
     return [
       '[用户仅上传了附件，暂未给出明确任务]',
-      '[当前会话是飞书聊天：给老师可见的文本请通过 reply 工具发送；发送文件请用 send_file 工具]',
+      '[当前会话是飞书聊天：给老师可见的文本会自动发送；如需发送文件，使用当前可用的发送文件工具]',
       '请你先判断最合理的下一步，不要默认进入任何特定 skill（例如 paper-analysis）。',
       '如果任务不明确，先提出一个最小澄清问题；如果任务足够明确，再自行执行。',
       this.formatAttachmentContext(attachments),

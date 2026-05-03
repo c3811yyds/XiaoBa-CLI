@@ -72,7 +72,7 @@ export interface ToolResult {
   newMessages?: import('./index').Message[];
 }
 
-export type ToolSurface = 'cli' | 'feishu' | 'catscompany' | 'agent' | 'research' | 'unknown';
+export type ToolSurface = 'cli' | 'feishu' | 'catscompany' | 'weixin' | 'agent' | 'research' | 'unknown';
 export type ToolPermissionProfile = 'strict' | 'default' | 'relaxed';
 
 /**
@@ -120,7 +120,7 @@ export interface Tool {
  * ToolManager 和 AgentToolExecutor 均实现此接口
  */
 export interface ToolExecutor {
-  getToolDefinitions(allowedNames?: string[]): ToolDefinition[];
+  getToolDefinitions(): ToolDefinition[];
   executeTool(
     toolCall: ToolCall,
     conversationHistory?: any[],

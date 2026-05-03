@@ -58,6 +58,10 @@ export class ConfigManager {
     return this.mergeConfig(this.getDefaultConfig(), this.loadUserConfigFile());
   }
 
+  static getConfigReadonly(): ChatConfig {
+    return this.mergeConfig(this.getDefaultConfig(), this.loadUserConfigFile());
+  }
+
   static saveConfig(config: ChatConfig): void {
     this.ensureConfigDir();
     const merged = this.mergeConfig(this.loadUserConfigFile() as ChatConfig, config);

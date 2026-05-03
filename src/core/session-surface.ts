@@ -1,0 +1,46 @@
+export type SessionSurface = 'cli' | 'feishu' | 'catscompany' | 'weixin';
+
+const AUTO_SEND_MODE_INSTRUCTION = `【消息模式】你的每次文本输出都会立即自动发送给用户。
+
+工作流程：
+1. 简单问答：直接输出文本回答
+2. 需要工具：调用工具（read/write/grep 等）后再回答
+
+重要规则：
+- 如果还需要调用工具，不要输出任何文本
+- 只在最终准备回答用户时才输出文本`;
+
+export function resolveSessionSurface(sessionKey: string, sessionType?: string): SessionSurface {
+  const normalizedSessionType = (sessionType || '').toLowerCase();
+  if (normalizedSessionType === 'weixin') return 'weixin';
+  if (normalizedSessionType === 'feishu') return 'feishu';
+  if (normalizedSessionType === 'catscompany') return 'catscompany';
+
+  if (sessionKey.startsWith('cc_user:') || sessionKey.startsWith('cc_group:')) {
+    return 'catscompany';
+  }
+  if (sessionKey.startsWith('user:') || sessionKey.startsWith('group:')) {
+    return 'feishu';
+  }
+  return 'cli';
+}
+
+export function composeSurfacePrompt(sessionKey: string, sessionType?: string): string | undefined {
+  const surface = resolveSessionSurface(sessionKey, sessionType);
+
+  if (surface === 'feishu') {
+    const isGroup = sessionKey.startsWith('group:');
+    const chatType = isGroup ? '群聊' : '私聊';
+    return `[surface:feishu:${isGroup ? 'group' : 'private'}]\n当前是飞书${chatType}会话。\n${AUTO_SEND_MODE_INSTRUCTION}`;
+  }
+
+  if (surface === 'catscompany') {
+    return `[surface:catscompany]\n当前是 Cats Company 聊天会话。\n${AUTO_SEND_MODE_INSTRUCTION}`;
+  }
+
+  if (surface === 'weixin') {
+    return `[surface:weixin]\n当前是微信聊天会话。\n${AUTO_SEND_MODE_INSTRUCTION}`;
+  }
+
+  return undefined;
+}

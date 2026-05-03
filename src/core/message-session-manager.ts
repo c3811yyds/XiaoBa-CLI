@@ -1,14 +1,15 @@
-import { AgentSession, AgentServices } from './agent-session';
+import { AgentSession, AgentServices, SystemPromptProvider } from './agent-session';
 import { Logger } from '../utils/logger';
+import { composeSessionSystemPromptProvider } from './session-system-prompt';
 
 /** 默认会话过期时间：60 分钟 */
 const DEFAULT_SESSION_TTL = 60 * 60 * 1000;
 
-/**
- * 统一唤醒回复函数签名
- * 平台层注入具体的发送实现
- */
-export type WakeupSendFn = (channelId: string, text: string) => Promise<void>;
+export interface MessageSessionManagerOptions {
+  ttl?: number;
+  systemPromptProviderFactory?: (sessionKey: string) => SystemPromptProvider;
+  skillReloadHandler?: () => Promise<void>;
+}
 
 /**
  * MessageSessionManager - 统一的消息会话生命周期管理器
@@ -25,30 +26,29 @@ export class MessageSessionManager {
   private destroying = new Set<string>();
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
   private ttl: number;
-  /** 记录每个 session 最近一次消息的通道 ID（topic/chatId，用于过期时主动唤醒） */
-  private lastChannelIdMap = new Map<string, string>();
-  private wakeupSendFn: WakeupSendFn | null = null;
   private contextInjector: ((session: AgentSession) => void) | null = null;
   private sessionType: string;
+  private systemPromptProviderFactory?: (sessionKey: string) => SystemPromptProvider;
+  private skillReloadHandler?: () => Promise<void>;
 
   constructor(
     private agentServices: AgentServices,
     sessionType: string,
-    ttl?: number,
+    ttlOrOptions?: number | MessageSessionManagerOptions,
   ) {
     this.sessionType = sessionType;
-    this.ttl = ttl ?? DEFAULT_SESSION_TTL;
+    const options = typeof ttlOrOptions === 'number'
+      ? { ttl: ttlOrOptions }
+      : ttlOrOptions;
+    this.ttl = options?.ttl ?? DEFAULT_SESSION_TTL;
+    this.systemPromptProviderFactory = options?.systemPromptProviderFactory;
+    this.skillReloadHandler = options?.skillReloadHandler;
     MessageSessionManager.managers.set(sessionType, this);
     this.startCleanup();
   }
 
   static getManager(sessionType: string): MessageSessionManager | null {
     return this.managers.get(sessionType) || null;
-  }
-
-  /** 注入唤醒发送函数（用于过期时主动唤醒） */
-  setWakeupSendFn(fn: WakeupSendFn): void {
-    this.wakeupSendFn = fn;
   }
 
   /** 设置上下文注入器，新建 session 时自动调用 */
@@ -59,12 +59,20 @@ export class MessageSessionManager {
   /**
    * 获取或创建会话
    * @param key - 会话唯一标识（如 cc_user:usr3, feishu_group:chat123）
-   * @param channelId - 通道 ID（topic 或 chatId，用于唤醒回复）
    */
-  getOrCreate(key: string, channelId?: string): AgentSession {
+  getOrCreate(key: string): AgentSession {
     let session = this.sessions.get(key);
     if (!session) {
       session = new AgentSession(key, this.agentServices, this.sessionType);
+      if (this.systemPromptProviderFactory) {
+        session.setSystemPromptProvider(composeSessionSystemPromptProvider(
+          this.systemPromptProviderFactory(key),
+          { sessionKey: key, sessionType: this.sessionType },
+        ));
+      }
+      if (this.skillReloadHandler) {
+        session.setSkillReloadHandler(this.skillReloadHandler);
+      }
       session.restoreFromStore();
       if (this.contextInjector) {
         this.contextInjector(session);
@@ -73,50 +81,38 @@ export class MessageSessionManager {
       session.runWithLogContext(() => Logger.info(`新建会话: ${key}`));
     }
 
-    if (channelId) {
-      this.lastChannelIdMap.set(key, channelId);
-      this.injectWakeupReply(session, key);
-    }
-
     session.lastActiveAt = Date.now();
     return session;
   }
 
-  injectContext(key: string, text: string, channelId?: string): void {
-    const session = this.getOrCreate(key, channelId);
+  injectContext(key: string, text: string): void {
+    const session = this.getOrCreate(key);
     session.injectContext(text);
-  }
-
-  /** 为 session 注入主动唤醒回调 */
-  private injectWakeupReply(session: AgentSession, key: string): void {
-    if (!this.wakeupSendFn) return;
-    const sendFn = this.wakeupSendFn;
-    session.setWakeupReply(async (text: string) => {
-      const channelId = this.lastChannelIdMap.get(key);
-      if (!channelId) {
-        session.runWithLogContext(() => Logger.warning(`[${key}] 主动唤醒失败: 无 channelId`));
-        return;
-      }
-      await sendFn(channelId, text);
-    });
   }
 
   /** 启动定期清理（每分钟检查一次） */
   private startCleanup(): void {
     this.cleanupTimer = setInterval(() => {
-      const now = Date.now();
-      for (const [key, session] of this.sessions) {
-        if (this.destroying.has(key)) continue;
-        if (now - session.lastActiveAt > this.ttl) {
-          this.destroying.add(key);
-          this.sessions.delete(key);
-          session.runWithLogContext(() => Logger.info(`会话已过期清理: ${key}`));
-          session.cleanup({ checkWakeup: true })
-            .catch(err => session.runWithLogContext(() => Logger.warning(`会话 ${key} 清理失败: ${err}`)))
-            .finally(() => this.destroying.delete(key));
-        }
-      }
+      void this.cleanupExpiredSessions(Date.now());
     }, 60_000);
+  }
+
+  private async cleanupExpiredSessions(now: number): Promise<void> {
+    const cleanupPromises: Promise<void>[] = [];
+    for (const [key, session] of this.sessions) {
+      if (this.destroying.has(key)) continue;
+      if (now - session.lastActiveAt <= this.ttl) continue;
+
+      this.destroying.add(key);
+      this.sessions.delete(key);
+      session.runWithLogContext(() => Logger.info(`会话已过期清理: ${key}`));
+      cleanupPromises.push(
+        session.cleanup()
+          .catch(err => session.runWithLogContext(() => Logger.warning(`会话 ${key} 清理失败: ${err}`)))
+          .finally(() => this.destroying.delete(key)),
+      );
+    }
+    await Promise.all(cleanupPromises);
   }
 
   /** 停止清理定时器并保存所有会话 */

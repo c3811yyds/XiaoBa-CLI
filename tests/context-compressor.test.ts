@@ -1,6 +1,6 @@
 import { describe, test, beforeEach } from 'node:test';
 import * as assert from 'node:assert';
-import { ContextCompressor, contentToString, messagesToConversationText, parseCompactSummary, buildCompactSystemPrompt } from '../src/core/context-compressor';
+import { ContextCompressor, contentToString, messagesToConversationText, parseCompactSummary, buildCompactSystemPrompt, truncateForSummary } from '../src/core/context-compressor';
 import type { Message } from '../src/types';
 import type { AIService } from '../src/utils/ai-service';
 
@@ -28,6 +28,14 @@ function mockAIService(summaryText: string): AIService {
       content: `<summary>\n${summaryText}\n</summary>`,
       usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
     }),
+    chatStream: async (_messages: Message[], _tools?: any, callbacks?: any) => {
+      const content = `<summary>\n${summaryText}\n</summary>`;
+      callbacks?.onText?.(content);
+      return {
+        content,
+        usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+      };
+    },
   } as unknown as AIService;
 }
 
@@ -90,12 +98,12 @@ describe('messagesToConversationText', () => {
     assert.ok(result.includes('[工具 read_file]'), '应包含工具消息');
   });
 
-  test('过长的工具输出被截断', () => {
-    const longContent = 'a'.repeat(1000);
+  test('摘要输入中过长的工具输出被截断', () => {
+    const longContent = '中'.repeat(1000);
     const msgs = [tool('bash', longContent, 'tc1')];
-    const result = messagesToConversationText(msgs);
-    assert.ok(result.includes('...[共1000字符]'), '应包含截断标记');
-    assert.ok(!result.includes('a'.repeat(900)), '截断后不应包含900个字符');
+    const result = truncateForSummary(msgs);
+    assert.ok(result.includes('...[共 1000 字符]'), '应包含截断标记');
+    assert.ok(!result.includes('中'.repeat(900)), '截断后不应包含900个字符');
   });
 });
 
@@ -225,7 +233,7 @@ describe('ContextCompressor.compact', () => {
 
   test('AI 摘要失败时抛出异常', async () => {
     const failingService = {
-      chat: async () => { throw new Error('API error'); },
+      chatStream: async () => { throw new Error('API error'); },
     } as unknown as AIService;
     const compressor = new ContextCompressor(failingService);
     const messages: Message[] = [system('base'), user('hello'), assistant('hi')];

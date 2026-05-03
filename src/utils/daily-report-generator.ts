@@ -1,19 +1,19 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { AIService } from './ai-service';
+import {
+  isSessionTurnEntry,
+  readSessionLogFile,
+} from './session-log-schema';
+import type {
+  LegacySessionTurnLogEntry,
+  SessionTurnLogEntry,
+} from './session-log-schema';
 
 const SESSION_LOG_DIR = path.resolve('logs/sessions');
 const REPORT_DIR = path.resolve('logs/reports');
 
-interface TurnLog {
-  turn: number;
-  timestamp: string;
-  session_id: string;
-  session_type: string;
-  user: { text: string; images?: string[] };
-  assistant: { text: string; tool_calls: any[] };
-  tokens: { prompt: number; completion: number };
-}
+type TurnLog = SessionTurnLogEntry | LegacySessionTurnLogEntry;
 
 interface SessionSummary {
   session_id: string;
@@ -77,12 +77,13 @@ export class DailyReportGenerator {
    */
   private parseSessionLog(filePath: string, sessionType: string): SessionSummary | null {
     try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const lines = content.trim().split('\n').filter(l => l.trim());
+      const entries = readSessionLogFile(filePath);
+      if (entries.length === 0) return null;
 
-      if (lines.length === 0) return null;
+      const turns = entries.filter((entry): entry is TurnLog => isSessionTurnEntry(entry));
 
-      const turns: TurnLog[] = lines.map(line => JSON.parse(line));
+      if (turns.length === 0) return null;
+
       const toolCalls = new Set<string>();
       let totalTokens = 0;
 

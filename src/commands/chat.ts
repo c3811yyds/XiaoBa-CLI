@@ -1,43 +1,34 @@
 import * as readline from 'readline';
 import ora from 'ora';
 import { Logger } from '../utils/logger';
-import { AIService } from '../utils/ai-service';
 import { CommandOptions } from '../types';
 import { styles } from '../theme/colors';
-import { SkillManager } from '../skills/skill-manager';
-import { ToolManager } from '../tools/tool-manager';
-import { AgentSession, AgentServices, SessionCallbacks } from '../core/agent-session';
+import { AgentSession, SessionCallbacks } from '../core/agent-session';
 import { startRuntimeCommandSupport, stopRuntimeCommandSupport } from '../utils/runtime-command-support';
+import { RuntimeFactory } from '../runtime/runtime-factory';
+import { resolveRuntimeProfileFromConfig } from '../runtime/runtime-profile-config';
 
 export async function chatCommand(options: CommandOptions): Promise<void> {
-  const aiService = new AIService();
   Logger.openLogFile('cli', undefined, true);
   await startRuntimeCommandSupport();
 
-  // 初始化 ToolManager
-  const toolManager = new ToolManager();
+  const runtime = await RuntimeFactory.createSession({
+    profile: resolveRuntimeProfileFromConfig({
+      surface: 'cli',
+      workingDirectory: process.cwd(),
+    }).profile,
+    sessionKey: 'cli',
+    sessionType: 'cli',
+    loadSkills: false,
+  });
+  const { session, services } = runtime;
+  const { toolManager } = services;
+
   Logger.info(`已注册 ${toolManager.getToolCount()} 个基础工具 (message mode)`);
   Logger.info(`运行时可用工具数量将根据 skill toolPolicy 动态过滤`);
-
-  // 初始化 SkillManager
-  const skillManager = new SkillManager();
-  try {
-    await skillManager.loadSkills();
-    const skillCount = skillManager.getAllSkills().length;
-    if (skillCount > 0) {
-      Logger.info(`已加载 ${skillCount} 个 skills`);
-    }
-  } catch (error: any) {
-    Logger.warning(`Skills 加载失败: ${error.message}`);
+  if (runtime.profile.skills.enabled) {
+    await RuntimeFactory.loadSkills(services.skillManager);
   }
-
-  // 组装 AgentServices + 创建 AgentSession
-  const services: AgentServices = {
-    aiService,
-    toolManager,
-    skillManager,
-  };
-  const session = new AgentSession('cli', services, 'cli');
 
   // 启动时激活指定 skill
   if (options.skill) {

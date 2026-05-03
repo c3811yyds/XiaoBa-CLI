@@ -1,10 +1,12 @@
 import express from 'express';
 import * as path from 'path';
+import type { Server } from 'http';
 import { Logger } from '../utils/logger';
 import { createApiRouter } from './routes/api';
 import { ServiceManager } from './service-manager';
 
 const DEFAULT_PORT = 3800;
+const activeServers: Server[] = [];
 export interface UpdateController {
   getStatus: () => any;
   checkForUpdates: (manual?: boolean) => Promise<any>;
@@ -48,8 +50,9 @@ export async function startDashboard(
     process.exit(0);
   });
 
-  app.listen(port, '127.0.0.1', () => {
+  const server = app.listen(port, '127.0.0.1', () => {
     Logger.success(`\nXiaoBa Dashboard 已启动`);
     Logger.info(`打开浏览器访问: http://localhost:${port}\n`);
   });
+  activeServers.push(server);
 }

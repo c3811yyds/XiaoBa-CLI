@@ -8,6 +8,7 @@ export class SendTextTool implements Tool {
   definition: ToolDefinition = {
     name: 'send_text',
     description: '发送一条文本消息给用户。如果内容较长（超过 150 字），应该分成多段，多次调用此工具发送，每段 50-150 字。',
+    transcriptMode: 'outbound_message',
     parameters: {
       type: 'object',
       properties: {

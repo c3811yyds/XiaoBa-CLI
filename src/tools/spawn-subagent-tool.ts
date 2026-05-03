@@ -30,7 +30,7 @@ export class SpawnSubagentTool implements Tool {
 - 子智能体不会直接给用户发消息或文件
 - 任务完成后你会收到包含结果摘要和产出文件路径的通知
 - 你可以用 check_subagent 查看进度，用 stop_subagent 停止任务
-- 收到完成通知后，请用 reply 告知用户结果，用 send_file 发送相关文件`,
+- 收到完成通知后，在最终回复里告知用户结果；如需发送文件，使用 send_file 发送相关文件`,
     parameters: {
       type: 'object',
       properties: {
@@ -90,7 +90,7 @@ export class SpawnSubagentTool implements Tool {
       `Skill: ${skill_name}`,
       `状态: running`,
       ``,
-      `子智能体完成后会通知你结果和产出文件列表。届时请用 reply 和 send_file 转发给用户。`,
+      `子智能体完成后会通知你结果和产出文件列表。届时请在最终回复里告知用户结果，并按需用 send_file 发送文件。`,
       `你可以用 check_subagent 查看进度，用 stop_subagent 停止任务。`,
     ].join('\n');
   }

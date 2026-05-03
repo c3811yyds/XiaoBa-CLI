@@ -14,6 +14,7 @@ import { SpawnSubagentTool } from './spawn-subagent-tool';
 import { CheckSubagentTool } from './check-subagent-tool';
 import { StopSubagentTool } from './stop-subagent-tool';
 import { ResumeSubagentTool } from './resume-subagent-tool';
+import { DEFAULT_TOOL_NAMES } from './default-tool-names';
 
 /**
  * 工具名别名映射（Claude Code 工具名 → XiaoBa 内部注册名）
@@ -46,6 +47,10 @@ function isRateLimitLikeMessage(message: string): boolean {
 /**
  * 工具管理器 - 管理所有可用的工具
  */
+export interface ToolManagerOptions {
+  enabledToolNames?: readonly string[];
+}
+
 export class ToolManager implements ToolExecutor {
   private tools: Map<string, Tool> = new Map();
   private workingDirectory: string;
@@ -54,36 +59,44 @@ export class ToolManager implements ToolExecutor {
   constructor(
     workingDirectory: string = process.cwd(),
     contextDefaults: Partial<ToolExecutionContext> = {},
+    options: ToolManagerOptions = {},
   ) {
     this.workingDirectory = workingDirectory;
     this.contextDefaults = contextDefaults;
-    this.registerDefaultTools();
+    this.registerDefaultTools(options.enabledToolNames);
   }
 
-  private registerDefaultTools(): void {
-    // 基础文件工具 (6)
-    this.registerTool(new ReadTool());
-    this.registerTool(new WriteTool());
-    this.registerTool(new EditTool());
-    this.registerTool(new GlobTool());
-    this.registerTool(new GrepTool());
-    this.registerTool(new ShellTool());
+  private registerDefaultTools(enabledToolNames?: readonly string[]): void {
+    const enabled = enabledToolNames ? new Set(enabledToolNames) : undefined;
+    const defaultTools: Tool[] = [
+      new ReadTool(),
+      new WriteTool(),
+      new EditTool(),
+      new GlobTool(),
+      new GrepTool(),
+      new ShellTool(),
+      new SendTextTool(),
+      new SendFileTool(),
+      new SendToInspectorTool(),
+      new SpawnSubagentTool(),
+      new CheckSubagentTool(),
+      new StopSubagentTool(),
+      new ResumeSubagentTool(),
+      new SkillTool(),
+    ];
 
-    // 通信工具 (2)
-    this.registerTool(new SendTextTool());
-    this.registerTool(new SendFileTool());
-    this.registerTool(new SendToInspectorTool());
+    for (const tool of defaultTools) {
+      if (enabled && !enabled.has(tool.definition.name)) continue;
+      this.registerTool(tool);
+    }
 
-    // 元工具
-    this.registerTool(new SpawnSubagentTool());
-
-    // Sub-Agent 管理 (2)
-    this.registerTool(new CheckSubagentTool());
-    this.registerTool(new StopSubagentTool());
-    this.registerTool(new ResumeSubagentTool());
-
-    // Skill 调用 (1)
-    this.registerTool(new SkillTool());
+    if (enabled) {
+      for (const toolName of enabled) {
+        if (!(DEFAULT_TOOL_NAMES as readonly string[]).includes(toolName)) {
+          Logger.warning(`未知工具已被忽略: ${toolName}`);
+        }
+      }
+    }
   }
 
   registerTool(tool: Tool): void {

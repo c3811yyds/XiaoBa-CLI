@@ -3,13 +3,11 @@ import { CatsCompanyConfig, ParsedCatsMessage, CatsFileInfo } from './types';
 import { MessageSender } from './message-sender';
 import { extractContentBlocks } from './content-blocks';
 import { MessageSessionManager } from '../core/message-session-manager';
-import { AIService } from '../utils/ai-service';
-import { ToolManager } from '../tools/tool-manager';
-import { SkillManager } from '../skills/skill-manager';
-import { AgentServices, BUSY_MESSAGE } from '../core/agent-session';
+import { AgentServices, BUSY_MESSAGE, RuntimeFeedbackInput } from '../core/agent-session';
 import { Logger } from '../utils/logger';
 import { SubAgentManager } from '../core/sub-agent-manager';
 import { ChannelCallbacks } from '../types/tool';
+import { AdapterRuntimeBundle, createAdapterRuntime } from '../runtime/adapter-runtime';
 import { randomUUID } from 'crypto';
 
 interface PendingAttachment {
@@ -32,9 +30,18 @@ interface QueuedMessage {
   userMessage: string | import('../types').ContentBlock[];
   topic: string;
   senderId: string;
+  runtimeFeedback?: RuntimeFeedbackInput[];
 }
 
 const PENDING_ANSWER_TIMEOUT_MS = 120_000;
+
+export function createCatsCompanyRuntime(sessionTTL?: number): AdapterRuntimeBundle {
+  return createAdapterRuntime({
+    surface: 'catscompany',
+    sessionTTL,
+    promptSnapshotMode: 'mutable-identity',
+  });
+}
 
 /**
  * CatsCompanyBot 主类
@@ -57,6 +64,8 @@ export class CatsCompanyBot {
   private messageQueue = new Map<string, QueuedMessage[]>();
   /** Bot 自身的 uid，用于过滤自己发出的消息 */
   private botUid: string | null = null;
+  private runtime: AdapterRuntimeBundle;
+  private runtimeProfile: AdapterRuntimeBundle['profile'];
 
   constructor(config: CatsCompanyConfig) {
     this.bot = new CatsClient({
@@ -67,26 +76,20 @@ export class CatsCompanyBot {
 
     this.sender = new MessageSender(this.bot, config.httpBaseUrl, config.apiKey);
 
-    const aiService = new AIService();
-    const toolManager = new ToolManager();
+    const runtime = createCatsCompanyRuntime(config.sessionTTL);
+    this.runtime = runtime;
+    this.runtimeProfile = runtime.profile;
+    this.agentServices = runtime.services;
+    const { toolManager } = this.agentServices;
 
     Logger.info(`已注册 ${toolManager.getToolCount()} 个基础工具 (message mode)`);
     Logger.info(`运行时可用工具数量将根据 skill toolPolicy 动态过滤`);
 
-    const skillManager = new SkillManager();
-
-    this.agentServices = {
-      aiService,
-      toolManager,
-      skillManager,
-    };
-
     this.sessionManager = new MessageSessionManager(
       this.agentServices,
       'catscompany',
-      config.sessionTTL,
+      runtime.sessionManagerOptions,
     );
-    this.sessionManager.setWakeupSendFn((channelId, text) => this.sender.reply(channelId, text));
   }
 
   /**
@@ -97,20 +100,14 @@ export class CatsCompanyBot {
     Logger.info('正在启动 CatsCompany 机器人...');
 
     // 加载 skills
-    try {
-      await this.agentServices.skillManager.loadSkills();
-      const skillCount = this.agentServices.skillManager.getAllSkills().length;
-      if (skillCount > 0) {
-        Logger.info(`已加载 ${skillCount} 个 skills`);
-      }
-    } catch (error: any) {
-      Logger.warning(`Skills 加载失败: ${error.message}`);
-    }
+    await this.runtime.loadSkills();
 
     // 注册事件
     this.bot.on('ready', (info: { uid: string; name: string }) => {
       this.botUid = info.uid;
       const botName = info.name.trim() || '(未设置)';
+      this.runtimeProfile.displayName = botName;
+      this.runtimeProfile.prompt.displayName = botName;
       process.env.CURRENT_AGENT_DISPLAY_NAME = botName;
       Logger.success(`CatsCompany 机器人已连接，uid=${info.uid}, name=${botName}`);
     });
@@ -199,7 +196,7 @@ export class CatsCompanyBot {
     }
 
     // 获取或创建会话
-    const session = this.sessionManager.getOrCreate(key, msg.topic);
+    const session = this.sessionManager.getOrCreate(key);
 
     // 注册持久化回调到 SubAgentManager
     const subAgentManager = SubAgentManager.getInstance();
@@ -232,27 +229,28 @@ export class CatsCompanyBot {
     Logger.info(`[${key}] 收到消息: ${msg.text.slice(0, 50)}...`);
 
     let userMessage: string | import('../types').ContentBlock[] = msg.text;
+    const runtimeFeedback: RuntimeFeedbackInput[] = [];
 
     if (msg.file) {
       const localPath = await this.sender.downloadFile(msg.file.url, msg.file.fileName);
       if (!localPath) {
-        try {
-          await this.sender.reply(msg.topic, `文件下载失败：${msg.file.fileName}\n请重试上传。`);
-        } catch (err: any) {
-          Logger.warning(`错误提示发送失败: ${err.message}`);
-        }
-        return;
+        runtimeFeedback.push({
+          source: 'catscompany.file_download',
+          message: `文件下载失败: ${msg.file.fileName}`,
+          actionHint: '请告知用户该附件没有成功读取，并让用户重试上传或改用文字说明。',
+        });
+        userMessage = `[用户上传了文件：${msg.file.fileName}，但平台未能下载该附件]`;
+      } else {
+        this.enqueuePendingAttachment(key, {
+          fileName: msg.file.fileName,
+          localPath,
+          type: msg.file.type,
+          receivedAt: Date.now(),
+        });
+        const queuedAttachments = this.consumePendingAttachments(key);
+        userMessage = await this.buildMultimodalMessage(msg.text, queuedAttachments);
+        Logger.info(`[${key}] 附件消息（attachments=${queuedAttachments.length})`);
       }
-
-      this.enqueuePendingAttachment(key, {
-        fileName: msg.file.fileName,
-        localPath,
-        type: msg.file.type,
-        receivedAt: Date.now(),
-      });
-      const queuedAttachments = this.consumePendingAttachments(key);
-      userMessage = await this.buildMultimodalMessage(msg.text, queuedAttachments);
-      Logger.info(`[${key}] 附件消息（attachments=${queuedAttachments.length})`);
     } else {
       const queuedAttachments = this.consumePendingAttachments(key);
       if (queuedAttachments.length > 0) {
@@ -264,7 +262,7 @@ export class CatsCompanyBot {
     // 并发保护：忙时消息静默入队，空闲后自动处理
     if (session.isBusy()) {
       const queue = this.messageQueue.get(key) ?? [];
-      queue.push({ userMessage, topic: msg.topic, senderId: msg.senderId });
+      queue.push({ userMessage, topic: msg.topic, senderId: msg.senderId, runtimeFeedback });
       this.messageQueue.set(key, queue);
       Logger.info(`[${key}] 主会话忙，消息已入队 (队列长度: ${queue.length})`);
       return;
@@ -282,6 +280,7 @@ export class CatsCompanyBot {
     try {
       const result = await session.handleMessage(userMessage, {
         channel,
+        runtimeFeedback,
         callbacks: {
           onRetry: async (attempt, maxRetries) => {
             try {
@@ -486,7 +485,10 @@ export class CatsCompanyBot {
     });
 
     try {
-      const result = await session.handleMessage(msg.userMessage, { channel });
+      const result = await session.handleMessage(msg.userMessage, {
+        channel,
+        runtimeFeedback: msg.runtimeFeedback,
+      });
       if (result.text.startsWith('处理消息时出错:')) {
         try {
           await this.sender.reply(msg.topic, result.text);
@@ -566,7 +568,7 @@ export class CatsCompanyBot {
   private buildAttachmentOnlyPrompt(attachments: PendingAttachment[]): string {
     return [
       '[用户仅上传了附件，暂未给出明确任务]',
-      '[当前会话是 CatsCompany 聊天：给用户可见的文本请通过 reply 工具发送；发送文件请用 send_file 工具]',
+      '[当前会话是 CatsCompany 聊天：给用户可见的文本会自动发送；如需发送文件，使用当前可用的发送文件工具]',
       '请你先判断最合理的下一步，不要默认进入任何特定 skill（例如 paper-analysis）。',
       '如果任务不明确，先提出一个最小澄清问题；如果任务足够明确，再自行执行。',
       this.formatAttachmentContext(attachments),

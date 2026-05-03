@@ -851,6 +851,37 @@
       word-break: break-word;
     }
 
+    .skill-growth {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin: 12px 0;
+      position: relative;
+      z-index: 1;
+    }
+
+    .skill-growth-stat {
+      padding: 10px;
+      border-radius: 12px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border-light);
+      min-width: 0;
+    }
+
+    .skill-growth-label {
+      font-size: 11px;
+      color: var(--text3);
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .skill-growth-value {
+      font-size: 14px;
+      color: var(--text);
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
     .skill-actions {
       display: flex;
       gap: 8px;
@@ -1242,6 +1273,258 @@
       border-color: rgba(103, 112, 133, 0.12);
     }
 
+    .pet-layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 438px) minmax(300px, 1fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .pet-stage,
+    .pet-controls {
+      border-radius: 22px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.84));
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm), var(--glow);
+    }
+
+    .pet-stage {
+      min-height: 360px;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pet-stage::before {
+      content: '';
+      position: absolute;
+      left: 24px;
+      right: 24px;
+      bottom: 34px;
+      height: 22px;
+      border-radius: 50%;
+      background: rgba(31, 34, 50, 0.10);
+      filter: blur(10px);
+    }
+
+    .pet-frame {
+      width: min(82%, 244px);
+      height: 244px;
+      object-fit: contain;
+      position: relative;
+      z-index: 1;
+      image-rendering: auto;
+      transform-origin: 50% 86%;
+      animation: pet-breathe 1.2s ease-in-out infinite;
+    }
+
+    @keyframes pet-breathe {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(-4px) scale(1.018); }
+    }
+
+    .pet-controls {
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .pet-status {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .pet-status h3 {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    .pet-state-pill {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--accent);
+      background: var(--accent-light);
+      border: 1px solid rgba(59, 130, 246, 0.12);
+      padding: 7px 11px;
+      border-radius: 999px;
+      text-transform: uppercase;
+    }
+
+    .pet-action-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .pet-action {
+      min-height: 58px;
+      justify-content: flex-start;
+      text-align: left;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.72);
+      border-color: rgba(59, 130, 246, 0.12);
+      color: var(--text);
+    }
+
+    .pet-action.active {
+      color: #fff;
+      background: var(--accent-gradient);
+      border-color: transparent;
+      box-shadow: 0 12px 28px rgba(59, 130, 246, 0.22);
+    }
+
+    .pet-action span {
+      display: block;
+      color: var(--text3);
+      font-size: 11px;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+
+    .pet-action.active span {
+      color: rgba(255, 255, 255, 0.76);
+    }
+
+    .pet-frame-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(54px, 1fr));
+      gap: 8px;
+      padding-top: 2px;
+    }
+
+    .pet-frame-thumb {
+      height: 58px;
+      border-radius: 12px;
+      background: rgba(247, 244, 255, 0.72);
+      border: 1px solid var(--border-light);
+      padding: 5px;
+      object-fit: contain;
+    }
+
+    .floating-pet {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 80;
+      width: 112px;
+      min-height: 124px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+      pointer-events: none;
+    }
+
+    .floating-pet-bubble {
+      max-width: 112px;
+      min-height: 28px;
+      padding: 6px 9px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      color: var(--text);
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.35;
+      text-align: center;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    .floating-pet.show-bubble .floating-pet-bubble {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .floating-pet-button {
+      width: 96px;
+      height: 88px;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+      pointer-events: auto;
+      display: grid;
+      place-items: end center;
+      position: relative;
+    }
+
+    .floating-pet-button::before {
+      content: '';
+      position: absolute;
+      left: 17px;
+      right: 17px;
+      bottom: 6px;
+      height: 12px;
+      border-radius: 50%;
+      background: rgba(31, 34, 50, 0.16);
+      filter: blur(7px);
+    }
+
+    .floating-pet-frame {
+      width: 92px;
+      height: 84px;
+      object-fit: contain;
+      position: relative;
+      z-index: 1;
+      transform-origin: 50% 86%;
+      animation: pet-breathe 1.2s ease-in-out infinite;
+      filter: drop-shadow(0 12px 18px rgba(24, 25, 44, 0.16));
+    }
+
+    .floating-pet-menu {
+      position: absolute;
+      right: 6px;
+      bottom: 94px;
+      width: 122px;
+      padding: 6px;
+      display: none;
+      grid-template-columns: 1fr;
+      gap: 4px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-md);
+      pointer-events: auto;
+    }
+
+    .floating-pet.open .floating-pet-menu {
+      display: grid;
+    }
+
+    .floating-pet-menu button {
+      border: 0;
+      background: transparent;
+      border-radius: 10px;
+      padding: 8px 9px;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 800;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    body.companion-active .floating-pet {
+      display: none;
+    }
+
+    .floating-pet-menu button:hover {
+      background: var(--accent-light);
+      color: var(--accent);
+    }
+
     @media (max-width: 1200px) {
       .page-content { width: calc(100% - 16px); }
       .svc-card { align-items: flex-start; }
@@ -1356,11 +1639,41 @@
         flex-direction: column;
       }
 
+      .pet-layout,
+      .pet-action-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .pet-stage {
+        min-height: 310px;
+      }
+
+      .pet-frame {
+        height: 210px;
+      }
+
+      .floating-pet {
+        right: 10px;
+        bottom: 10px;
+        width: 112px;
+        min-height: 126px;
+      }
+
+      .floating-pet-button {
+        width: 104px;
+        height: 94px;
+      }
+
+      .floating-pet-frame {
+        width: 98px;
+        height: 90px;
+      }
+
       .modal-overlay {
         padding: 12px;
       }
     }
-  
+
     /* Collapsible config groups */
     .config-group-title { cursor: pointer; user-select: none; display: flex; align-items: center; justify-content: space-between; }
     .config-group-title::after { content: ''; display: inline-block; width: 8px; height: 8px; border-right: 2px solid var(--text3); border-bottom: 2px solid var(--text3); transform: rotate(45deg); transition: transform 0.2s ease; flex-shrink: 0; }
@@ -1490,7 +1803,7 @@
       gap: 8px;
       justify-content: flex-end;
     }
-    
+
     #update-modal .modal {
       width: min(540px, 100%);
       max-height: min(70vh, 620px);
@@ -1523,7 +1836,732 @@
       background: rgba(255,255,255,0.2);
       transform: none;
     }
-  
+
+    .chat-shell {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      height: calc(100vh - 70px);
+      min-height: 620px;
+    }
+
+    .chat-panel {
+      background: var(--surface-strong);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow-sm), var(--glow);
+      overflow: hidden;
+    }
+
+    .chat-connect {
+      padding: 12px 14px;
+      flex-shrink: 0;
+    }
+
+    .chat-connect h3,
+    .chat-window-title {
+      font-size: 16px;
+      line-height: 1.3;
+      margin-bottom: 8px;
+    }
+
+    .chat-connect h3 {
+      display: none;
+    }
+
+    .chat-connect-intro {
+      display: none;
+    }
+
+    .chat-muted {
+      color: var(--text2);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .chat-status-list {
+      display: flex;
+      gap: 8px;
+      margin: 0;
+      flex-wrap: wrap;
+    }
+
+    .chat-status-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text2);
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border-light);
+    }
+
+    .chat-status-row strong {
+      color: var(--text);
+      font-weight: 700;
+      text-align: right;
+      word-break: break-all;
+    }
+
+    .chat-form {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+      max-width: 420px;
+    }
+
+    .chat-form-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .chat-form-row .config-input {
+      min-width: 0;
+    }
+
+    .chat-link-button {
+      border: 0;
+      background: transparent;
+      color: var(--accent);
+      font-weight: 700;
+      cursor: pointer;
+      padding: 0;
+      font: inherit;
+    }
+
+    .chat-secondary-action {
+      text-align: center;
+      margin-top: 8px;
+      color: var(--text2);
+      font-size: 13px;
+    }
+
+    .chat-connected-card {
+      display: none;
+      margin-top: 10px;
+    }
+
+    .chat-connected-card strong {
+      display: none;
+    }
+
+    .chat-connected-card .chat-muted {
+      display: none;
+    }
+
+    .chat-connected-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .chat-advanced {
+      display: none;
+      margin-top: 10px;
+      border: 1px solid var(--border-light);
+      border-radius: 14px;
+      background: var(--surface-muted);
+      overflow: hidden;
+    }
+
+    .chat-connect.needs-auth,
+    .chat-connect.needs-setup,
+    .chat-connect.expanded {
+      padding: 18px;
+    }
+
+    .chat-connect.needs-auth h3,
+    .chat-connect.needs-auth .chat-connect-intro,
+    .chat-connect.needs-setup .chat-connected-card strong,
+    .chat-connect.needs-setup .chat-connected-card .chat-muted,
+    .chat-connect.expanded h3,
+    .chat-connect.expanded .chat-connect-intro,
+    .chat-connect.expanded .chat-advanced {
+      display: block;
+    }
+
+    .chat-advanced summary {
+      cursor: pointer;
+      padding: 10px 12px;
+      color: var(--text2);
+      font-size: 13px;
+      font-weight: 700;
+      user-select: none;
+    }
+
+    .chat-advanced-body {
+      display: grid;
+      gap: 10px;
+      padding: 0 12px 12px;
+    }
+
+    .chat-advanced-note {
+      color: var(--text3);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .chat-window {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .chat-window-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .chat-messages {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: rgba(250, 251, 255, 0.68);
+    }
+
+    .chat-message {
+      max-width: min(680px, 82%);
+      padding: 11px 13px;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.55;
+      word-break: break-word;
+      border: 1px solid var(--border-light);
+      background: #fff;
+      color: var(--text);
+    }
+
+    .chat-message.mine {
+      align-self: flex-end;
+      background: var(--accent);
+      color: #fff;
+      border-color: rgba(59, 130, 246, 0.22);
+    }
+
+    .chat-message.peer {
+      align-self: flex-start;
+    }
+
+    .chat-message-meta {
+      font-size: 11px;
+      opacity: 0.68;
+      margin-bottom: 4px;
+      font-weight: 700;
+    }
+
+    .chat-markdown {
+      white-space: normal;
+      line-height: 1.62;
+    }
+
+    .chat-markdown p {
+      margin: 4px 0;
+    }
+
+    .chat-markdown h1,
+    .chat-markdown h2,
+    .chat-markdown h3 {
+      margin: 8px 0 6px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    .chat-markdown h1 { font-size: 18px; }
+    .chat-markdown h2 { font-size: 16px; }
+    .chat-markdown h3 { font-size: 15px; }
+
+    .chat-markdown ul,
+    .chat-markdown ol {
+      margin: 8px 0;
+      padding-left: 22px;
+    }
+
+    .chat-markdown li {
+      margin: 4px 0;
+    }
+
+    .chat-markdown blockquote {
+      margin: 8px 0;
+      padding-left: 10px;
+      border-left: 3px solid rgba(59, 130, 246, 0.28);
+      color: var(--text2);
+    }
+
+    .chat-markdown code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.9em;
+      background: rgba(31, 34, 50, 0.07);
+      border-radius: 4px;
+      padding: 2px 4px;
+    }
+
+    .chat-markdown pre {
+      margin: 10px 0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #171923;
+      color: #eef2ff;
+      overflow-x: auto;
+      max-width: 100%;
+    }
+
+    .chat-markdown pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .chat-code-label {
+      display: inline-flex;
+      margin: 8px 0 -6px;
+      padding: 2px 6px;
+      border-radius: 6px 6px 0 0;
+      background: #111827;
+      color: #b8c2d8;
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .chat-markdown a {
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .chat-message.mine .chat-markdown a,
+    .chat-message.mine .chat-markdown blockquote {
+      color: rgba(255,255,255,0.88);
+    }
+
+    .chat-message.mine .chat-markdown code {
+      background: rgba(255,255,255,0.18);
+    }
+
+    .chat-working {
+      margin-top: 8px;
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      background: rgba(247, 244, 255, 0.76);
+      color: var(--text2);
+      overflow: hidden;
+    }
+
+    .chat-working summary {
+      cursor: pointer;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--text2);
+    }
+
+    .chat-working-body {
+      display: grid;
+      gap: 8px;
+      padding: 0 10px 10px;
+      font-size: 12px;
+    }
+
+    .chat-working-step {
+      padding: 8px;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.74);
+      border: 1px solid var(--border-light);
+    }
+
+    .chat-working-step-title {
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .chat-rich-image {
+      display: block;
+      max-width: min(320px, 100%);
+      max-height: 260px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 1px solid var(--border-light);
+      margin-top: 6px;
+    }
+
+    .chat-attachment {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 6px;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border-light);
+      background: rgba(247, 244, 255, 0.72);
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .chat-attachment-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--accent-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .chat-attachment-name {
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .chat-attachment-meta {
+      font-size: 12px;
+      color: var(--text3);
+    }
+
+    .chat-input-bar {
+      display: flex;
+      gap: 10px;
+      padding: 14px;
+      border-top: 1px solid var(--border-light);
+      background: var(--surface-strong);
+    }
+
+    .chat-input-bar textarea {
+      flex: 1;
+      min-height: 44px;
+      max-height: 120px;
+      resize: vertical;
+    }
+
+    @media (max-width: 980px) {
+      .chat-shell {
+        min-height: 560px;
+      }
+    }
+
+    /* Quiet product refresh inspired by shadcn/ui: neutral surfaces, clear borders, restrained depth. */
+    :root {
+      --bg: #f8fafc;
+      --bg-soft: #f8fafc;
+      --sidebar-bg: rgba(255, 255, 255, 0.96);
+      --sidebar-border: #e5e7eb;
+      --sidebar-text: #64748b;
+      --sidebar-active: #0f172a;
+      --sidebar-hover: #f1f5f9;
+      --surface: #ffffff;
+      --surface-strong: #ffffff;
+      --surface-muted: #f8fafc;
+      --border: #e5e7eb;
+      --border-strong: #cbd5e1;
+      --border-light: #eef2f7;
+      --text: #0f172a;
+      --text2: #64748b;
+      --text3: #94a3b8;
+      --accent: #2563eb;
+      --accent-2: #3b82f6;
+      --accent-light: #eff6ff;
+      --accent-gradient: #2563eb;
+      --warm: #d97706;
+      --warm-light: #fff7ed;
+      --green: #059669;
+      --green-light: #ecfdf5;
+      --red: #dc2626;
+      --red-light: #fef2f2;
+      --orange: #d97706;
+      --orange-light: #fff7ed;
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+      --shadow-md: 0 10px 24px rgba(15, 23, 42, 0.08);
+      --shadow-lg: 0 24px 64px rgba(15, 23, 42, 0.18);
+      --glow: none;
+      --radius: 12px;
+      --radius-sm: 10px;
+      --radius-xs: 8px;
+    }
+
+    html {
+      background: #f8fafc;
+    }
+
+    body::before,
+    body::after,
+    .sidebar::before,
+    .overview-card::before {
+      display: none;
+    }
+
+    .sidebar {
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 240px;
+      min-height: 100vh;
+      padding: 18px 12px;
+      border-radius: 0;
+      background: var(--sidebar-bg);
+      border: 0;
+      border-right: 1px solid var(--sidebar-border);
+      box-shadow: none;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .sidebar-brand {
+      padding: 10px;
+      margin-bottom: 18px;
+      border-radius: 10px;
+      background: transparent;
+      border: 0;
+    }
+
+    .sidebar-brand-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+    }
+
+    .sidebar-brand-text {
+      color: var(--text);
+      font-size: 15px;
+      letter-spacing: 0;
+    }
+
+    .sidebar-brand-ver,
+    .sidebar-footer-info {
+      color: var(--text2);
+    }
+
+    .sidebar-nav {
+      gap: 3px;
+    }
+
+    .nav-item {
+      min-height: 38px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      color: var(--sidebar-text);
+      font-size: 13px;
+      font-weight: 600;
+      border: 1px solid transparent;
+      transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+    }
+
+    .nav-item:hover {
+      background: var(--sidebar-hover);
+      color: var(--text);
+      transform: none;
+    }
+
+    .nav-item.active {
+      color: var(--sidebar-active);
+      background: #f8fafc;
+      border-color: var(--border);
+      box-shadow: none;
+    }
+
+    .nav-item.active::before {
+      display: none;
+    }
+
+    .nav-icon {
+      width: 22px;
+      color: var(--text3);
+      font-size: 14px;
+    }
+
+    .sidebar-footer {
+      border-top: 1px solid var(--border);
+      padding: 14px 10px 8px;
+    }
+
+    .sidebar-update-btn {
+      width: 100%;
+      justify-content: center;
+      margin-top: 10px;
+    }
+
+    .main-wrapper {
+      margin-left: 240px;
+      padding: 32px 24px;
+    }
+
+    .page-content {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+      padding: 0 0 32px;
+    }
+
+    .section-title {
+      font-size: 22px;
+      letter-spacing: 0;
+      margin-bottom: 18px;
+    }
+
+    .section-title .badge {
+      border-radius: 999px;
+      background: var(--accent-light);
+      border: 1px solid #dbeafe;
+      box-shadow: none;
+    }
+
+    .card,
+    .overview-card,
+    .svc-card,
+    .config-group,
+    .skill-card,
+    .modal,
+    .status-card,
+    .service-card,
+    .pet-stage,
+    .pet-controls,
+    .chat-panel,
+    .store-install-bar {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--shadow-sm);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    .card:hover,
+    .overview-card:hover,
+    .status-card:hover,
+    .service-card:hover,
+    .skill-card:hover {
+      transform: none;
+      box-shadow: var(--shadow-sm);
+      border-color: var(--border-strong);
+    }
+
+    .btn {
+      border-radius: 8px;
+      box-shadow: none;
+    }
+
+    .btn-primary,
+    .pet-action.active {
+      background: #2563eb;
+      box-shadow: none;
+    }
+
+    .pet-layout {
+      grid-template-columns: minmax(280px, 420px) minmax(320px, 1fr);
+      gap: 18px;
+    }
+
+    .pet-stage {
+      min-height: 332px;
+      padding: 24px;
+    }
+
+    .pet-stage::before {
+      opacity: 0.75;
+      bottom: 28px;
+    }
+
+    .pet-frame {
+      width: min(76%, 220px);
+      height: 220px;
+    }
+
+    .pet-controls {
+      padding: 20px;
+    }
+
+    .pet-status h3 {
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    .pet-action {
+      min-height: 52px;
+      border-radius: 10px;
+      background: #fff;
+    }
+
+    .pet-frame-thumb,
+    .skill-growth-stat {
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .skill-card {
+      border-radius: 12px;
+      padding: 18px;
+    }
+
+    .skill-card::before {
+      display: none;
+    }
+
+    .skill-growth {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .floating-pet {
+      right: 16px;
+      bottom: 14px;
+      width: 96px;
+      min-height: 104px;
+    }
+
+    .floating-pet-button {
+      width: 82px;
+      height: 76px;
+    }
+
+    .floating-pet-frame {
+      width: 78px;
+      height: 72px;
+    }
+
+    .floating-pet-bubble {
+      max-width: 104px;
+      border-radius: 10px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .floating-pet-menu {
+      bottom: 82px;
+      border-radius: 10px;
+      box-shadow: var(--shadow-md);
+    }
+
+    @media (max-width: 900px) {
+      .sidebar {
+        width: 68px;
+      }
+
+      .main-wrapper {
+        margin-left: 68px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .main-wrapper {
+        padding: 16px 12px;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -1540,11 +2578,14 @@
       <a class="nav-item active" onclick="switchPage('services')" data-page="services">
         <span class="nav-icon">&gt;</span> <span>服务</span>
       </a>
+      <a class="nav-item" onclick="switchPage('companion')" data-page="companion">
+        <span class="nav-icon">*</span> <span>伙伴</span>
+      </a>
+      <a class="nav-item" onclick="switchPage('chat')" data-page="chat">
+        <span class="nav-icon">@</span> <span>Chat</span>
+      </a>
       <a class="nav-item" onclick="switchPage('config')" data-page="config">
         <span class="nav-icon">~</span> <span>配置</span>
-      </a>
-      <a class="nav-item" onclick="switchPage('skills')" data-page="skills">
-        <span class="nav-icon">#</span> <span>Skills</span>
       </a>
       <a class="nav-item" onclick="switchPage('store')" data-page="store">
         <span class="nav-icon">+</span> <span>商店</span>
@@ -1574,6 +2615,107 @@
         </div>
       </div>
 
+      <!-- Page: Companion -->
+      <div class="page" id="page-companion">
+        <div class="section-title">伙伴 <span class="badge" id="skill-count">0</span></div>
+        <div class="pet-layout">
+          <div class="pet-stage" aria-label="电子宠物动画预览">
+            <img class="pet-frame" id="pet-frame" src="pet/idle/01.png" alt="XiaoBa pet" />
+          </div>
+          <div class="pet-controls">
+            <div class="pet-status">
+              <h3>XiaoBa Pet</h3>
+              <span class="pet-state-pill" id="pet-state-pill">idle</span>
+            </div>
+            <div class="pet-action-grid">
+              <button class="btn pet-action active" data-pet-state="idle" onclick="setPetState('idle')">待机<span>4 帧循环</span></button>
+              <button class="btn pet-action" data-pet-state="thinking" onclick="setPetState('thinking')">思考<span>4 帧循环</span></button>
+              <button class="btn pet-action" data-pet-state="typing" onclick="setPetState('typing')">输入<span>6 帧循环</span></button>
+              <button class="btn pet-action" data-pet-state="success" onclick="setPetState('success')">成功<span>4 帧循环</span></button>
+              <button class="btn pet-action" data-pet-state="error" onclick="setPetState('error')">错误<span>4 帧循环</span></button>
+            </div>
+            <div class="pet-frame-strip" id="pet-frame-strip"></div>
+          </div>
+        </div>
+        <div style="margin-top:22px">
+          <div class="section-title">宠物能力</div>
+          <div class="skills-grid" id="skills-grid"><div class="loading">加载中...</div></div>
+        </div>
+      </div>
+
+      <!-- Page: Chat -->
+      <div class="page" id="page-chat">
+        <div class="section-title">XiaoBa Chat</div>
+        <div class="chat-shell">
+          <div class="chat-panel chat-connect">
+            <h3>CatsCompany 连接</h3>
+            <div class="chat-muted chat-connect-intro">登录后自动绑定 XiaoBa bot，并启动本地服务。</div>
+
+            <div class="chat-status-list" id="cats-status">
+              <div class="loading">加载中...</div>
+            </div>
+
+            <div class="chat-connected-card" id="cats-connected-card">
+              <strong>已连接 CatsCompany</strong>
+              <div class="chat-muted" id="cats-connected-copy">可以直接开始对话。</div>
+              <div class="chat-connected-actions">
+                <button class="btn btn-success" onclick="setupCatsBot()" id="cats-setup-btn">检查并启动</button>
+                <button class="btn" onclick="resetCatsAuth()">切换账号</button>
+                <button class="btn" onclick="toggleCatsAdvanced()">高级设置</button>
+              </div>
+            </div>
+
+            <div class="chat-form" id="cats-auth-panel">
+              <div id="cats-login-fields">
+                <input class="config-input" id="cats-account" type="text" placeholder="邮箱或用户名" style="margin-bottom:10px" />
+                <input class="config-input" id="cats-password" type="password" placeholder="密码" />
+                <button class="btn btn-primary" onclick="submitCatsAuth()" id="cats-auth-btn" style="width:100%;margin-top:12px">登录并连接</button>
+                <div class="chat-secondary-action">还没有账号？ <button class="chat-link-button" onclick="setCatsAuthMode('register')">创建账号</button></div>
+              </div>
+              <div id="cats-register-fields" style="display:none">
+                <div class="chat-muted" style="margin-bottom:12px">创建账号后会自动登录并连接 XiaoBa。</div>
+                <input class="config-input" id="cats-email" type="email" placeholder="邮箱地址" style="margin-bottom:10px" />
+                <div class="chat-form-row" style="margin-bottom:10px">
+                  <input class="config-input" id="cats-code" type="text" placeholder="邮箱验证码" />
+                  <button class="btn" onclick="sendCatsCode()" id="cats-code-btn">发送验证码</button>
+                </div>
+                <input class="config-input" id="cats-username" type="text" placeholder="登录名称" style="margin-bottom:10px" />
+                <input class="config-input" id="cats-register-password" type="password" placeholder="设置密码" />
+                <button class="btn btn-primary" onclick="submitCatsAuth()" id="cats-register-btn" style="width:100%;margin-top:12px">创建并连接</button>
+                <div class="chat-secondary-action"><button class="chat-link-button" onclick="setCatsAuthMode('login')">返回登录</button></div>
+              </div>
+            </div>
+
+            <details class="chat-advanced" id="cats-advanced">
+              <summary>高级设置</summary>
+              <div class="chat-advanced-body">
+                <div class="chat-advanced-note">默认连接 CatsCompany 生产环境。只有在调试私有部署时才需要修改。</div>
+                <input class="config-input" id="cats-http-base" type="text" placeholder="HTTP Base URL" />
+                <input class="config-input" id="cats-ws-url" type="text" placeholder="WebSocket URL" />
+              </div>
+            </details>
+            <div class="chat-muted" id="cats-action-status" style="margin-top:12px"></div>
+          </div>
+
+          <div class="chat-panel chat-window">
+            <div class="chat-window-header">
+              <div>
+                <div class="chat-window-title">XiaoBa Bot</div>
+                <div class="chat-muted" id="cats-topic-label">尚未绑定会话</div>
+              </div>
+              <button class="btn" onclick="loadCatsMessages()">刷新</button>
+            </div>
+            <div class="chat-messages" id="cats-messages">
+              <div class="loading">连接 CatsCompany 后开始对话</div>
+            </div>
+            <div class="chat-input-bar">
+              <textarea class="config-input" id="cats-message-input" placeholder="输入消息，Enter 发送，Shift+Enter 换行"></textarea>
+              <button class="btn btn-primary" onclick="sendCatsMessage()" id="cats-send-btn">发送</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Page: Config -->
       <div class="page" id="page-config">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
@@ -1583,13 +2725,8 @@
             <span class="config-saved" id="config-saved">已保存</span>
           </div>
         </div>
+        <div class="config-section" id="runtime-config-panel"><div class="loading">加载 runtime 配置...</div></div>
         <div class="config-section" id="config-panel"><div class="loading">加载中...</div></div>
-      </div>
-
-      <!-- Page: Skills -->
-      <div class="page" id="page-skills">
-        <div class="section-title">Skills <span class="badge" id="skill-count">0</span></div>
-        <div class="skills-grid" id="skills-grid"><div class="loading">加载中...</div></div>
       </div>
 
       <!-- Page: Store -->
@@ -1603,6 +2740,21 @@
       </div>
 
     </div>
+  </div>
+
+  <div class="floating-pet" id="floating-pet" aria-live="polite">
+    <div class="floating-pet-bubble" id="floating-pet-bubble">待机中</div>
+    <div class="floating-pet-menu" id="floating-pet-menu">
+      <button type="button" onclick="setPetState('idle', { manual: true });closeFloatingPetMenu()">待机</button>
+      <button type="button" onclick="setPetState('thinking', { manual: true });closeFloatingPetMenu()">思考</button>
+      <button type="button" onclick="setPetState('typing', { manual: true });closeFloatingPetMenu()">输入</button>
+      <button type="button" onclick="setPetState('success', { manual: true });closeFloatingPetMenu()">成功</button>
+      <button type="button" onclick="setPetState('error', { manual: true });closeFloatingPetMenu()">错误</button>
+      <button type="button" onclick="switchPage('companion');closeFloatingPetMenu()">打开伙伴页</button>
+    </div>
+    <button class="floating-pet-button" type="button" onclick="toggleFloatingPetMenu()" aria-label="XiaoBa 悬浮宠物">
+      <img class="floating-pet-frame" id="floating-pet-frame" src="pet/idle/01.png" alt="" />
+    </button>
   </div>
 
   <!-- Logs Modal -->
@@ -1663,7 +2815,116 @@
   <script>
     const API = '';
     let appStatusSnapshot = {};
-    const pageTitles = { services:'服务', config:'配置', skills:'Skills', store:'商店' };
+    const pageTitles = { services:'服务', companion:'伙伴', chat:'Chat', config:'配置', store:'商店' };
+    let catsAuthMode = 'login';
+    let catsState = {};
+    let catsPollTimer = null;
+    const CATS_DEFAULT_HTTP_BASE = 'https://app.catsco.cc';
+    const CATS_DEFAULT_WS_URL = 'wss://app.catsco.cc/v0/channels';
+    const petFrames = {
+      idle: ['pet/idle/01.png', 'pet/idle/02.png', 'pet/idle/03.png', 'pet/idle/04.png'],
+      thinking: ['pet/thinking/01.png', 'pet/thinking/02.png', 'pet/thinking/03.png', 'pet/thinking/04.png'],
+      typing: ['pet/typing/01.png', 'pet/typing/02.png', 'pet/typing/03.png', 'pet/typing/04.png', 'pet/typing/05.png', 'pet/typing/06.png'],
+      success: ['pet/success/01.png', 'pet/success/02.png', 'pet/success/03.png', 'pet/success/04.png'],
+      error: ['pet/error/01.png', 'pet/error/02.png', 'pet/error/03.png', 'pet/error/04.png']
+    };
+    const petSpeeds = { idle: 520, thinking: 620, typing: 140, success: 360, error: 420 };
+    const petStateLabels = { idle: '待机中', thinking: '思考中', typing: '输入中', success: '完成了', error: '出错了' };
+    let petState = 'idle';
+    let petFrameIndex = 0;
+    let petTimer = null;
+    let petStateHoldTimer = null;
+    let petBubbleTimer = null;
+    let petAutoBaseline = 'idle';
+    let lastCatsMessageSignature = '';
+    let catsWorkingActive = false;
+
+    function preloadPetFrames() {
+      Object.values(petFrames).flat().forEach(src => {
+        const img = new Image();
+        img.src = src;
+      });
+    }
+
+    function renderPetFrameStrip(state) {
+      const strip = document.getElementById('pet-frame-strip');
+      if (!strip) return;
+      strip.innerHTML = petFrames[state].map(src => '<img class="pet-frame-thumb" src="'+src+'" alt="" />').join('');
+    }
+
+    function showPetFrame() {
+      const frames = petFrames[petState] || petFrames.idle;
+      if (!frames.length) return;
+      const src = frames[petFrameIndex % frames.length];
+      document.querySelectorAll('#pet-frame, #floating-pet-frame').forEach(frame => { frame.src = src; });
+      petFrameIndex = (petFrameIndex + 1) % frames.length;
+    }
+
+    function showPetBubble(text) {
+      const shell = document.getElementById('floating-pet');
+      const bubble = document.getElementById('floating-pet-bubble');
+      if (!shell || !bubble) return;
+      bubble.textContent = text || petStateLabels[petState] || petState;
+      shell.classList.add('show-bubble');
+      if (petBubbleTimer) clearTimeout(petBubbleTimer);
+      petBubbleTimer = setTimeout(() => shell.classList.remove('show-bubble'), 2400);
+    }
+
+    function setPetState(state, options = {}) {
+      if (!petFrames[state]) state = 'idle';
+      if (petStateHoldTimer) {
+        clearTimeout(petStateHoldTimer);
+        petStateHoldTimer = null;
+      }
+      petState = state;
+      petFrameIndex = 0;
+      document.querySelectorAll('.pet-action').forEach(btn => btn.classList.toggle('active', btn.dataset.petState === state));
+      const pill = document.getElementById('pet-state-pill');
+      if (pill) pill.textContent = state;
+      renderPetFrameStrip(state);
+      showPetFrame();
+      if (petTimer) clearInterval(petTimer);
+      petTimer = setInterval(showPetFrame, petSpeeds[state] || 420);
+      if (options.message || options.manual || state !== 'idle') showPetBubble(options.message || petStateLabels[state]);
+      if (options.holdMs) {
+        petStateHoldTimer = setTimeout(() => setPetState(petAutoBaseline), options.holdMs);
+      }
+    }
+
+    function setPetAutoBaseline(state) {
+      if (!petFrames[state]) state = 'idle';
+      petAutoBaseline = state;
+      if (!petStateHoldTimer) setPetState(state);
+    }
+
+    function pulsePetState(state, message, holdMs = 1800) {
+      setPetState(state, { message, holdMs });
+    }
+
+    function inferServicePetBaseline(services) {
+      if ((services || []).some(s => s.status === 'error')) return 'error';
+      return 'idle';
+    }
+
+    function applyPetBaseline() {
+      if (catsWorkingActive) {
+        setPetAutoBaseline('thinking');
+        return;
+      }
+      const services = appStatusSnapshot.services || [];
+      setPetAutoBaseline(inferServicePetBaseline(services));
+    }
+
+    function toggleFloatingPetMenu() {
+      const shell = document.getElementById('floating-pet');
+      if (shell) shell.classList.toggle('open');
+      showPetBubble(petStateLabels[petState]);
+    }
+
+    function closeFloatingPetMenu() {
+      const shell = document.getElementById('floating-pet');
+      if (shell) shell.classList.remove('open');
+    }
 
     function switchPage(name) {
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -1672,7 +2933,15 @@
       if (page) page.classList.add('active');
       const nav = document.querySelector('.nav-item[data-page="'+name+'"]');
       if (nav) nav.classList.add('active');
-      document.getElementById('topbar-title').textContent = pageTitles[name] || name;
+      document.body.classList.toggle('companion-active', name === 'companion');
+      const titleEl = document.getElementById('topbar-title');
+      if (titleEl) titleEl.textContent = pageTitles[name] || name;
+      if (name === 'chat') {
+        fetchCatsStatus();
+        if (!catsPollTimer) catsPollTimer = setInterval(fetchCatsStatus, 5000);
+      } else if (name === 'companion') {
+        setPetState(petState);
+      }
     }
 
     async function fetchStatus() {
@@ -1688,10 +2957,12 @@
         document.getElementById('topbar-status').textContent = '在线';
         document.getElementById('topbar-status').style.background = 'rgba(30,169,113,0.15)';
         document.getElementById('topbar-status').style.color = '#1ea971';
+        applyPetBaseline();
       } catch (e) {
         document.getElementById('topbar-status').textContent = '离线';
         document.getElementById('topbar-status').style.background = 'rgba(220,93,115,0.12)';
         document.getElementById('topbar-status').style.color = '#dc5d73';
+        setPetAutoBaseline('error');
       }
     }
 
@@ -1720,20 +2991,54 @@
       }).join('');
     }
 
+    function getSkillCompanionStats(name) {
+      try {
+        const stats = JSON.parse(localStorage.getItem('xiaoba.skillStats') || '{}');
+        return stats[name] || {};
+      } catch (_error) {
+        return {};
+      }
+    }
+
+    function renderSkillGrowth(name) {
+      const stats = getSkillCompanionStats(name);
+      const calls = Number(stats.calls || 0);
+      const successes = Number(stats.successes || 0);
+      const successRate = calls > 0 ? Math.round((successes / calls) * 100) + '%' : '--';
+      const level = Number(stats.level || Math.max(1, Math.floor(calls / 10) + 1));
+      return '<div class="skill-growth">'+
+        '<div class="skill-growth-stat"><div class="skill-growth-label">调用</div><div class="skill-growth-value">'+calls+'</div></div>'+
+        '<div class="skill-growth-stat"><div class="skill-growth-label">成功率</div><div class="skill-growth-value">'+successRate+'</div></div>'+
+        '<div class="skill-growth-stat"><div class="skill-growth-label">熟练度</div><div class="skill-growth-value">Lv.'+level+'</div></div>'+
+      '</div>';
+    }
+
     function renderSkills(skills) {
       document.getElementById('skill-count').textContent = skills.length;
       const g = document.getElementById('skills-grid');
       if (!skills.length) { g.innerHTML = '<div class="loading">暂无 Skills</div>'; return; }
-      g.innerHTML = skills.map(sk => '<div class="skill-card'+(sk.enabled===false?' disabled':'')+'"><div class="skill-name">'+sk.name+(sk.enabled===false?' <span class="tag" style="background:rgba(220,93,115,0.12);color:var(--red)">已禁用</span>':'')+'</div><div class="skill-desc">'+(sk.description||'')+'</div><div class="skill-meta">'+(sk.userInvocable?'<span class="tag active">用户调用</span>':'')+(sk.autoInvocable?'<span class="tag active">自动调用</span>':'')+(sk.maxTurns?'<span class="tag">max '+sk.maxTurns+' turns</span>':'')+'</div>'+(sk.files?'<div class="skill-files">'+sk.files.join(', ')+'</div>':'')+'<div class="skill-actions"><button class="btn" onclick="toggleSkill(\''+sk.name+'\',' +(sk.enabled!==false)+')">'+(sk.enabled===false?'启用':'禁用')+'</button><button class="btn btn-danger" onclick="deleteSkill(\''+sk.name+'\')">删除</button></div></div>').join('');
+      g.innerHTML = skills.map(sk => '<div class="skill-card'+(sk.enabled===false?' disabled':'')+'"><div class="skill-name">'+sk.name+(sk.enabled===false?' <span class="tag" style="background:rgba(220,93,115,0.12);color:var(--red)">已禁用</span>':'')+'</div><div class="skill-desc">'+(sk.description||'')+'</div><div class="skill-meta">'+(sk.userInvocable?'<span class="tag active">用户调用</span>':'')+(sk.autoInvocable?'<span class="tag active">自动调用</span>':'')+(sk.maxTurns?'<span class="tag">max '+sk.maxTurns+' turns</span>':'')+'</div>'+renderSkillGrowth(sk.name)+(sk.files?'<div class="skill-files">'+sk.files.join(', ')+'</div>':'')+'<div class="skill-actions"><button class="btn" onclick="toggleSkill(\''+sk.name+'\',' +(sk.enabled!==false)+')">'+(sk.enabled===false?'启用':'禁用')+'</button><button class="btn btn-danger" onclick="deleteSkill(\''+sk.name+'\')">删除</button></div></div>').join('');
     }
 
-    async function svcAction(n,a) { try{await fetch(API+'/api/services/'+n+'/'+a,{method:'POST'});setTimeout(fetchStatus,500);}catch(e){alert('操作失败: '+e.message);} }
+    async function svcAction(n,a) {
+      pulsePetState('thinking', '处理中...', 1200);
+      try{
+        const resp = await fetch(API+'/api/services/'+n+'/'+a,{method:'POST'});
+        if(!resp.ok) throw new Error('HTTP '+resp.status);
+        pulsePetState('success', '服务已更新', 1800);
+        setTimeout(fetchStatus,500);
+      }catch(e){
+        pulsePetState('error', '操作失败', 2600);
+        alert('操作失败: '+e.message);
+      }
+    }
 
     async function showLogs(n,l) {
       document.getElementById('logs-title').textContent=l+' - 日志';
       document.getElementById('logs-body').textContent='加载中...';
       document.getElementById('logs-modal').classList.add('show');
-      try{const r=await fetch(API+'/api/services/'+n+'/logs?lines=200');const logs=await r.json();document.getElementById('logs-body').textContent=logs.length?logs.join('\n'):'暂无日志';}catch(e){document.getElementById('logs-body').textContent='加载失败';}
+      pulsePetState('thinking', '读取日志...', 1200);
+      try{const r=await fetch(API+'/api/services/'+n+'/logs?lines=200');const logs=await r.json();document.getElementById('logs-body').textContent=logs.length?logs.join('\n'):'暂无日志';pulsePetState('success','日志已打开',1400);}catch(e){document.getElementById('logs-body').textContent='加载失败';pulsePetState('error','日志失败',2400);}
     }
     function closeLogs(){document.getElementById('logs-modal').classList.remove('show');}
     const updateUi = {
@@ -1981,9 +3286,12 @@
     }
 
     async function checkForUpdates(){
+      pulsePetState('thinking', '检查更新...', 1400);
       try {
         await parseUpdateResponse(await fetch(API + '/api/update/check', { method: 'POST' }));
+        pulsePetState('success', '检查完成', 1800);
       } catch (e) {
+        pulsePetState('error', '更新检查失败', 2600);
         alert('检查更新失败: ' + (e.message || String(e)));
       } finally {
         fetchUpdateStatus(false);
@@ -1991,9 +3299,12 @@
     }
 
     async function downloadUpdate(){
+      pulsePetState('typing', '下载更新...', 1400);
       try {
         await parseUpdateResponse(await fetch(API + '/api/update/download', { method: 'POST' }));
+        pulsePetState('success', '下载完成', 1800);
       } catch (e) {
+        pulsePetState('error', '下载失败', 2600);
         alert('下载更新失败: ' + (e.message || String(e)));
       } finally {
         fetchUpdateStatus(false);
@@ -2002,9 +3313,11 @@
 
     async function installUpdate(){
       if (!confirm('是否立即安装已下载更新并重启？')) return;
+      pulsePetState('thinking', '准备安装...', 1600);
       try {
         await parseUpdateResponse(await fetch(API + '/api/update/install', { method: 'POST' }));
       } catch (e) {
+        pulsePetState('error', '安装失败', 2600);
         alert('安装更新失败: ' + (e.message || String(e)));
       }
     }
@@ -2014,15 +3327,154 @@
 
     // === Config with collapsible LLM groups ===
     let configData={};
+    let runtimeConfigSnapshot={};
     const configGroups=[
       {title:'LLM 主模型', collapsed:true, keys:[{key:'GAUZ_LLM_PROVIDER',label:'Provider',type:'select',options:['anthropic','openai']},{key:'GAUZ_LLM_API_BASE',label:'API Base URL'},{key:'GAUZ_LLM_API_KEY',label:'API Key',sensitive:true},{key:'GAUZ_LLM_MODEL',label:'Model'}]},
       {title:'LLM 备用模型', collapsed:true, keys:[{key:'GAUZ_LLM_BACKUP_PROVIDER',label:'Provider',type:'select',options:['','anthropic','openai']},{key:'GAUZ_LLM_BACKUP_API_BASE',label:'API Base URL'},{key:'GAUZ_LLM_BACKUP_API_KEY',label:'API Key',sensitive:true},{key:'GAUZ_LLM_BACKUP_MODEL',label:'Model'}]},
-      {title:'Cats Company', collapsed:false, keys:[{key:'CATSCOMPANY_SERVER_URL',label:'WebSocket URL'},{key:'CATSCOMPANY_API_KEY',label:'API Key',sensitive:true},{key:'CATSCOMPANY_HTTP_BASE_URL',label:'HTTP Base URL'}]},
+      {title:'Cats Company（高级）', collapsed:true, keys:[{key:'CATSCOMPANY_API_KEY',label:'Bot API Key',sensitive:true}]},
       {title:'飞书', collapsed:false, keys:[{key:'FEISHU_APP_ID',label:'App ID'},{key:'FEISHU_APP_SECRET',label:'App Secret',sensitive:true},{key:'FEISHU_BOT_OPEN_ID',label:'Bot Open ID'},{key:'FEISHU_BOT_ALIASES',label:'Bot Aliases'}]},
       {title:'微信', collapsed:false, keys:[{key:'WEIXIN_TOKEN',label:'Token',sensitive:true}]},
     ];
 
     async function fetchConfig(){try{const r=await fetch(API+'/api/config');configData=await r.json();renderConfig();}catch(e){document.getElementById('config-panel').innerHTML='<div class="loading">加载失败</div>';}}
+    async function fetchRuntimeConfig(){try{const r=await fetch(API+'/api/runtime/config');renderRuntimeConfig(await r.json());}catch(e){document.getElementById('runtime-config-panel').innerHTML='<div class="loading">runtime 配置加载失败</div>';}}
+
+    function renderRuntimeConfig(snapshot){
+      const p=document.getElementById('runtime-config-panel');
+      if(!p)return;
+      if(snapshot.error){p.innerHTML='<div class="loading">runtime 配置加载失败：'+escapeHtml(snapshot.error)+'</div>';return;}
+      runtimeConfigSnapshot=snapshot;
+      const profile=snapshot.profile||{};
+      const profileConfig=snapshot.profileConfig||{};
+      const editing=snapshot.profileEditing||{};
+      const model=profile.model||{};
+      const logging=snapshot.logging||{};
+      const upload=logging.upload||{};
+      const registeredTools=(snapshot.tools&&snapshot.tools.registered)||[];
+      const tools=(snapshot.tools&&snapshot.tools.enabled)||[];
+      const disabled=(snapshot.tools&&snapshot.tools.disabled)||[];
+      const skills=snapshot.skills||{};
+      const prompt=snapshot.systemPrompt||{text:'',length:0};
+      const issueCount=snapshot.validation&&snapshot.validation.issues?snapshot.validation.issues.length:0;
+      const configIssueCount=profileConfig.issues?profileConfig.issues.length:0;
+      const toolTags=tools.map(t=>'<span class="tag active">'+escapeHtml(t.name)+(t.transcriptMode&&t.transcriptMode!=='default'?' · '+escapeHtml(t.transcriptMode):'')+'</span>').join('');
+      const skillTags=(skills.items||[]).slice(0,18).map(s=>'<span class="tag">'+escapeHtml(s.name)+'</span>').join('');
+      const disabledLine=disabled.length?'<div class="config-row"><label class="config-label">禁用工具</label><div style="flex:1;color:var(--text3);font-size:12px">'+disabled.map(t=>escapeHtml(t.name)).join(', ')+'</div></div>':'';
+      const validationRows=(snapshot.validation&&snapshot.validation.issues||[]).concat(profileConfig.issues||[]).map(i=>'<div style="padding:10px 12px;border-radius:12px;background:var(--red-light);color:var(--red);font-size:12px;margin-top:8px"><strong>'+escapeHtml(i.path||'-')+'</strong> · '+escapeHtml(i.message||'')+'</div>').join('');
+      const editFields=(editing.editableFields||[]).map(f=>'<span class="tag green">'+escapeHtml(f)+'</span>').join('');
+      const readOnlyFields=(editing.readOnlyFields||[]).map(f=>'<span class="tag gray">'+escapeHtml(f)+'</span>').join('');
+      p.innerHTML=`<div class="config-group" id="runtime-config-group">
+        <div class="config-group-title" onclick="document.getElementById('runtime-config-group').classList.toggle('collapsed')">Runtime 当前快照 <button class="btn btn-ghost" onclick="event.stopPropagation();fetchRuntimeConfig()" style="font-size:12px;padding:4px 10px">刷新</button></div>
+        <div class="config-group-body">
+          <div class="config-row"><label class="config-label">Profile</label><div style="flex:1"><code>${escapeHtml(profile.id||'-')}</code> <span class="tag">${escapeHtml(profile.surface||'-')}</span> ${issueCount||configIssueCount?'<span class="tag red">配置问题 '+(issueCount+configIssueCount)+'</span>':'<span class="tag green">valid</span>'}</div></div>
+          <div class="config-row"><label class="config-label">Profile 文件</label><div style="flex:1"><code>${escapeHtml(profileConfig.path||'-')}</code> <span class="tag ${profileConfig.exists?'green':'gray'}">${profileConfig.exists?'exists':'not created'}</span> <span class="tag ${profileConfig.loaded?'green':'gray'}">${profileConfig.loaded?'loaded':'defaults'}</span></div></div>
+          <div class="config-row"><label class="config-label">可编辑字段</label><div style="flex:1;display:flex;gap:6px;flex-wrap:wrap">${editFields||'<span class="tag gray">未开放编辑</span>'}</div></div>
+          <div class="config-row"><label class="config-label">只读字段</label><div style="flex:1;display:flex;gap:6px;flex-wrap:wrap">${readOnlyFields||'<span class="tag gray">-</span>'}</div></div>
+          ${validationRows?'<div class="config-row"><label class="config-label">配置问题</label><div style="flex:1">'+validationRows+'</div></div>':''}
+          <div class="config-row"><label class="config-label">工作目录</label><div style="flex:1"><code>${escapeHtml((snapshot.workingDirectory&&snapshot.workingDirectory.path)||profile.workingDirectory||'-')}</code> ${((snapshot.workingDirectory&&snapshot.workingDirectory.exists)?'<span class="tag green">exists</span>':'<span class="tag red">missing</span>')}</div></div>
+          <div class="config-row"><label class="config-label">模型</label><div style="flex:1"><code>${escapeHtml(model.provider||'-')}</code> / <code>${escapeHtml(model.model||'-')}</code><div style="color:var(--text3);font-size:12px;margin-top:4px">${escapeHtml(model.apiUrl||'未配置 API Base')}</div></div></div>
+          <div class="config-row"><label class="config-label">工具</label><div style="flex:1;display:flex;gap:6px;flex-wrap:wrap">${toolTags||'<span class="tag gray">无启用工具</span>'}</div></div>
+          ${disabledLine}
+          <div class="config-row"><label class="config-label">Skills</label><div style="flex:1"><span class="tag ${skills.enabled?'green':'gray'}">${skills.enabled?'enabled':'disabled'}</span> <code>${escapeHtml(skills.path||'-')}</code><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${skillTags||'<span class="tag gray">未加载 skill</span>'}</div></div></div>
+          <div class="config-row"><label class="config-label">日志</label><div style="flex:1"><div><code>${escapeHtml(logging.sessionLogDir||'-')}</code></div><div style="color:var(--text3);font-size:12px;margin-top:4px">runtime: ${escapeHtml(logging.runtimeLogDir||'-')} · reports: ${escapeHtml(logging.reportDir||'-')} · upload: ${upload.enabled?'on':'off'}${upload.serverUrl?' · '+escapeHtml(upload.serverUrl):''}</div></div></div>
+          <details style="margin-top:14px"><summary style="cursor:pointer;color:var(--text2);font-weight:700">System prompt 展开结果（${Number(prompt.length||0)} chars）</summary><pre style="margin-top:10px;max-height:340px;overflow:auto;white-space:pre-wrap;background:var(--surface-muted);border:1px solid var(--border);border-radius:16px;padding:14px;color:var(--text);font-size:12px;line-height:1.6">${escapeHtml(prompt.text||'')}</pre></details>
+        </div>
+      </div>
+      ${renderRuntimeProfileEditor(profile, registeredTools, skills)}`;
+    }
+
+    function renderRuntimeProfileEditor(profile, registeredTools, skills){
+      const enabledTools=new Set((profile.tools&&profile.tools.enabled)||[]);
+      const toolControls=(registeredTools||[]).map(t=>'<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--surface-muted);font-size:12px"><input type="checkbox" data-runtime-tool="'+escapeHtml(t.name)+'" '+(enabledTools.has(t.name)?'checked':'')+' /> <span>'+escapeHtml(t.name)+'</span></label>').join('');
+      return `<div class="config-group" id="runtime-profile-editor">
+        <div class="config-group-title">Runtime Profile 编辑 <span class="tag warm" style="margin-left:8px">保存后新 session 生效</span></div>
+        <div class="config-group-body">
+          <div class="config-row"><label class="config-label">Assistant Name</label><input class="config-input" id="runtime-profile-display-name" value="${escapeHtml(profile.displayName||'')}" placeholder="例如 CatsCo Assistant" /></div>
+          <div class="config-row"><label class="config-label">Working Directory</label><input class="config-input" id="runtime-profile-working-directory" value="${escapeHtml(profile.workingDirectory||'')}" placeholder="默认工作目录" /></div>
+          <div class="config-row"><label class="config-label">Skills</label><div style="flex:1"><label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700"><input type="checkbox" id="runtime-profile-skills-enabled" ${skills.enabled?'checked':''} /> 启用 skills</label></div></div>
+          <div class="config-row" style="align-items:flex-start"><label class="config-label">Enabled Tools</label><div style="flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">${toolControls||'<span class="tag gray">没有注册工具</span>'}</div></div>
+          <div class="config-actions">
+            <button class="btn" onclick="previewRuntimeProfileEdit()">预览变更</button>
+            <button class="btn btn-primary" onclick="saveRuntimeProfileEdit()">保存 profile</button>
+            <button class="btn btn-ghost" onclick="rollbackRuntimeProfileEdit()">回滚上次保存</button>
+            <span class="config-saved" id="runtime-profile-edit-saved">已保存</span>
+          </div>
+          <div id="runtime-profile-edit-status" style="margin-top:12px;color:var(--text2);font-size:13px"></div>
+          <div id="runtime-profile-diff" style="margin-top:12px"></div>
+        </div>
+      </div>`;
+    }
+
+    function collectRuntimeProfileEditInput(){
+      const enabled=Array.from(document.querySelectorAll('[data-runtime-tool]')).filter(el=>el.checked).map(el=>el.getAttribute('data-runtime-tool'));
+      return {
+        displayName: document.getElementById('runtime-profile-display-name').value.trim(),
+        workingDirectory: document.getElementById('runtime-profile-working-directory').value.trim(),
+        tools: { enabled },
+        skills: { enabled: document.getElementById('runtime-profile-skills-enabled').checked }
+      };
+    }
+
+    async function previewRuntimeProfileEdit(){
+      await submitRuntimeProfileEdit('preview');
+    }
+
+    async function saveRuntimeProfileEdit(){
+      await submitRuntimeProfileEdit('save');
+    }
+
+    async function submitRuntimeProfileEdit(mode){
+      const status=document.getElementById('runtime-profile-edit-status');
+      try{
+        status.textContent=mode==='save'?'保存中...':'预览中...';
+        const r=await fetch(API+(mode==='save'?'/api/runtime/profile':'/api/runtime/profile/preview'),{method:mode==='save'?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(collectRuntimeProfileEditInput())});
+        const d=await r.json();
+        if(!r.ok||d.error)throw new Error(d.error||'请求失败');
+        renderRuntimeProfileEditResult(d, mode==='save');
+        if(mode==='save'){
+          const s=document.getElementById('runtime-profile-edit-saved');
+          s.classList.add('show');
+          setTimeout(()=>s.classList.remove('show'),2000);
+          await fetchRuntimeConfig();
+        }
+      }catch(e){
+        status.textContent='失败：'+e.message;
+        status.style.color='var(--red)';
+      }
+    }
+
+    function renderRuntimeProfileEditResult(result, saved){
+      const status=document.getElementById('runtime-profile-edit-status');
+      const diff=document.getElementById('runtime-profile-diff');
+      const issues=(result.validation&&result.validation.issues)||[];
+      status.style.color=issues.length?'var(--red)':'var(--green)';
+      status.textContent=(saved?'已保存。':'预览完成。')+(issues.length?' 有 '+issues.length+' 个配置问题。':' 配置有效。');
+      const diffRows=(result.diff||[]).map(item=>'<div style="padding:10px 12px;border-radius:12px;background:var(--surface-muted);border:1px solid var(--border);margin-bottom:8px;font-size:12px"><strong>'+escapeHtml(item.path)+'</strong><div style="color:var(--text3);margin-top:6px">before: <code>'+escapeHtml(formatRuntimeValue(item.before))+'</code></div><div style="color:var(--text2);margin-top:4px">after: <code>'+escapeHtml(formatRuntimeValue(item.after))+'</code></div></div>').join('');
+      const issueRows=issues.map(i=>'<div style="padding:10px 12px;border-radius:12px;background:var(--red-light);color:var(--red);margin-bottom:8px;font-size:12px"><strong>'+escapeHtml(i.path)+'</strong> · '+escapeHtml(i.message)+'</div>').join('');
+      diff.innerHTML=(issueRows||'')+(diffRows||'<div style="color:var(--text3);font-size:12px">没有字段变化。</div>');
+    }
+
+    async function rollbackRuntimeProfileEdit(){
+      if(!confirm('确定回滚上一次 runtime profile 保存？'))return;
+      const status=document.getElementById('runtime-profile-edit-status');
+      try{
+        const r=await fetch(API+'/api/runtime/profile/rollback',{method:'POST'});
+        const d=await r.json();
+        if(!r.ok||d.error)throw new Error(d.error||'回滚失败');
+        status.style.color='var(--green)';
+        status.textContent=d.deleted?'已删除新建的 profile 文件。':'已恢复上一次 profile 文件。';
+        await fetchRuntimeConfig();
+      }catch(e){
+        status.style.color='var(--red)';
+        status.textContent='回滚失败：'+e.message;
+      }
+    }
+
+    function formatRuntimeValue(value){
+      if(value===undefined)return '(未设置)';
+      if(Array.isArray(value))return value.join(', ');
+      return String(value);
+    }
 
     function toggleConfigGroup(idx) {
       const el = document.getElementById('config-grp-'+idx);
@@ -2090,6 +3542,514 @@
       try{const r=await fetch(API+'/api/store/install-github',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});const d=await r.json();if(d.error)alert('安装失败: '+d.error);else{input.value='';fetchStore();fetchSkills();}}catch(e){alert('安装失败: '+e.message);}
     }
 
+    // === CatsCompany Chat ===
+    function escapeHtml(value){
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    }
+
+    function setCatsAction(text, isError){
+      const el=document.getElementById('cats-action-status');
+      if(!el)return;
+      el.textContent=text||'';
+      el.style.color=isError?'var(--red)':'var(--text2)';
+      if (text) pulsePetState(isError ? 'error' : 'thinking', isError ? '连接异常' : text, isError ? 2600 : 1200);
+    }
+
+    function setCatsAuthMode(mode){
+      catsAuthMode=mode;
+      document.getElementById('cats-login-fields').style.display=mode==='login'?'block':'none';
+      document.getElementById('cats-register-fields').style.display=mode==='register'?'block':'none';
+      setCatsAction('');
+      updateCatsLayoutState();
+    }
+
+    function toggleCatsAdvanced(){
+      const panel=document.querySelector('.chat-connect');
+      if(panel)panel.classList.toggle('expanded');
+    }
+
+    async function parseCatsResponse(resp){
+      const data=await resp.json().catch(()=>({}));
+      if(!resp.ok) throw new Error(data.error || ('HTTP '+resp.status));
+      return data;
+    }
+
+    function getCatsEndpointFields(){
+      return {
+        httpBaseUrl: document.getElementById('cats-http-base').value.trim() || CATS_DEFAULT_HTTP_BASE,
+        serverUrl: document.getElementById('cats-ws-url').value.trim() || CATS_DEFAULT_WS_URL,
+      };
+    }
+
+    async function fetchCatsStatus(){
+      try{
+        const data=await parseCatsResponse(await fetch(API+'/api/cats/status'));
+        catsState=data||{};
+        renderCatsStatus();
+        if(catsState.topicId) loadCatsMessages(false);
+      }catch(e){
+        document.getElementById('cats-status').innerHTML='<div class="chat-muted" style="color:var(--red)">状态加载失败：'+escapeHtml(e.message)+'</div>';
+      }
+    }
+
+    function updateCatsLayoutState(){
+      const panel=document.querySelector('.chat-connect');
+      if(!panel)return;
+      const service=catsState.service||{};
+      const user=catsState.user||{};
+      const connected=Boolean(catsState.connected || catsState.tokenPresent || user.uid);
+      const configured=Boolean(catsState.configured || catsState.botUid);
+      const running=service.status==='running';
+      panel.classList.toggle('needs-auth', !connected);
+      panel.classList.toggle('needs-setup', connected && (!configured || !running));
+      if(!connected) panel.classList.add('expanded');
+      if(connected && configured && running) panel.classList.remove('expanded');
+    }
+
+    function renderCatsStatus(){
+      const service=catsState.service||{};
+      const user=catsState.user||{};
+      const status=document.getElementById('cats-status');
+      const running=service.status==='running';
+      const connected=Boolean(catsState.connected || catsState.tokenPresent || user.uid);
+      const configured=Boolean(catsState.configured || catsState.botUid);
+      status.innerHTML=
+        '<div class="chat-status-row"><span>账号</span><strong>'+(connected?(user.display_name?escapeHtml(user.display_name):'已登录'):'未登录')+'</strong></div>'+
+        '<div class="chat-status-row"><span>XiaoBa Bot</span><strong>'+(catsState.botUid?escapeHtml(catsState.botUid):'未绑定')+'</strong></div>'+
+        '<div class="chat-status-row"><span>本地服务</span><strong style="color:'+(running?'var(--green)':'var(--orange)')+'">'+(running?'运行中':'未启动')+'</strong></div>';
+
+      const httpInput=document.getElementById('cats-http-base');
+      const wsInput=document.getElementById('cats-ws-url');
+      if(httpInput && !httpInput.value) httpInput.value=catsState.httpBaseUrl||CATS_DEFAULT_HTTP_BASE;
+      if(wsInput && !wsInput.value) wsInput.value=catsState.serverUrl||CATS_DEFAULT_WS_URL;
+      document.getElementById('cats-topic-label').textContent=catsState.topicId?('Topic: '+catsState.topicId):'尚未绑定会话';
+      document.getElementById('cats-auth-panel').style.display=connected?'none':'grid';
+      document.getElementById('cats-connected-card').style.display=connected?'block':'none';
+      document.getElementById('cats-connected-copy').textContent=configured
+        ? (running?'可以直接开始对话。':'账号和 bot 已绑定，点击“检查并启动”恢复本地服务。')
+        : '账号已登录，点击“检查并启动”完成 XiaoBa bot 绑定。';
+      updateCatsLayoutState();
+    }
+
+    async function sendCatsCode(){
+      const email=document.getElementById('cats-email').value.trim();
+      if(!email){setCatsAction('请先输入邮箱地址',true);return;}
+      const btn=document.getElementById('cats-code-btn');
+      btn.disabled=true;btn.textContent='发送中...';
+      try{
+        await parseCatsResponse(await fetch(API+'/api/cats/auth/send-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...getCatsEndpointFields(),email})}));
+        setCatsAction('验证码已发送，请检查邮箱。');
+        pulsePetState('success', '验证码已发送', 1800);
+      }catch(e){
+        setCatsAction('发送验证码失败：'+e.message,true);
+      }finally{
+        btn.disabled=false;btn.textContent='发送验证码';
+      }
+    }
+
+    async function submitCatsAuth(){
+      const btn=document.getElementById(catsAuthMode==='login'?'cats-auth-btn':'cats-register-btn');
+      btn.disabled=true;
+      setCatsAction(catsAuthMode==='login'?'正在登录...':'正在注册...');
+      try{
+        const endpoint=getCatsEndpointFields();
+        if(catsAuthMode==='login'){
+          const account=document.getElementById('cats-account').value.trim();
+          const password=document.getElementById('cats-password').value;
+          await parseCatsResponse(await fetch(API+'/api/cats/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...endpoint,account,password})}));
+        }else{
+          const email=document.getElementById('cats-email').value.trim();
+          const username=document.getElementById('cats-username').value.trim();
+          const password=document.getElementById('cats-register-password').value;
+          const code=document.getElementById('cats-code').value.trim();
+          await parseCatsResponse(await fetch(API+'/api/cats/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...endpoint,email,username,password,code})}));
+        }
+        document.getElementById('cats-password').value='';
+        document.getElementById('cats-register-password').value='';
+        setCatsAction('登录态已保存，正在绑定 XiaoBa bot...');
+        await setupCatsBot();
+      }catch(e){
+        setCatsAction('连接失败：'+e.message,true);
+      }finally{
+        btn.disabled=false;
+      }
+    }
+
+    async function setupCatsBot(){
+      const btn=document.getElementById('cats-setup-btn');
+      btn.disabled=true;
+      setCatsAction('正在绑定 bot 并启动本地服务...');
+      try{
+        const data=await parseCatsResponse(await fetch(API+'/api/cats/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(getCatsEndpointFields())}));
+        catsState={...catsState,...data, connected:true, configured:true, botUid:data.bot?.uid||data.botUid, topicId:data.topicId, user:data.user, service:data.service};
+        renderCatsStatus();
+        setCatsAction('已连接。可以直接开始对话。');
+        pulsePetState('success', '已连接', 2200);
+        fetchStatus();
+        await loadCatsMessages(true);
+      }catch(e){
+        setCatsAction('绑定失败：'+e.message,true);
+      }finally{
+        btn.disabled=false;
+      }
+    }
+
+    async function resetCatsAuth(){
+      if(!confirm('是否切换 CatsCompany 账号？这会清除本地保存的登录态，但不会删除 CatsCompany 账号或 bot。'))return;
+      try{
+        await parseCatsResponse(await fetch(API+'/api/cats/auth/logout',{method:'POST'}));
+        catsState={};
+        catsWorkingActive=false;
+        lastCatsMessageSignature='';
+        document.getElementById('cats-account').value='';
+        document.getElementById('cats-password').value='';
+        document.getElementById('cats-messages').innerHTML='<div class="loading">连接 CatsCompany 后开始对话</div>';
+        setCatsAuthMode('login');
+        await fetchCatsStatus();
+        applyPetBaseline();
+        setCatsAction('已清除本地登录态。');
+      }catch(e){
+        setCatsAction('切换账号失败：'+e.message,true);
+      }
+    }
+
+    function extractCatsMessageText(message){
+      if(!message)return '';
+      if(typeof message.content==='string')return message.content;
+      if(Array.isArray(message.content_blocks)){
+        return message.content_blocks.map(b=>b.text||b.content||'').filter(Boolean).join('\n');
+      }
+      if(message.content && typeof message.content==='object'){
+        if(message.content.type && message.content.payload) return JSON.stringify(message.content.payload);
+        return JSON.stringify(message.content);
+      }
+      return '';
+    }
+
+    function safeLinkUrl(value){
+      const text=String(value||'').trim();
+      if(/^https?:\/\//i.test(text))return text;
+      if(/^mailto:/i.test(text))return text;
+      return '';
+    }
+
+    function renderInlineMarkdown(text){
+      let value=escapeHtml(text);
+      const codeSpans=[];
+      value=value.replace(/`([^`]+)`/g,(_,code)=>{
+        const token='@@INLINE_CODE_'+codeSpans.length+'@@';
+        codeSpans.push('<code>'+code+'</code>');
+        return token;
+      });
+      value=value.replace(/\[([^\]]+)\]\(([^)]+)\)/g,(_,label,url)=>{
+        const safe=safeLinkUrl(url);
+        return safe?'<a href="'+escapeHtml(safe)+'" target="_blank" rel="noopener noreferrer">'+label+'</a>':label;
+      });
+      value=value.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+      value=value.replace(/__([^_]+)__/g,'<strong>$1</strong>');
+      value=value.replace(/\*([^*\n]+)\*/g,'<em>$1</em>');
+      value=value.replace(/_([^_\n]+)_/g,'<em>$1</em>');
+      codeSpans.forEach((html,idx)=>{value=value.replace('@@INLINE_CODE_'+idx+'@@',html);});
+      return value;
+    }
+
+    function renderMarkdown(text){
+      const raw=String(text||'').replace(/\r\n/g,'\n');
+      if(!raw.trim())return '';
+
+      const codeBlocks=[];
+      let source=raw.replace(/```([\w-]*)\n([\s\S]*?)```/g,(_,lang,code)=>{
+        const token='@@CODE_BLOCK_'+codeBlocks.length+'@@';
+        const label=lang?'<div class="chat-code-label">'+escapeHtml(lang)+'</div>':'';
+        codeBlocks.push(label+'<pre><code>'+escapeHtml(code.replace(/\n$/,''))+'</code></pre>');
+        return '\n'+token+'\n';
+      });
+
+      const lines=source.split('\n');
+      const html=[];
+      let paragraph=[];
+
+      const flushParagraph=()=>{
+        if(!paragraph.length)return;
+        html.push('<p>'+renderInlineMarkdown(paragraph.join('\n')).replace(/\n/g,'<br>')+'</p>');
+        paragraph=[];
+      };
+
+      for(let i=0;i<lines.length;i++){
+        const line=lines[i];
+        const trimmed=line.trim();
+        if(!trimmed){flushParagraph();continue;}
+        if(/^@@CODE_BLOCK_\d+@@$/.test(trimmed)){flushParagraph();html.push(trimmed);continue;}
+        const heading=trimmed.match(/^(#{1,3})\s+(.+)$/);
+        if(heading){flushParagraph();html.push('<h'+heading[1].length+'>'+renderInlineMarkdown(heading[2])+'</h'+heading[1].length+'>');continue;}
+        if(/^>\s?/.test(trimmed)){
+          flushParagraph();
+          const quote=[];
+          while(i<lines.length && /^>\s?/.test(lines[i].trim())){
+            quote.push(lines[i].trim().replace(/^>\s?/,''));
+            i++;
+          }
+          i--;
+          html.push('<blockquote>'+renderInlineMarkdown(quote.join('\n')).replace(/\n/g,'<br>')+'</blockquote>');
+          continue;
+        }
+        if(/^[-*+]\s+/.test(trimmed)){
+          flushParagraph();
+          const items=[];
+          while(i<lines.length && /^[-*+]\s+/.test(lines[i].trim())){
+            items.push('<li>'+renderInlineMarkdown(lines[i].trim().replace(/^[-*+]\s+/,''))+'</li>');
+            i++;
+          }
+          i--;
+          html.push('<ul>'+items.join('')+'</ul>');
+          continue;
+        }
+        if(/^\d+\.\s+/.test(trimmed)){
+          flushParagraph();
+          const items=[];
+          while(i<lines.length && /^\d+\.\s+/.test(lines[i].trim())){
+            items.push('<li>'+renderInlineMarkdown(lines[i].trim().replace(/^\d+\.\s+/,''))+'</li>');
+            i++;
+          }
+          i--;
+          html.push('<ol>'+items.join('')+'</ol>');
+          continue;
+        }
+        paragraph.push(line);
+      }
+      flushParagraph();
+      let result=html.join('');
+      codeBlocks.forEach((block,idx)=>{result=result.replace('@@CODE_BLOCK_'+idx+'@@',block);});
+      return result;
+    }
+
+    function parseCatsContent(content){
+      if(!content)return null;
+      if(typeof content==='object')return content;
+      if(typeof content==='string'){
+        try{
+          const parsed=JSON.parse(content);
+          if(parsed && typeof parsed==='object')return parsed;
+        }catch(_e){}
+      }
+      return null;
+    }
+
+    function normalizeMediaUrl(url){
+      if(!url)return '';
+      if(/^https?:\/\//i.test(url))return url;
+      const base=(catsState.httpBaseUrl||CATS_DEFAULT_HTTP_BASE).replace(/\/+$/,'');
+      return base+'/'+String(url).replace(/^\/+/,'');
+    }
+
+    function formatCatsFileSize(value){
+      const bytes=Number(value||0);
+      if(!bytes)return '';
+      return formatBytes(bytes);
+    }
+
+    function renderRichCatsContent(content){
+      const rich=parseCatsContent(content);
+      if(!rich || !rich.type)return '';
+      const payload=rich.payload||{};
+      if(rich.type==='image'){
+        const src=normalizeMediaUrl(payload.url||payload.thumbnail);
+        return src?'<img class="chat-rich-image" src="'+escapeHtml(src)+'" alt="'+escapeHtml(payload.name||'image')+'" />':'';
+      }
+      if(rich.type==='file'){
+        const url=normalizeMediaUrl(payload.url);
+        const name=payload.name||'File';
+        const meta=[formatCatsFileSize(payload.size), name.includes('.')?name.split('.').pop().toUpperCase():'FILE'].filter(Boolean).join(' · ');
+        const inner='<span class="chat-attachment-icon">F</span><span><div class="chat-attachment-name">'+escapeHtml(name)+'</div><div class="chat-attachment-meta">'+escapeHtml(meta)+'</div></span>';
+        return url?'<a class="chat-attachment" href="'+escapeHtml(url)+'" target="_blank" rel="noopener noreferrer">'+inner+'</a>':'<div class="chat-attachment">'+inner+'</div>';
+      }
+      if(rich.type==='link_preview'){
+        const url=safeLinkUrl(payload.url);
+        const title=payload.title||payload.url||'Link';
+        const desc=payload.description||payload.site_name||'';
+        const inner='<span class="chat-attachment-icon">↗</span><span><div class="chat-attachment-name">'+escapeHtml(title)+'</div><div class="chat-attachment-meta">'+escapeHtml(desc)+'</div></span>';
+        return url?'<a class="chat-attachment" href="'+escapeHtml(url)+'" target="_blank" rel="noopener noreferrer">'+inner+'</a>':'';
+      }
+      if(rich.type==='card'){
+        return '<div class="chat-attachment"><span class="chat-attachment-icon">C</span><span><div class="chat-attachment-name">'+escapeHtml(payload.title||'Card')+'</div><div class="chat-attachment-meta">'+escapeHtml(payload.description||'')+'</div></span></div>';
+      }
+      return '';
+    }
+
+    function catsWorkingSummary(block){
+      if(!block)return '';
+      if(block.input){
+        if(typeof block.input==='string')return block.input;
+        if(block.input.command)return block.input.command;
+        if(block.input.file_path)return block.input.file_path;
+        if(block.input.pattern)return block.input.pattern;
+        try{return JSON.stringify(block.input).slice(0,160);}catch(_e){return '';}
+      }
+      return block.thinking||block.text||block.content||'';
+    }
+
+    function isCatsWorkingMessage(message){
+      const type=message?.type||message?.msg_type||'';
+      if(['thinking','tool_use','tool_result'].includes(type))return true;
+      const blocks=Array.isArray(message?.content_blocks)?message.content_blocks:[];
+      return blocks.some(block => block && block.type && block.type !== 'text' && block.type !== 'assistant_text');
+    }
+
+    function catsMessageComparableId(message){
+      return String(message?.seq_id || message?.id || message?.created_at || '');
+    }
+
+    function updatePetFromCatsMessages(messages){
+      const items=Array.isArray(messages)?messages:[];
+      if(!items.length){
+        catsWorkingActive=false;
+        applyPetBaseline();
+        return;
+      }
+
+      const uid=String(catsState.user?.uid||'');
+      let lastUserIndex=-1;
+      let lastBotTextIndex=-1;
+      let lastWorkingIndex=-1;
+
+      items.forEach((message,index)=>{
+        const from=String(message.from_uid || message.from || '');
+        const mine=from===uid || from===('usr'+uid);
+        if(mine){
+          lastUserIndex=index;
+          return;
+        }
+        if(isCatsWorkingMessage(message)){
+          lastWorkingIndex=index;
+          return;
+        }
+        const text=extractCatsMessageText(message).trim();
+        if(text) lastBotTextIndex=index;
+      });
+
+      const nextWorking=lastWorkingIndex > lastBotTextIndex;
+      catsWorkingActive=nextWorking;
+      if(nextWorking){
+        setPetAutoBaseline('thinking');
+        showPetBubble('XiaoBa 正在处理');
+      }else{
+        applyPetBaseline();
+      }
+
+      const latest=items[items.length-1];
+      const signature=catsMessageComparableId(latest);
+      const from=String(latest.from_uid || latest.from || '');
+      const latestMine=from===uid || from===('usr'+uid);
+      if(signature && signature!==lastCatsMessageSignature){
+        lastCatsMessageSignature=signature;
+        if(!latestMine && !isCatsWorkingMessage(latest) && lastBotTextIndex >= lastUserIndex){
+          pulsePetState('success','XiaoBa 回复了',1800);
+        }
+      }
+    }
+
+    function renderCatsWorkingBlocks(blocks){
+      if(!blocks.length)return '';
+      const steps=blocks.map(block=>{
+        const type=block.type||'';
+        const title=type==='thinking'?'Thinking':type==='tool_use'?('Tool: '+(block.name||'Tool')):type==='tool_result'?'Tool Result':type;
+        const body=type==='tool_result'
+          ? '<pre><code>'+escapeHtml(block.content||block.text||'')+'</code></pre>'
+          : renderMarkdown(catsWorkingSummary(block));
+        return '<div class="chat-working-step"><div class="chat-working-step-title">'+escapeHtml(title)+'</div><div class="chat-markdown">'+body+'</div></div>';
+      }).join('');
+      return '<details class="chat-working"><summary>WORKING...</summary><div class="chat-working-body">'+steps+'</div></details>';
+    }
+
+    function renderCatsMessageBody(message){
+      const blocks=Array.isArray(message?.content_blocks)?message.content_blocks:[];
+      const textBlocks=[];
+      const workingBlocks=[];
+      for(const block of blocks){
+        if(block.type==='text' || block.type==='assistant_text'){
+          textBlocks.push(block.text||block.content||'');
+        }else if(block.type){
+          workingBlocks.push(block);
+        }
+      }
+
+      let html='';
+      if(textBlocks.length){
+        html+='<div class="chat-markdown">'+renderMarkdown(textBlocks.join('\n\n'))+'</div>';
+      }else{
+        const richHtml=renderRichCatsContent(message.content);
+        if(richHtml){
+          html+=richHtml;
+        }else{
+          const text=extractCatsMessageText(message);
+          html+='<div class="chat-markdown">'+renderMarkdown(text)+'</div>';
+        }
+      }
+
+      if(!workingBlocks.length && ['thinking','tool_use','tool_result'].includes(message.type||message.msg_type||'')){
+        workingBlocks.push({
+          type: message.type||message.msg_type,
+          name: message.type==='tool_use'?extractCatsMessageText(message):undefined,
+          content: message.type==='tool_result'?extractCatsMessageText(message):undefined,
+          thinking: message.type==='thinking'?extractCatsMessageText(message):undefined,
+          input: message.metadata?.input,
+        });
+      }
+      html+=renderCatsWorkingBlocks(workingBlocks);
+      return html;
+    }
+
+    function renderCatsMessages(messages){
+      const box=document.getElementById('cats-messages');
+      const uid=String(catsState.user?.uid||'');
+      if(!messages || !messages.length){
+        box.innerHTML='<div class="loading">暂无消息</div>';
+        return;
+      }
+      box.innerHTML=messages.map(m=>{
+        const from=String(m.from_uid || m.from || '');
+        const mine=from===uid || from===('usr'+uid);
+        const cls=mine?'mine':'peer';
+        const who=mine?'我':'XiaoBa';
+        const created=m.created_at?new Date(m.created_at):null;
+        const time=created && !Number.isNaN(created.getTime()) ? created.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
+        return '<div class="chat-message '+cls+'"><div class="chat-message-meta">'+who+(time?' · '+escapeHtml(time):'')+'</div>'+renderCatsMessageBody(m)+'</div>';
+      }).join('');
+      box.scrollTop=box.scrollHeight;
+      updatePetFromCatsMessages(messages);
+    }
+
+    async function loadCatsMessages(showErrors=true){
+      if(!catsState.topicId)return;
+      try{
+        const data=await parseCatsResponse(await fetch(API+'/api/cats/messages?topic='+encodeURIComponent(catsState.topicId)+'&limit=50&offset=0'));
+        renderCatsMessages(data.messages||[]);
+        if(showErrors) pulsePetState('success','消息已刷新',1400);
+      }catch(e){
+        if(showErrors)setCatsAction('加载消息失败：'+e.message,true);
+      }
+    }
+
+    async function sendCatsMessage(){
+      const input=document.getElementById('cats-message-input');
+      const content=input.value.trim();
+      if(!content)return;
+      if(!catsState.topicId){setCatsAction('请先完成 CatsCompany 连接和 bot 绑定',true);return;}
+      const btn=document.getElementById('cats-send-btn');
+      btn.disabled=true;
+      pulsePetState('typing', '发送中...', 1400);
+      try{
+        await parseCatsResponse(await fetch(API+'/api/cats/messages/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic_id:catsState.topicId,content})}));
+        input.value='';
+        pulsePetState('success', '已发送', 1800);
+        await loadCatsMessages(true);
+      }catch(e){
+        setCatsAction('发送失败：'+e.message,true);
+      }finally{
+        btn.disabled=false;
+      }
+    }
+
     // === 微信 Token 获取 ===
     let weixinPollInterval;
     async function getWeixinToken(){
@@ -2122,9 +4082,16 @@
     }
 
     // Init
-    fetchStatus();fetchSkills();fetchConfig();fetchStore();fetchUpdateStatus(true);
+    preloadPetFrames();setPetState('idle');
+    fetchStatus();fetchSkills();fetchRuntimeConfig();fetchConfig();fetchStore();fetchUpdateStatus(true);fetchCatsStatus();
     setInterval(fetchStatus,5000);setInterval(fetchSkills,30000);setInterval(()=>fetchUpdateStatus(true),5000);
+    const catsMessageInput = document.getElementById('cats-message-input');
+    catsMessageInput.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendCatsMessage();}});
+    catsMessageInput.addEventListener('input',()=>{if(catsMessageInput.value.trim()) setPetState('typing', { message:'输入中...' }); else setPetAutoBaseline(petAutoBaseline);});
+    catsMessageInput.addEventListener('focus',()=>setPetState('typing', { message:'准备输入' }));
+    catsMessageInput.addEventListener('blur',()=>{if(!catsMessageInput.value.trim()) setPetAutoBaseline(petAutoBaseline);});
     document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLogs();closeUpdateModal();}});
+    document.addEventListener('click',e=>{const shell=document.getElementById('floating-pet');if(shell && !shell.contains(e.target)) closeFloatingPetMenu();});
     document.getElementById('logs-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeLogs();});
     document.getElementById('update-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeUpdateModal();});
   </script>

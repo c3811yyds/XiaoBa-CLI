@@ -155,6 +155,8 @@ export class ConversationRunner {
     const newMessages: Message[] = [];
     let nextTurnTransientHints: Message[] = [];
     let hasDeliveredMessageOutThisRun = false;
+    let lastOutboundContent: string | null = null;
+    let observationSinceLastOutbound = false;
     let turns = 0;
     let thinkingCount = 0;
 
@@ -213,9 +215,11 @@ export class ConversationRunner {
       if (!response.toolCalls || response.toolCalls.length === 0) {
         Logger.info(`[${this.sessionLabel}Turn ${turns}] AI最终回复: ${ConversationRunner.truncateForLog(response.content || '', 300)}`);
 
-        // 统一处理：所有最终回复都添加到历史
-        messages.push({ role: 'assistant', content: response.content || null });
-        newMessages.push({ role: 'assistant', content: response.content || null });
+        if (response.content) {
+          const finalAssistantMessage: Message = { role: 'assistant', content: response.content };
+          messages.push(finalAssistantMessage);
+          newMessages.push(finalAssistantMessage);
+        }
 
         if (this.isMessageSurface()) {
           let finalText = response.content || '';
@@ -355,6 +359,26 @@ export class ConversationRunner {
       messages.push(...turnMessages);
       newMessages.push(...turnMessages);
 
+      for (const record of executionRecords) {
+        const transcriptMode = this.getToolTranscriptMode(record.toolName, toolDefinitions);
+        if (this.shouldNormalizeOutboundRecord(record, transcriptMode)) {
+          const outbound = this.buildOutboundAssistantMessage(record, toolDefinitions);
+          const content = typeof outbound?.content === 'string' ? outbound.content : '';
+          if (content) {
+            if (lastOutboundContent === content && !observationSinceLastOutbound) {
+              nextTurnTransientHints = [this.buildDuplicateOutboundHint(content)];
+            }
+            lastOutboundContent = content;
+            observationSinceLastOutbound = false;
+          }
+          continue;
+        }
+
+        if (transcriptMode !== 'suppress' || record.result.errorCode || record.result.ok === false) {
+          observationSinceLastOutbound = true;
+        }
+      }
+
       if (shouldPauseTurn) {
         Logger.info(`[${this.sessionLabel}Turn ${turns}] pause_turn 已触发，本轮收束`);
         return {
@@ -408,18 +432,42 @@ export class ConversationRunner {
     toolDefinitions: Map<string, ToolDefinition>,
   ): Message[] {
     const messages: Message[] = [];
+    const transcriptRecords: ToolExecutionRecord[] = [];
+    const outboundMessages: Message[] = [];
 
+    for (const record of executionRecords) {
+      const transcriptMode = this.getToolTranscriptMode(record.toolName, toolDefinitions);
+      if (this.shouldNormalizeOutboundRecord(record, transcriptMode)) {
+        const outbound = this.buildOutboundAssistantMessage(record, toolDefinitions);
+        if (outbound) {
+          outboundMessages.push(outbound);
+        }
+        continue;
+      }
+      if (transcriptMode === 'suppress' && !record.result.errorCode && record.result.ok !== false) {
+        continue;
+      }
+      transcriptRecords.push(record);
+    }
+
+    const transcriptToolCalls = this.filterToolCallsForTranscript(assistantMsg, transcriptRecords);
     const assistant: Message = {
       role: 'assistant',
-      content: assistantMsg.content,
-      ...(assistantMsg.tool_calls?.length ? { tool_calls: assistantMsg.tool_calls } : {}),
+      content: this.shouldKeepAssistantDraft(assistantMsg, outboundMessages)
+        ? assistantMsg.content
+        : null,
+      ...(transcriptToolCalls?.length
+        ? { tool_calls: transcriptToolCalls }
+        : {}),
     };
 
     if (assistant.content || assistant.tool_calls?.length) {
       messages.push(assistant);
     }
 
-    for (const record of executionRecords) {
+    messages.push(...outboundMessages);
+
+    for (const record of transcriptRecords) {
       const transcriptMode = this.getToolTranscriptMode(record.toolName, toolDefinitions);
       if (transcriptMode === 'suppress' && !record.result.errorCode) {
         continue;
@@ -455,6 +503,25 @@ export class ConversationRunner {
     }
 
     return messages;
+  }
+
+  private filterToolCallsForTranscript(
+    assistantMsg: Message,
+    transcriptRecords: ToolExecutionRecord[],
+  ): Message['tool_calls'] {
+    if (!assistantMsg.tool_calls?.length) return undefined;
+    const transcriptToolCallIds = new Set(transcriptRecords.map(record => record.toolCall.id));
+    return assistantMsg.tool_calls.filter(toolCall => transcriptToolCallIds.has(toolCall.id));
+  }
+
+  private shouldKeepAssistantDraft(
+    assistantMsg: Message,
+    outboundMessages: Message[],
+  ): boolean {
+    if (!assistantMsg.content || typeof assistantMsg.content !== 'string') {
+      return Array.isArray(assistantMsg.content);
+    }
+    return !outboundMessages.some(message => message.content === assistantMsg.content);
   }
 
   private buildProviderInputMessages(messages: Message[], transientHints: Message[]): Message[] {
@@ -493,14 +560,16 @@ export class ConversationRunner {
 
   private isMessageSurface(): boolean {
     const surface = this.toolExecutionContext?.surface;
-    return surface === 'catscompany' || surface === 'feishu';
+    return surface === 'catscompany' || surface === 'feishu' || surface === 'weixin';
   }
 
   private getToolTranscriptMode(
     toolName: string,
     toolDefinitions: Map<string, ToolDefinition>,
   ): ToolTranscriptMode {
-    return toolDefinitions.get(toolName)?.transcriptMode ?? 'default';
+    const exact = toolDefinitions.get(toolName);
+    if (exact) return exact.transcriptMode ?? 'default';
+    return toolDefinitions.get(normalizeToolName(toolName))?.transcriptMode ?? 'default';
   }
 
   private shouldNormalizeOutboundRecord(
@@ -556,8 +625,8 @@ export class ConversationRunner {
     toolName: string,
     args: Record<string, unknown>,
   ): string | null {
-    if (toolName === 'reply') {
-      const text = typeof args.message === 'string' ? args.message.trim() : '';
+    if (normalizeToolName(toolName) === 'send_text') {
+      const text = typeof args.text === 'string' ? args.text.trim() : '';
       return text || null;
     }
 
@@ -576,6 +645,13 @@ export class ConversationRunner {
     }
 
     return null;
+  }
+
+  private buildDuplicateOutboundHint(content: string): Message {
+    return {
+      role: 'system',
+      content: `${TRANSIENT_RUNNER_HINT_PREFIX}\n你刚刚连续发送了与上一条相同的内容：“${content}”。如果这是用户真正需要的重复确认，可以继续；否则请避免无意义重复，必要时调用 pause_turn 收束。`,
+    };
   }
 
   private async requestModelResponse(

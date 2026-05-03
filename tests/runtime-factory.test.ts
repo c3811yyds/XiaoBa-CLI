@@ -1,0 +1,274 @@
+import { afterEach, beforeEach, describe, test } from 'node:test';
+import * as assert from 'node:assert';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { AgentSession } from '../src/core/agent-session';
+import { SkillManager } from '../src/skills/skill-manager';
+import { ToolManager } from '../src/tools/tool-manager';
+import { AIService } from '../src/utils/ai-service';
+import { RuntimeFactory } from '../src/runtime/runtime-factory';
+import { resolveDefaultRuntimeProfile } from '../src/runtime/runtime-profile';
+
+describe('RuntimeFactory', () => {
+  let testRoot: string;
+  let originalCwd: string;
+
+  beforeEach(() => {
+    originalCwd = process.cwd();
+    testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-runtime-factory-'));
+    process.chdir(testRoot);
+  });
+
+  afterEach(() => {
+    process.chdir(originalCwd);
+    if (testRoot && fs.existsSync(testRoot)) {
+      fs.rmSync(testRoot, { recursive: true, force: true });
+    }
+  });
+
+  test('creates current CLI service graph and session without loading skills when disabled', async () => {
+    writeTestSkill('factory-demo');
+    const profile = resolveDefaultRuntimeProfile({
+      surface: 'cli',
+      workingDirectory: testRoot,
+    });
+
+    const runtime = await RuntimeFactory.createSession({
+      profile,
+      sessionKey: 'cli',
+      sessionType: 'cli',
+      loadSkills: false,
+    });
+
+    assert.equal(runtime.profile, profile);
+    assert.ok(runtime.session instanceof AgentSession);
+    assert.equal(runtime.session.key, 'cli');
+    assert.ok(runtime.services.aiService instanceof AIService);
+    assert.ok(runtime.services.toolManager instanceof ToolManager);
+    assert.ok(runtime.services.skillManager instanceof SkillManager);
+    assert.equal(runtime.services.toolManager.getToolCount(), profile.tools.enabled.length);
+    assert.equal((runtime.services.toolManager as any).workingDirectory, path.resolve(testRoot));
+    assert.deepStrictEqual(runtime.services.skillManager.getAllSkills(), []);
+
+    const sessionLogPath = (runtime.session as any).sessionTurnLogger.getLogFilePath();
+    assert.match(sessionLogPath, /logs\/sessions\/cli\/\d{4}-\d{2}-\d{2}\/cli_cli\.jsonl$/);
+  });
+
+  test('loads skills through the factory helper when enabled', async () => {
+    writeTestSkill('factory-demo');
+    const profile = resolveDefaultRuntimeProfile({
+      surface: 'cli',
+      workingDirectory: testRoot,
+    });
+
+    const runtime = await RuntimeFactory.createSession({
+      profile,
+      sessionKey: 'cli',
+      sessionType: 'cli',
+    });
+
+    assert.deepStrictEqual(
+      runtime.services.skillManager.getAllSkills().map(skill => skill.metadata.name),
+      ['factory-demo'],
+    );
+  });
+
+  test('factory-created sessions use profile workingDirectory in the system prompt', async () => {
+    const profile = resolveDefaultRuntimeProfile({
+      surface: 'cli',
+      workingDirectory: testRoot,
+      env: {
+        CURRENT_AGENT_DISPLAY_NAME: 'Factory Bot',
+        CURRENT_PLATFORM: 'cli',
+      },
+    });
+
+    const runtime = await RuntimeFactory.createSession({
+      profile,
+      sessionKey: 'cli',
+      sessionType: 'cli',
+      loadSkills: false,
+    });
+
+    await runtime.session.init();
+    const messages = (runtime.session as any).messages;
+
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0].role, 'system');
+    assert.match(messages[0].content, /你在这个平台上的名字是：Factory Bot/);
+    assert.match(messages[0].content, /当前平台：cli/);
+    assert.match(
+      messages[0].content,
+      new RegExp(`你的默认工作目录是：\`${escapeRegExp(path.resolve(testRoot))}\``),
+    );
+  });
+
+  test('factory prompt provider snapshots profile workingDirectory at session creation', async () => {
+    const originalWorkingDirectory = path.join(testRoot, 'workspace-a');
+    const mutatedWorkingDirectory = path.join(testRoot, 'workspace-b');
+    fs.mkdirSync(originalWorkingDirectory);
+    fs.mkdirSync(mutatedWorkingDirectory);
+
+    const profile = resolveDefaultRuntimeProfile({
+      surface: 'cli',
+      workingDirectory: originalWorkingDirectory,
+    });
+
+    const runtime = await RuntimeFactory.createSession({
+      profile,
+      sessionKey: 'cli',
+      sessionType: 'cli',
+      loadSkills: false,
+    });
+    profile.workingDirectory = mutatedWorkingDirectory;
+
+    await runtime.session.init();
+    const messages = (runtime.session as any).messages;
+
+    assert.match(
+      messages[0].content,
+      new RegExp(`你的默认工作目录是：\`${escapeRegExp(path.resolve(originalWorkingDirectory))}\``),
+    );
+    assert.equal(
+      (runtime.services.toolManager as any).workingDirectory,
+      path.resolve(originalWorkingDirectory),
+    );
+  });
+
+  test('uses profile model overrides when creating AIService', async () => {
+    const profile = resolveDefaultRuntimeProfile({
+      surface: 'cli',
+      model: {
+        provider: 'openai',
+        apiUrl: 'https://example.com/v1',
+        apiKey: 'test-key' as any,
+        model: 'test-model',
+        temperature: 0.1,
+        maxTokens: 1024,
+      } as any,
+    });
+
+    const services = await RuntimeFactory.createServices(profile, { loadSkills: false });
+
+    assert.deepStrictEqual((services.aiService as any).config.provider, 'openai');
+    assert.deepStrictEqual((services.aiService as any).config.apiUrl, 'https://example.com/v1');
+    assert.deepStrictEqual((services.aiService as any).config.model, 'test-model');
+    assert.deepStrictEqual((services.aiService as any).config.temperature, 0.1);
+    assert.deepStrictEqual((services.aiService as any).config.maxTokens, 1024);
+  });
+
+  test('creates ToolManager from profile enabled tools', async () => {
+    const profile = resolveDefaultRuntimeProfile({
+      surface: 'cli',
+      workingDirectory: testRoot,
+      tools: ['read_file', 'execute_shell'],
+    });
+
+    const services = await RuntimeFactory.createServices(profile, { loadSkills: false });
+
+    assert.deepStrictEqual(
+      services.toolManager.getToolDefinitions().map(definition => definition.name),
+      ['read_file', 'execute_shell'],
+    );
+    assert.equal(services.toolManager.getTool('write_file'), undefined);
+  });
+
+  test('rejects invalid profile tool names before creating services', () => {
+    const profile = resolveDefaultRuntimeProfile({
+      surface: 'cli',
+      workingDirectory: testRoot,
+      tools: ['read_file', 'missing_tool'],
+    });
+
+    assert.throws(
+      () => RuntimeFactory.createServicesSync(profile),
+      /Invalid runtime profile "xiaoba-cli": tools\.enabled\[1\]: Unknown runtime tool: missing_tool/,
+    );
+  });
+
+  test('creates services synchronously without loading skills for adapter constructors', () => {
+    writeTestSkill('factory-demo');
+    const profile = resolveDefaultRuntimeProfile({
+      surface: 'feishu',
+      workingDirectory: testRoot,
+    });
+
+    const services = RuntimeFactory.createServicesSync(profile);
+
+    assert.ok(services.aiService instanceof AIService);
+    assert.ok(services.toolManager instanceof ToolManager);
+    assert.ok(services.skillManager instanceof SkillManager);
+    assert.equal((services.toolManager as any).workingDirectory, path.resolve(testRoot));
+    assert.deepStrictEqual(services.skillManager.getAllSkills(), []);
+  });
+
+  test('creates reusable system prompt providers from a profile snapshot', async () => {
+    const originalWorkingDirectory = path.join(testRoot, 'adapter-workspace');
+    const mutatedWorkingDirectory = path.join(testRoot, 'mutated-workspace');
+    fs.mkdirSync(originalWorkingDirectory);
+    fs.mkdirSync(mutatedWorkingDirectory);
+    const profile = resolveDefaultRuntimeProfile({
+      surface: 'feishu',
+      workingDirectory: originalWorkingDirectory,
+      env: {
+        CURRENT_AGENT_DISPLAY_NAME: 'Feishu Bot',
+        CURRENT_PLATFORM: 'feishu',
+      },
+    });
+
+    const provider = RuntimeFactory.createSystemPromptProvider(profile);
+    profile.workingDirectory = mutatedWorkingDirectory;
+
+    const prompt = await provider();
+
+    assert.match(prompt, /你在这个平台上的名字是：Feishu Bot/);
+    assert.match(prompt, /当前平台：feishu/);
+    assert.match(
+      prompt,
+      new RegExp(`你的默认工作目录是：\`${escapeRegExp(path.resolve(originalWorkingDirectory))}\``),
+    );
+  });
+
+  test('rejects system prompt provider changes after session initialization', async () => {
+    const profile = resolveDefaultRuntimeProfile({
+      surface: 'cli',
+      workingDirectory: testRoot,
+    });
+
+    const runtime = await RuntimeFactory.createSession({
+      profile,
+      sessionKey: 'cli',
+      sessionType: 'cli',
+      loadSkills: false,
+    });
+
+    await runtime.session.init();
+
+    assert.throws(
+      () => runtime.session.setSystemPromptProvider(() => 'late prompt'),
+      /Cannot set system prompt provider after session initialization/,
+    );
+  });
+});
+
+function writeTestSkill(name: string): void {
+  const skillDir = path.join(process.cwd(), 'skills', name);
+  fs.mkdirSync(skillDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(skillDir, 'SKILL.md'),
+    [
+      '---',
+      `name: ${name}`,
+      'description: Factory test skill',
+      '---',
+      '',
+      'Use this skill for factory tests.',
+    ].join('\n'),
+    'utf-8',
+  );
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
