@@ -14,8 +14,8 @@
 4. Subagent Management
 5. Remaining Architecture Hygiene
 
-当前执行计划见 `docs/runtime-profile-dashboard-plan.md`。
-当前状态：Runtime Profile And Dashboard Config 已完成 Slice 1-4，具备 profile schema/loading、dashboard read-only alignment、safe edit API 和 dashboard 编辑 UI。后续如果继续做 dashboard，应从新的产品化任务开始，不再归入 slimming。
+当前执行计划见 `docs/runtime-productization-plan.md`。
+当前状态：Runtime Profile And Dashboard Config 已完成 Slice 1-4，具备 profile schema/loading、dashboard read-only alignment、safe edit API 和 dashboard 编辑 UI。后续如果继续做 dashboard，应从新的产品化任务开始，不再归入 slimming；历史 profile 计划保留在 `docs/runtime-profile-dashboard-plan.md`。
 
 ## 总目标
 
@@ -41,13 +41,18 @@
 - secret 字段的展示、保存和脱敏规则。
 - preview diff、schema validation、保存、回滚路径。
 
-优先字段：
+当前已允许的安全编辑字段：
 - assistant display name。
 - working directory。
 - enabled tools。
+- skills.enabled。
+
+后续待评估字段：
 - prompt file references。
 - surface 名称与基础 surface metadata。
 - model/provider 非敏感配置。
+
+这些待评估字段不作为当前 Dashboard 编辑范围；只有在单独设计清楚 schema、展示/保存边界、回滚和测试后，才考虑纳入。
 
 暂不做：
 - dashboard 直接编辑完整 system prompt 大文本并立即热生效。
