@@ -117,6 +117,19 @@ export class CatsClient extends EventEmitter {
   }
 
   async sendMessage(topic: string, text: string): Promise<number> {
+    return this.sendPubMessage({ topic, content: text });
+  }
+
+  /**
+   * 通过 WebSocket 发送结构化 pub 消息（带 ack 确认）。
+   * 供 message-sender 使用，支持 type/content/metadata 字段。
+   */
+  async sendPubMessage(payload: {
+    topic: string;
+    content: unknown;
+    type?: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<number> {
     const msgId = `${++this.msgId}`;
 
     return new Promise((resolve, reject) => {
@@ -126,7 +139,9 @@ export class CatsClient extends EventEmitter {
       }, 10000);
 
       this.pendingAcks.set(msgId, { resolve, reject, timer });
-      this.send({ pub: { id: msgId, topic, content: text } });
+      const pub: Record<string, unknown> = { id: msgId, topic: payload.topic, content: payload.content };
+      if (payload.type) pub.type = payload.type;
+      this.send({ pub });
     });
   }
 

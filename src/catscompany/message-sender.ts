@@ -15,7 +15,7 @@ export class MessageSender {
   }
 
   /**
-   * 统一的消息发送接口
+   * 统一的消息发送接口：WebSocket 优先，HTTP 兜底。
    */
   private async send(
     topic: string,
@@ -23,14 +23,38 @@ export class MessageSender {
     content: string,
     metadata?: any
   ): Promise<{ seq_id: number }> {
+    // WebSocket 优先
+    try {
+      const seq = await this.bot.sendPubMessage({
+        topic,
+        content,
+        type,
+        metadata,
+      });
+      return { seq_id: seq };
+    } catch (err: any) {
+      Logger.warning(`WebSocket 发送失败，使用 HTTP 兜底: ${err.message}`);
+      return this.sendViaHttp(topic, type, content, metadata);
+    }
+  }
+
+  /**
+   * HTTP 兜底发送（当 WebSocket 不可用时）
+   */
+  private async sendViaHttp(
+    topic: string,
+    type: string,
+    content: string,
+    metadata?: any
+  ): Promise<{ seq_id: number }> {
     try {
       const url = `${this.baseUrl}/api/messages/send`;
-      const body = {
+      const body: Record<string, unknown> = {
         topic_id: topic,
         type,
         content,
-        metadata,
       };
+      if (metadata) body.metadata = metadata;
 
       const res = await fetch(url, {
         method: 'POST',
@@ -39,7 +63,7 @@ export class MessageSender {
           'Authorization': `ApiKey ${this.apiKey}`,
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(10000), // 10秒超时
+        signal: AbortSignal.timeout(10000),
       });
 
       if (!res.ok) {
@@ -49,9 +73,10 @@ export class MessageSender {
       }
 
       const result = await res.json() as { seq_id: number };
+      Logger.info(`HTTP 兜底发送成功, seq_id=${result.seq_id}`);
       return result;
     } catch (err: any) {
-      Logger.error(`消息发送失败: ${err.message}`);
+      Logger.error(`HTTP 兜底发送也失败: ${err.message}`);
       throw err;
     }
   }
