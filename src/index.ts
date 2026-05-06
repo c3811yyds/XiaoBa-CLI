@@ -15,14 +15,14 @@ function main() {
   Logger.brand();
 
   program
-    .name('xiaoba')
-    .description('XiaoBa agent CLI')
+    .name('catsco')
+    .description('CatsCo agent CLI')
     .version(APP_VERSION)
     .option('-s, --skill <name>', 'Bind a skill at startup');
 
   program
     .command('chat')
-    .description('Start a XiaoBa chat session')
+    .description('Start a CatsCo local chat session')
     .option('-i, --interactive', 'Enter interactive mode')
     .option('-m, --message <message>', 'Send a single message')
     .option('-s, --skill <name>', 'Bind a skill at startup')
@@ -30,7 +30,7 @@ function main() {
 
   program
     .command('config')
-    .description('Configure XiaoBa API settings')
+    .description('Configure CatsCo API settings')
     .action(configCommand);
 
   program
@@ -40,7 +40,23 @@ function main() {
 
   program
     .command('catscompany')
-    .description('Start the Cats Company bot')
+    .description('Start the CatsCo agent connector (legacy alias)')
+    .action(async () => {
+      const { catscompanyCommand } = await import('./commands/catscompany');
+      await catscompanyCommand();
+    });
+
+  program
+    .command('connect')
+    .description('Start the CatsCo webapp connector')
+    .action(async () => {
+      const { catscompanyCommand } = await import('./commands/catscompany');
+      await catscompanyCommand();
+    });
+
+  program
+    .command('catsco')
+    .description('Start the CatsCo webapp connector (compatibility alias)')
     .action(async () => {
       const { catscompanyCommand } = await import('./commands/catscompany');
       await catscompanyCommand();
@@ -56,7 +72,7 @@ function main() {
 
   program
     .command('dashboard')
-    .description('Start the XiaoBa Dashboard')
+    .description('Start the CatsCo Dashboard')
     .option('-p, --port <port>', 'Specify the port number', '3800')
     .action(async (options) => {
       const { dashboardCommand } = await import('./commands/dashboard');

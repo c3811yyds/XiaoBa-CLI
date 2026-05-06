@@ -15,7 +15,7 @@ import inquirer from 'inquirer';
 export function registerSkillCommand(program: Command): void {
   const skillCmd = program
     .command('skill')
-    .description('管理 XiaoBa skills');
+    .description('管理 CatsCo skills');
 
   // skill list - 列出所有可用的 skills
   skillCmd
@@ -76,7 +76,7 @@ async function listSkills(): Promise<void> {
     Logger.warning('没有找到任何 skill');
     Logger.info('\n提示：');
     Logger.info(`  - 将 skill 放在 ${styles.code('skills/')} 目录`);
-    Logger.info('  - 或使用命令安装: xiaoba skill install-github owner/repo');
+    Logger.info('  - 或使用命令安装: catsco skill install-github owner/repo');
     return;
   }
 
@@ -123,7 +123,7 @@ async function installSkill(packageName: string, global?: boolean): Promise<void
     });
 
     Logger.success(`\n✓ Skill ${styles.highlight(packageName)} 安装成功！`);
-    Logger.info('\n使用 xiaoba skill list 查看已安装的 skills');
+    Logger.info('\n使用 catsco skill list 查看已安装的 skills');
   } catch (error: any) {
     Logger.error(`安装失败: ${error.message}`);
     process.exit(1);
@@ -141,7 +141,7 @@ async function showSkillInfo(name: string): Promise<void> {
 
   if (!skill) {
     Logger.error(`未找到 skill: ${name}`);
-    Logger.info('\n使用 xiaoba skill list 查看所有可用的 skills');
+    Logger.info('\n使用 catsco skill list 查看所有可用的 skills');
     process.exit(1);
   }
 
@@ -206,7 +206,7 @@ async function installGithubSkill(repo: string): Promise<void> {
 
     Logger.success(`\n✓ Skill ${styles.highlight(repoName)} 安装成功！`);
     Logger.info(`安装位置: ${skillPath}`);
-    Logger.info('\n使用 xiaoba skill list 查看已安装的 skills');
+    Logger.info('\n使用 catsco skill list 查看已安装的 skills');
   } catch (error: any) {
     Logger.error(`安装失败: ${error.message}`);
 
@@ -291,7 +291,7 @@ async function removeLocalSkill(name: string, force?: boolean): Promise<void> {
 
   if (!skill) {
     Logger.error(`未找到 skill: ${name}`);
-    Logger.info('\n使用 xiaoba skill list 查看所有可用的 skills');
+    Logger.info('\n使用 catsco skill list 查看所有可用的 skills');
     process.exit(1);
   }
 
@@ -327,4 +327,3 @@ async function removeLocalSkill(name: string, force?: boolean): Promise<void> {
     process.exit(1);
   }
 }
-

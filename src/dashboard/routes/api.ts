@@ -15,6 +15,16 @@ import { execSync } from 'child_process';
 import { APP_VERSION } from '../../version';
 import { createRuntimeConfigSnapshot } from '../../runtime/runtime-config-snapshot';
 import {
+  getDashboardReadiness,
+  getServicePreflight,
+} from '../readiness';
+import {
+  getDashboardSettings,
+  isSensitiveEnvKey,
+  updateDashboardSettings,
+  writeDashboardEnvUpdates,
+} from '../settings';
+import {
   RuntimeProfileEditInput,
   hasRuntimeProfileRollback,
   previewRuntimeProfileEdit,
@@ -24,8 +34,8 @@ import {
 // import { ReportGenerator } from '../../utils/report-generator';
 // import { LogUploader } from '../../utils/log-uploader';
 
-const DEFAULT_CATSCOMPANY_HTTP_BASE_URL = 'https://app.catsco.cc';
-const DEFAULT_CATSCOMPANY_WS_URL = 'wss://app.catsco.cc/v0/channels';
+const DEFAULT_CATSCO_HTTP_BASE_URL = 'https://app.catsco.cc';
+const DEFAULT_CATSCO_WS_URL = 'wss://app.catsco.cc/v0/channels';
 
 interface CatsAuthState {
   token?: string;
@@ -55,6 +65,14 @@ function readEnvFile(): Record<string, string> {
   const envPath = path.join(process.cwd(), '.env');
   if (!fs.existsSync(envPath)) return {};
   return dotenv.parse(fs.readFileSync(envPath, 'utf-8'));
+}
+
+function firstNonEmpty(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    const text = String(value || '').trim();
+    if (text) return text;
+  }
+  return undefined;
 }
 
 function writeEnvUpdates(updates: Record<string, string | undefined>): string[] {
@@ -99,17 +117,68 @@ function removeEnvKeys(keys: string[]): string[] {
   return removed;
 }
 
-function getCatsAuthState(overrides: Record<string, unknown> = {}): CatsAuthState {
+export function getCatsAuthState(overrides: Record<string, unknown> = {}): CatsAuthState {
   const env = readEnvFile();
   return {
-    token: String(overrides.token || env.CATSCOMPANY_USER_TOKEN || process.env.CATSCOMPANY_USER_TOKEN || '').trim() || undefined,
-    uid: String(overrides.uid || env.CATSCOMPANY_USER_UID || process.env.CATSCOMPANY_USER_UID || '').trim() || undefined,
-    username: String(env.CATSCOMPANY_USER_NAME || process.env.CATSCOMPANY_USER_NAME || '').trim() || undefined,
-    displayName: String(env.CATSCOMPANY_USER_DISPLAY_NAME || process.env.CATSCOMPANY_USER_DISPLAY_NAME || '').trim() || undefined,
-    httpBaseUrl: normalizeBaseUrl(overrides.httpBaseUrl || env.CATSCOMPANY_HTTP_BASE_URL || process.env.CATSCOMPANY_HTTP_BASE_URL, DEFAULT_CATSCOMPANY_HTTP_BASE_URL),
-    serverUrl: normalizeBaseUrl(overrides.serverUrl || env.CATSCOMPANY_SERVER_URL || process.env.CATSCOMPANY_SERVER_URL, DEFAULT_CATSCOMPANY_WS_URL),
-    botUid: String(overrides.botUid || env.CATSCOMPANY_BOT_UID || process.env.CATSCOMPANY_BOT_UID || '').trim() || undefined,
-    apiKey: String(env.CATSCOMPANY_API_KEY || process.env.CATSCOMPANY_API_KEY || '').trim() || undefined,
+    token: firstNonEmpty(
+      overrides.token,
+      env.CATSCO_USER_TOKEN,
+      process.env.CATSCO_USER_TOKEN,
+      env.CATSCOMPANY_USER_TOKEN,
+      process.env.CATSCOMPANY_USER_TOKEN,
+    ),
+    uid: firstNonEmpty(
+      overrides.uid,
+      env.CATSCO_USER_UID,
+      process.env.CATSCO_USER_UID,
+      env.CATSCOMPANY_USER_UID,
+      process.env.CATSCOMPANY_USER_UID,
+    ),
+    username: firstNonEmpty(
+      env.CATSCO_USER_NAME,
+      process.env.CATSCO_USER_NAME,
+      env.CATSCOMPANY_USER_NAME,
+      process.env.CATSCOMPANY_USER_NAME,
+    ),
+    displayName: firstNonEmpty(
+      env.CATSCO_USER_DISPLAY_NAME,
+      process.env.CATSCO_USER_DISPLAY_NAME,
+      env.CATSCOMPANY_USER_DISPLAY_NAME,
+      process.env.CATSCOMPANY_USER_DISPLAY_NAME,
+    ),
+    httpBaseUrl: normalizeBaseUrl(
+      firstNonEmpty(
+        overrides.httpBaseUrl,
+        env.CATSCO_HTTP_BASE_URL,
+        process.env.CATSCO_HTTP_BASE_URL,
+        env.CATSCOMPANY_HTTP_BASE_URL,
+        process.env.CATSCOMPANY_HTTP_BASE_URL,
+      ),
+      DEFAULT_CATSCO_HTTP_BASE_URL,
+    ),
+    serverUrl: normalizeBaseUrl(
+      firstNonEmpty(
+        overrides.serverUrl,
+        env.CATSCO_SERVER_URL,
+        process.env.CATSCO_SERVER_URL,
+        env.CATSCOMPANY_SERVER_URL,
+        process.env.CATSCOMPANY_SERVER_URL,
+      ),
+      DEFAULT_CATSCO_WS_URL,
+    ),
+    botUid: firstNonEmpty(
+      overrides.botUid,
+      env.CATSCO_BOT_UID,
+      process.env.CATSCO_BOT_UID,
+      env.CATSCOMPANY_BOT_UID,
+      process.env.CATSCOMPANY_BOT_UID,
+    ),
+    apiKey: firstNonEmpty(
+      env.CATSCO_API_KEY,
+      process.env.CATSCO_API_KEY,
+      env.CATSCOMPANY_API_KEY,
+      process.env.CATSCOMPANY_API_KEY,
+    ),
   };
 }
 
@@ -140,7 +209,7 @@ async function catsRequest(
   }
 
   if (!response.ok) {
-    const message = data?.error || data?.message || `CatsCompany request failed: ${response.status}`;
+    const message = data?.error || data?.message || `CatsCo request failed: ${response.status}`;
     const error = new Error(message);
     (error as any).status = response.status;
     (error as any).data = data;
@@ -177,7 +246,7 @@ async function catsApiKeyRequest(
   }
 
   if (!response.ok) {
-    const message = data?.error || data?.message || `CatsCompany request failed: ${response.status}`;
+    const message = data?.error || data?.message || `CatsCo request failed: ${response.status}`;
     const error = new Error(message);
     (error as any).status = response.status;
     (error as any).data = data;
@@ -242,6 +311,17 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
   router.get('/runtime/config', async (_req, res) => {
     try {
       res.json(await createRuntimeConfigSnapshot({
+        config: ConfigManager.getConfigReadonly(),
+      }));
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || String(e) });
+    }
+  });
+
+  router.get('/readiness', async (_req, res) => {
+    try {
+      res.json(await getDashboardReadiness(serviceManager, {
+        runtimeRoot: process.cwd(),
         config: ConfigManager.getConfigReadonly(),
       }));
     } catch (e: any) {
@@ -372,8 +452,29 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
     res.json(serviceManager.getAll());
   });
 
+  router.post('/services/:name/preflight', (req, res) => {
+    try {
+      res.json(getServicePreflight(serviceManager, req.params.name, {
+        runtimeRoot: process.cwd(),
+        config: ConfigManager.getConfigReadonly(),
+      }));
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   router.post('/services/:name/start', (req, res) => {
     try {
+      const preflight = getServicePreflight(serviceManager, req.params.name, {
+        runtimeRoot: process.cwd(),
+        config: ConfigManager.getConfigReadonly(),
+      });
+      if (preflight.status === 'blocked' && req.body?.force !== true) {
+        return res.status(400).json({
+          error: 'Service preflight blocked',
+          preflight,
+        });
+      }
       res.json(serviceManager.start(req.params.name));
     } catch (e: any) {
       res.status(400).json({ error: e.message });
@@ -390,6 +491,16 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
 
   router.post('/services/:name/restart', (req, res) => {
     try {
+      const preflight = getServicePreflight(serviceManager, req.params.name, {
+        runtimeRoot: process.cwd(),
+        config: ConfigManager.getConfigReadonly(),
+      });
+      if (preflight.status === 'blocked' && req.body?.force !== true) {
+        return res.status(400).json({
+          error: 'Service preflight blocked',
+          preflight,
+        });
+      }
       res.json(serviceManager.restart(req.params.name));
     } catch (e: any) {
       res.status(400).json({ error: e.message });
@@ -401,6 +512,24 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
     res.json(serviceManager.getLogs(req.params.name, lines));
   });
 
+  // ==================== Typed settings ====================
+
+  router.get('/settings', (_req, res) => {
+    try {
+      res.json(getDashboardSettings({ runtimeRoot: process.cwd() }));
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.put('/settings', (req, res) => {
+    try {
+      res.json(updateDashboardSettings(req.body, { runtimeRoot: process.cwd() }));
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   // ==================== 配置管理 ====================
 
   router.get('/config', (_req, res) => {
@@ -410,11 +539,12 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
       const content = fs.readFileSync(envPath, 'utf-8');
       const parsed = dotenv.parse(content);
 
-      const sensitiveKeys = ['GAUZ_LLM_API_KEY', 'GAUZ_LLM_BACKUP_API_KEY', 'FEISHU_APP_SECRET', 'CATSCOMPANY_API_KEY', 'CATSCOMPANY_USER_TOKEN'];
       const masked = { ...parsed };
-      for (const key of sensitiveKeys) {
-        if (masked[key] && masked[key].length > 4) {
-          masked[key] = '****' + masked[key].slice(-4);
+      for (const key of Object.keys(masked)) {
+        if (isSensitiveEnvKey(key)) {
+          masked[key] = masked[key] && masked[key].length > 4
+            ? `****${masked[key].slice(-4)}`
+            : '****';
         }
       }
       res.json(masked);
@@ -425,25 +555,43 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
 
   router.put('/config', (req, res) => {
     try {
-      const envPath = path.join(process.cwd(), '.env');
       const updates: Record<string, string> = req.body;
-
-      let content = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf-8') : '';
-      const updatedKeys: string[] = [];
+      const allowedKeys = new Set([
+        'GAUZ_LLM_PROVIDER',
+        'GAUZ_LLM_API_BASE',
+        'GAUZ_LLM_API_KEY',
+        'GAUZ_LLM_MODEL',
+        'CATSCO_API_KEY',
+        'CATSCO_HTTP_BASE_URL',
+        'CATSCO_SERVER_URL',
+        'CATSCOMPANY_API_KEY',
+        'CATSCOMPANY_HTTP_BASE_URL',
+        'CATSCOMPANY_SERVER_URL',
+        'FEISHU_APP_ID',
+        'FEISHU_APP_SECRET',
+        'FEISHU_BOT_OPEN_ID',
+        'FEISHU_BOT_ALIASES',
+        'WEIXIN_TOKEN',
+      ]);
+      const safeUpdates: Record<string, string> = {};
 
       for (const [key, value] of Object.entries(updates)) {
-        if (typeof value === 'string' && value.startsWith('****')) continue;
-        const regex = new RegExp(`^${key}=.*$`, 'm');
-        if (regex.test(content)) {
-          content = content.replace(regex, `${key}=${value}`);
-        } else {
-          content += `\n${key}=${value}`;
+        if (!allowedKeys.has(key)) {
+          return res.status(400).json({ error: `Unknown config key: ${key}` });
         }
-        updatedKeys.push(key);
+        if (typeof value !== 'string') continue;
+        if (value.startsWith('****')) continue;
+        if (/[\r\n]/.test(value)) {
+          return res.status(400).json({ error: `Config value for ${key} must not contain newlines` });
+        }
+        safeUpdates[key] = value;
       }
 
-      fs.writeFileSync(envPath, content);
-      res.json({ ok: true, updated: updatedKeys });
+      const result = writeDashboardEnvUpdates(process.cwd(), safeUpdates);
+      for (const [key, value] of Object.entries(safeUpdates)) {
+        process.env[key] = value;
+      }
+      res.json({ ok: true, updated: result.updated });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -687,7 +835,7 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
     }
   });
 
-  // ==================== CatsCompany 本地连接器 ====================
+  // ==================== CatsCo webapp 本地连接器 ====================
 
   router.get('/cats/status', (_req, res) => {
     const state = getCatsAuthState();
@@ -780,6 +928,10 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
 
   router.post('/cats/auth/logout', (_req, res) => {
     const removed = removeEnvKeys([
+      'CATSCO_USER_TOKEN',
+      'CATSCO_USER_UID',
+      'CATSCO_USER_NAME',
+      'CATSCO_USER_DISPLAY_NAME',
       'CATSCOMPANY_USER_TOKEN',
       'CATSCOMPANY_USER_UID',
       'CATSCOMPANY_USER_NAME',
@@ -791,11 +943,11 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
   router.post('/cats/setup', async (req, res) => {
     try {
       const state = getCatsAuthState(req.body || {});
-      if (!state.token) return res.status(401).json({ error: 'CatsCompany user token is missing' });
+      if (!state.token) return res.status(401).json({ error: 'CatsCo user token is missing' });
 
       const me = await catsRequest('GET', state.httpBaseUrl, '/api/me', undefined, state.token);
       const userUid = String(me.uid || state.uid || '');
-      if (!userUid) return res.status(500).json({ error: 'CatsCompany user uid missing' });
+      if (!userUid) return res.status(500).json({ error: 'CatsCo user uid missing' });
 
       const botsResponse = await catsRequest('GET', state.httpBaseUrl, '/api/bots', undefined, state.token);
       const bots = Array.isArray(botsResponse?.bots) ? botsResponse.bots : [];
@@ -820,14 +972,14 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
       }
 
       const botUid = String(bot.id || bot.uid || '');
-      if (!botUid) return res.status(500).json({ error: 'CatsCompany bot uid missing' });
+      if (!botUid) return res.status(500).json({ error: 'CatsCo bot uid missing' });
 
       let apiKey = String(bot.api_key || '');
       if (!apiKey) {
         const keyResponse = await catsRequest('GET', state.httpBaseUrl, `/api/bots/api-key?uid=${encodeURIComponent(botUid)}`, undefined, state.token);
         apiKey = String(keyResponse.api_key || '');
       }
-      if (!apiKey) return res.status(500).json({ error: 'CatsCompany bot api key missing' });
+      if (!apiKey) return res.status(500).json({ error: 'CatsCo bot api key missing' });
 
       const warnings: string[] = [];
       try {
@@ -864,8 +1016,15 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
       });
 
       let service = serviceManager.getService('catscompany');
+      let preflight;
       if (service && service.status !== 'running') {
-        service = serviceManager.start('catscompany');
+        preflight = getServicePreflight(serviceManager, 'catscompany', {
+          runtimeRoot: process.cwd(),
+          config: ConfigManager.getConfigReadonly(),
+        });
+        if (preflight.status !== 'blocked') {
+          service = serviceManager.start('catscompany');
+        }
       }
 
       res.json({
@@ -883,6 +1042,7 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
         },
         topicId: p2pTopicId(userUid, botUid),
         service,
+        preflight,
         warnings: warnings.length > 0 ? warnings : undefined,
       });
     } catch (e: any) {
@@ -893,7 +1053,7 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
   router.get('/cats/conversations', async (_req, res) => {
     try {
       const state = getCatsAuthState();
-      if (!state.token) return res.status(401).json({ error: 'CatsCompany user token is missing' });
+      if (!state.token) return res.status(401).json({ error: 'CatsCo user token is missing' });
       const data = await catsRequest('GET', state.httpBaseUrl, '/api/conversations', undefined, state.token);
       res.json(data);
     } catch (e: any) {
@@ -904,7 +1064,7 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
   router.get('/cats/messages', async (req, res) => {
     try {
       const state = getCatsAuthState();
-      if (!state.token) return res.status(401).json({ error: 'CatsCompany user token is missing' });
+      if (!state.token) return res.status(401).json({ error: 'CatsCo user token is missing' });
       const topic = String(req.query.topic || '').trim();
       if (!topic) return res.status(400).json({ error: 'topic required' });
       const limit = String(req.query.limit || '50');
@@ -919,7 +1079,7 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
   router.post('/cats/messages/send', async (req, res) => {
     try {
       const state = getCatsAuthState();
-      if (!state.token) return res.status(401).json({ error: 'CatsCompany user token is missing' });
+      if (!state.token) return res.status(401).json({ error: 'CatsCo user token is missing' });
       const topicId = String(req.body?.topic_id || '').trim();
       const content = String(req.body?.content || '').trim();
       if (!topicId || !content) return res.status(400).json({ error: 'topic_id and content are required' });

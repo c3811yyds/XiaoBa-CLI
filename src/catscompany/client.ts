@@ -1,4 +1,4 @@
-// 内部CatsCompany WebSocket客户端
+// 内部 CatsCo WebSocket 客户端
 import WebSocket from 'ws';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';

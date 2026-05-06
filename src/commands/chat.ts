@@ -34,7 +34,7 @@ export async function chatCommand(options: CommandOptions): Promise<void> {
   if (options.skill) {
     const activated = await session.activateSkill(options.skill);
     if (!activated) {
-      Logger.error(`Skill "${options.skill}" 未找到，请通过 xiaoba skill list 查看可用 skills`);
+      Logger.error(`Skill "${options.skill}" 未找到，请通过 catsco skill list 查看可用 skills`);
       Logger.closeLogFile();
       return;
     }

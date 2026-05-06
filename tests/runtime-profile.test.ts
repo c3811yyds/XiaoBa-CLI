@@ -65,6 +65,17 @@ describe('RuntimeProfile', () => {
     assert.equal(profile.prompt.platform, '飞书');
   });
 
+  test('resolves CatsCo env surface to legacy catscompany surface id', () => {
+    const profile = resolveDefaultRuntimeProfile({
+      env: {
+        CURRENT_PLATFORM: 'CatsCo',
+      },
+    });
+
+    assert.equal(profile.id, 'xiaoba-catscompany');
+    assert.equal(profile.surface, 'catscompany');
+  });
+
   test('supports explicit overrides for future factory wiring', () => {
     const profile = resolveDefaultRuntimeProfile({
       id: 'custom-profile',

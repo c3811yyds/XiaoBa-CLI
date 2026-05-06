@@ -97,7 +97,7 @@ export class CatsCompanyBot {
    */
   async start(): Promise<void> {
     Logger.openLogFile('catscompany');
-    Logger.info('正在启动 CatsCompany 机器人...');
+    Logger.info('正在启动 CatsCo agent connector...');
 
     // 加载 skills
     await this.runtime.loadSkills();
@@ -109,7 +109,7 @@ export class CatsCompanyBot {
       this.runtimeProfile.displayName = botName;
       this.runtimeProfile.prompt.displayName = botName;
       process.env.CURRENT_AGENT_DISPLAY_NAME = botName;
-      Logger.success(`CatsCompany 机器人已连接，uid=${info.uid}, name=${botName}`);
+      Logger.success(`CatsCo agent 已连接，uid=${info.uid}, name=${botName}`);
     });
 
     this.bot.on('message', async (ctx: MessageContext) => {
@@ -117,18 +117,18 @@ export class CatsCompanyBot {
     });
 
     this.bot.on('error', (err: Error) => {
-      Logger.error(`CatsCompany 连接错误: ${err.message}`);
+      Logger.error(`CatsCo 连接错误: ${err.message}`);
     });
 
     this.bot.connect();
-    Logger.success('CatsCompany 机器人已启动，等待消息...');
+    Logger.success('CatsCo agent 已启动，等待消息...');
   }
 
   // ─── 构建 ChannelCallbacks ──────────────────────
 
   /**
    * 为指定 topic 构建通道回调对象。
-   * CatsCompany 复用 ChannelCallbacks 接口，chatId 对应 topic。
+   * CatsCo webapp 复用 ChannelCallbacks 接口，chatId 对应 topic。
    */
   private buildChannel(
     topic: string,
@@ -515,7 +515,7 @@ export class CatsCompanyBot {
     this.pendingAnswerBySession.clear();
     this.pendingAttachments.clear();
     this.messageQueue.clear();
-    Logger.info('CatsCompany 机器人已停止');
+    Logger.info('CatsCo agent 已停止');
   }
 
   private enqueuePendingAttachment(sessionKey: string, attachment: PendingAttachment): number {
@@ -568,7 +568,7 @@ export class CatsCompanyBot {
   private buildAttachmentOnlyPrompt(attachments: PendingAttachment[]): string {
     return [
       '[用户仅上传了附件，暂未给出明确任务]',
-      '[当前会话是 CatsCompany 聊天：给用户可见的文本会自动发送；如需发送文件，使用当前可用的发送文件工具]',
+      '[当前会话是 CatsCo 聊天：给用户可见的文本会自动发送；如需发送文件，使用当前可用的发送文件工具]',
       '请你先判断最合理的下一步，不要默认进入任何特定 skill（例如 paper-analysis）。',
       '如果任务不明确，先提出一个最小澄清问题；如果任务足够明确，再自行执行。',
       this.formatAttachmentContext(attachments),

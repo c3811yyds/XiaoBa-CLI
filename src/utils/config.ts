@@ -7,8 +7,8 @@ import { ChatConfig } from '../types';
 // 加载环境变量（静默模式）
 dotenv.config({ path: process.env.DOTENV_CONFIG_PATH || '.env', quiet: true });
 
-const CONFIG_DIR = path.join(os.homedir(), '.xiaoba');
-const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
+const DEFAULT_CONFIG_DIR = path.join(os.homedir(), '.xiaoba');
+const DEFAULT_CONFIG_FILE = path.join(DEFAULT_CONFIG_DIR, 'config.json');
 
 export class ConfigManager {
   private static mergeConfig(base: ChatConfig, override?: Partial<ChatConfig>): ChatConfig {
@@ -35,22 +35,29 @@ export class ConfigManager {
   }
 
   private static ensureConfigDir(): void {
-    if (!fs.existsSync(CONFIG_DIR)) {
-      fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    const configDir = path.dirname(this.getConfigFilePath());
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
     }
   }
 
   private static loadUserConfigFile(): Partial<ChatConfig> {
-    if (!fs.existsSync(CONFIG_FILE)) {
+    const configFile = this.getConfigFilePath();
+    if (!fs.existsSync(configFile)) {
       return {};
     }
 
     try {
-      const content = fs.readFileSync(CONFIG_FILE, 'utf-8');
+      const content = fs.readFileSync(configFile, 'utf-8');
       return JSON.parse(content);
     } catch {
       return {};
     }
+  }
+
+  private static getConfigFilePath(): string {
+    const explicitPath = process.env.XIAOBA_CONFIG_PATH?.trim();
+    return explicitPath ? path.resolve(explicitPath) : DEFAULT_CONFIG_FILE;
   }
 
   static getConfig(): ChatConfig {
@@ -65,7 +72,7 @@ export class ConfigManager {
   static saveConfig(config: ChatConfig): void {
     this.ensureConfigDir();
     const merged = this.mergeConfig(this.loadUserConfigFile() as ChatConfig, config);
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(merged, null, 2));
+    fs.writeFileSync(this.getConfigFilePath(), JSON.stringify(merged, null, 2));
   }
 
   static getDefaultConfig(): ChatConfig {

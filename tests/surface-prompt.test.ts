@@ -47,13 +47,13 @@ describe('surface prompt', () => {
     );
   });
 
-  test('composes current CatsCompany surface prompt and omits CLI prompt', () => {
+  test('composes current CatsCo surface prompt and omits CLI prompt', () => {
     const catsUserPrompt = composeSurfacePrompt('cc_user:demo');
     const catsGroupPrompt = composeSurfacePrompt('cc_group:demo');
 
     assert.equal(
       catsUserPrompt,
-      `[surface:catscompany]\n当前是 Cats Company 聊天会话。\n${autoSendModeInstruction}`,
+      `[surface:catscompany]\n当前是 CatsCo 聊天会话。\n${autoSendModeInstruction}`,
     );
     assert.equal(catsGroupPrompt, catsUserPrompt);
     assert.equal(composeSurfacePrompt('cli'), undefined);

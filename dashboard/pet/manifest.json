@@ -1,0 +1,34 @@
+{
+  "idle": [
+    "pet/idle/01.png",
+    "pet/idle/02.png",
+    "pet/idle/03.png",
+    "pet/idle/04.png"
+  ],
+  "thinking": [
+    "pet/thinking/01.png",
+    "pet/thinking/02.png",
+    "pet/thinking/03.png",
+    "pet/thinking/04.png"
+  ],
+  "typing": [
+    "pet/typing/01.png",
+    "pet/typing/02.png",
+    "pet/typing/03.png",
+    "pet/typing/04.png",
+    "pet/typing/05.png",
+    "pet/typing/06.png"
+  ],
+  "success": [
+    "pet/success/01.png",
+    "pet/success/02.png",
+    "pet/success/03.png",
+    "pet/success/04.png"
+  ],
+  "error": [
+    "pet/error/01.png",
+    "pet/error/02.png",
+    "pet/error/03.png",
+    "pet/error/04.png"
+  ]
+}

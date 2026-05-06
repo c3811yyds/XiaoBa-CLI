@@ -16,7 +16,7 @@ export interface MessageSessionManagerOptions {
  *
  * 核心特性：
  * - 每个 session key 独立运行，不阻塞
- * - 不同平台（CatsCompany/Feishu）共用同一套逻辑
+ * - 不同平台（CatsCo/Feishu）共用同一套逻辑
  * - session 之间不污染
  * - 群聊和私聊独立
  */

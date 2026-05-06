@@ -35,7 +35,7 @@ export function composeSurfacePrompt(sessionKey: string, sessionType?: string): 
   }
 
   if (surface === 'catscompany') {
-    return `[surface:catscompany]\n当前是 Cats Company 聊天会话。\n${AUTO_SEND_MODE_INSTRUCTION}`;
+    return `[surface:catscompany]\n当前是 CatsCo 聊天会话。\n${AUTO_SEND_MODE_INSTRUCTION}`;
   }
 
   if (surface === 'weixin') {

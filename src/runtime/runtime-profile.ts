@@ -139,7 +139,7 @@ function resolveSurfaceFromEnv(env: NodeJS.ProcessEnv): RuntimeSurface {
     .toLowerCase();
 
   if (rawSurface.includes('feishu') || rawSurface.includes('飞书')) return 'feishu';
-  if (rawSurface.includes('catscompany') || rawSurface.includes('cats company')) return 'catscompany';
+  if (rawSurface.includes('catsco') || rawSurface.includes('catscompany') || rawSurface.includes('cats company')) return 'catscompany';
   if (rawSurface.includes('weixin') || rawSurface.includes('微信')) return 'weixin';
   if (rawSurface.includes('agent')) return 'agent';
   if (rawSurface.includes('cli')) return 'cli';

@@ -76,7 +76,7 @@ export class ServiceManager extends EventEmitter {
     this.services.set('catscompany', {
       info: {
         name: 'catscompany',
-        label: 'Cats Company 机器人',
+        label: 'CatsCo agent',
         command,
         args: args('catscompany'),
         status: 'stopped',

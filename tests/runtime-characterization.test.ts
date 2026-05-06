@@ -97,7 +97,7 @@ describe('runtime characterization', () => {
     assert.match(groupSurface, /当前是飞书群聊会话/);
   });
 
-  test('session system prompt provider injects CatsCompany surface context for cc sessions', async () => {
+  test('session system prompt provider injects CatsCo surface context for cc sessions', async () => {
     const { AgentSession } = loadAgentSessionModules();
 
     const session = new AgentSession('cc_user:demo', buildMockServices());
@@ -107,7 +107,7 @@ describe('runtime characterization', () => {
       .find(content => content.includes('[surface:catscompany]'));
 
     assert.ok(surface);
-    assert.match(surface, /当前是 Cats Company 聊天会话/);
+    assert.match(surface, /当前是 CatsCo 聊天会话/);
     assert.match(surface, /每次文本输出都会立即自动发送给用户/);
 
     const groupSession = new AgentSession('cc_group:demo', buildMockServices());

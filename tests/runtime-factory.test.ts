@@ -158,6 +158,64 @@ describe('RuntimeFactory', () => {
     assert.deepStrictEqual((services.aiService as any).config.maxTokens, 1024);
   });
 
+  test('AIService ignores historical backup model env', async () => {
+    const envKeys = [
+      'GAUZ_LLM_BACKUP_API_BASE',
+      'GAUZ_LLM_BACKUP_API_KEY',
+      'GAUZ_LLM_BACKUP_MODEL',
+      'GAUZ_LLM_BACKUP_PROVIDER',
+      'GAUZ_LLM_BACKUP_1_API_BASE',
+      'GAUZ_LLM_BACKUP_1_API_KEY',
+      'GAUZ_LLM_BACKUP_1_MODEL',
+      'GAUZ_LLM_BACKUP_1_PROVIDER',
+      'GAUZ_LLM_FAILOVER_ON_ANY_ERROR',
+      'GAUZ_STREAM_FAILOVER_ON_PARTIAL',
+    ];
+    const originalEnv = new Map(envKeys.map(key => [key, process.env[key]]));
+
+    process.env.GAUZ_LLM_BACKUP_API_BASE = 'https://backup.example.test/v1';
+    process.env.GAUZ_LLM_BACKUP_API_KEY = 'backup-key';
+    process.env.GAUZ_LLM_BACKUP_MODEL = 'backup-model';
+    process.env.GAUZ_LLM_BACKUP_PROVIDER = 'anthropic';
+    process.env.GAUZ_LLM_BACKUP_1_API_BASE = 'https://numbered-backup.example.test/v1';
+    process.env.GAUZ_LLM_BACKUP_1_API_KEY = 'numbered-backup-key';
+    process.env.GAUZ_LLM_BACKUP_1_MODEL = 'numbered-backup-model';
+    process.env.GAUZ_LLM_BACKUP_1_PROVIDER = 'openai';
+    process.env.GAUZ_LLM_FAILOVER_ON_ANY_ERROR = 'true';
+    process.env.GAUZ_STREAM_FAILOVER_ON_PARTIAL = 'true';
+
+    try {
+      const profile = resolveDefaultRuntimeProfile({
+        surface: 'cli',
+        model: {
+          provider: 'openai',
+          apiUrl: 'https://primary.example.test/v1',
+          apiKey: 'primary-key' as any,
+          model: 'primary-model',
+        } as any,
+      });
+
+      const services = await RuntimeFactory.createServices(profile, { loadSkills: false });
+      const aiService = services.aiService as any;
+
+      assert.equal(aiService.providerChain, undefined);
+      assert.equal(aiService.config.apiUrl, 'https://primary.example.test/v1');
+      assert.equal(aiService.config.apiKey, 'primary-key');
+      assert.equal(aiService.config.model, 'primary-model');
+      assert.equal(aiService.provider.apiUrl, 'https://primary.example.test/v1');
+      assert.equal(aiService.provider.model, 'primary-model');
+    } finally {
+      for (const key of envKeys) {
+        const value = originalEnv.get(key);
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      }
+    }
+  });
+
   test('creates ToolManager from profile enabled tools', async () => {
     const profile = resolveDefaultRuntimeProfile({
       surface: 'cli',

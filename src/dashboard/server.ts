@@ -51,7 +51,7 @@ export async function startDashboard(
   });
 
   const server = app.listen(port, '127.0.0.1', () => {
-    Logger.success(`\nXiaoBa Dashboard 已启动`);
+    Logger.success(`\nCatsCo Dashboard 已启动`);
     Logger.info(`打开浏览器访问: http://localhost:${port}\n`);
   });
   activeServers.push(server);

@@ -90,7 +90,6 @@
 - `dashboard/pet/**`
 - `skills/officecli/**`
 - `skills/sc-analysis/**`
-- `TODO.md`
 
 历史/规划文档，建议后续决定归档或保留：
 - `ARCHITECTURE.md`

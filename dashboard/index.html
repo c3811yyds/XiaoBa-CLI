@@ -619,6 +619,313 @@
 
     .config-section { margin-bottom: 30px; }
 
+    .settings-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+
+    .settings-heading {
+      min-width: 0;
+    }
+
+    .settings-kicker {
+      color: var(--text3);
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+
+    .settings-meta {
+      color: var(--text2);
+      font-size: 13px;
+      line-height: 1.5;
+      margin-top: 6px;
+    }
+
+    .profile-status-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .profile-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px 24px;
+      padding-bottom: 18px;
+      margin-bottom: 18px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .profile-summary-item {
+      min-width: 0;
+    }
+
+    .profile-summary-label {
+      color: var(--text3);
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+
+    .profile-summary-value {
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.45;
+      min-width: 0;
+      word-break: break-word;
+    }
+
+    .profile-summary-value code {
+      word-break: break-all;
+    }
+
+    .profile-summary-meta {
+      color: var(--text3);
+      font-size: 12px;
+      line-height: 1.5;
+      margin-top: 4px;
+    }
+
+    .runtime-note {
+      padding: 12px 14px;
+      margin: 0 0 16px;
+      border-radius: 12px;
+      border-left: 3px solid var(--accent);
+      background: rgba(59, 130, 246, 0.07);
+      color: var(--text2);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .runtime-note.warning {
+      border-left-color: var(--warm);
+      background: var(--warm-light);
+      color: var(--text);
+    }
+
+    .runtime-note.danger {
+      border-left-color: var(--red);
+      background: var(--red-light);
+      color: var(--red);
+    }
+
+    .model-source-layout {
+      display: grid;
+      gap: 14px;
+    }
+
+    .model-source-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .model-source-card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--surface-muted);
+      padding: 16px;
+      min-width: 0;
+    }
+
+    .model-source-card.primary {
+      background: rgba(59, 130, 246, 0.06);
+      border-color: rgba(59, 130, 246, 0.18);
+    }
+
+    .model-source-card.warning {
+      background: var(--warm-light);
+      border-color: rgba(245, 155, 87, 0.24);
+    }
+
+    .model-source-card summary {
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .model-source-card summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .model-source-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .model-source-title {
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .model-source-copy {
+      color: var(--text2);
+      font-size: 13px;
+      line-height: 1.55;
+      margin-top: 6px;
+    }
+
+    .model-source-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    .model-source-form {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border-light);
+    }
+
+    .model-secret-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      color: var(--text2);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .runtime-subsection-title {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 800;
+      margin: 18px 0 10px;
+    }
+
+    .runtime-field-list {
+      display: grid;
+      gap: 0;
+    }
+
+    .runtime-field-row {
+      display: grid;
+      grid-template-columns: 170px minmax(0, 1fr);
+      gap: 14px;
+      padding: 11px 0;
+      border-bottom: 1px solid var(--border-light);
+      min-width: 0;
+    }
+
+    .runtime-field-row:last-child {
+      border-bottom: 0;
+    }
+
+    .runtime-field-label {
+      color: var(--text2);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .runtime-field-value {
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.55;
+      min-width: 0;
+      word-break: break-word;
+    }
+
+    .runtime-field-value code {
+      word-break: break-all;
+    }
+
+    .runtime-tag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .runtime-tool-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 8px;
+    }
+
+    .runtime-check-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface-muted);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .runtime-check-row span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .runtime-result-row {
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      margin-bottom: 8px;
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .runtime-issue-row {
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: var(--red-light);
+      color: var(--red);
+      margin-bottom: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .settings-advanced-shell {
+      border-top: 1px solid var(--border-light);
+      padding-top: 18px;
+    }
+
+    .settings-advanced-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      cursor: pointer;
+      user-select: none;
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 800;
+      list-style: none;
+    }
+
+    .settings-advanced-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .settings-advanced-body {
+      margin-top: 16px;
+    }
+
     .config-group {
       border-radius: 24px;
       padding: 24px;
@@ -1149,6 +1456,146 @@
       word-break: break-word;
     }
 
+    .run-overview {
+      display: grid;
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+
+    .run-summary {
+      border-radius: 22px;
+      padding: 22px 24px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.86));
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm), var(--glow);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+
+    .run-summary-main {
+      min-width: 0;
+    }
+
+    .run-summary-label {
+      color: var(--text3);
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 7px;
+    }
+
+    .run-summary-title {
+      font-size: 24px;
+      font-weight: 850;
+      color: var(--text);
+      letter-spacing: -0.04em;
+    }
+
+    .run-summary-meta {
+      margin-top: 8px;
+      color: var(--text2);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .readiness-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+
+    .readiness-card {
+      border-radius: 20px;
+      padding: 18px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.86));
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm), var(--glow);
+      min-width: 0;
+    }
+
+    .readiness-card.ready { border-color: rgba(30, 169, 113, 0.22); }
+    .readiness-card.warning { border-color: rgba(245, 155, 87, 0.28); }
+    .readiness-card.blocked { border-color: rgba(220, 93, 115, 0.24); }
+
+    .readiness-card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .readiness-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 5px;
+    }
+
+    .readiness-summary {
+      color: var(--text2);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .readiness-checks {
+      display: grid;
+      gap: 7px;
+      margin-top: 12px;
+    }
+
+    .readiness-check {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      color: var(--text2);
+      font-size: 12px;
+      line-height: 1.45;
+      min-width: 0;
+    }
+
+    .readiness-check::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      margin-top: 4px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0;
+    }
+
+    .readiness-check.warning::before { background: var(--orange); }
+    .readiness-check.fail::before { background: var(--red); }
+
+    .run-details {
+      margin-top: 20px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.56);
+      overflow: hidden;
+    }
+
+    .run-details summary {
+      cursor: pointer;
+      padding: 16px 18px;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--text);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .run-details summary::-webkit-details-marker { display: none; }
+
+    .run-details-body {
+      padding: 0 18px 18px;
+    }
+
     .service-header {
       display: flex;
       align-items: center;
@@ -1590,6 +2037,17 @@
       .config-label {
         min-width: 0;
       }
+
+      .settings-header {
+        flex-direction: column;
+      }
+
+      .profile-summary-grid,
+      .model-source-grid,
+      .runtime-field-row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
     }
 
     @media (max-width: 640px) {
@@ -1854,8 +2312,10 @@
     }
 
     .chat-connect {
-      padding: 12px 14px;
+      padding: 14px 16px;
       flex-shrink: 0;
+      display: grid;
+      gap: 12px;
     }
 
     .chat-connect h3,
@@ -1866,17 +2326,104 @@
     }
 
     .chat-connect h3 {
-      display: none;
+      display: block;
+      margin: 0;
     }
 
     .chat-connect-intro {
-      display: none;
+      display: block;
     }
 
     .chat-muted {
       color: var(--text2);
       font-size: 13px;
       line-height: 1.6;
+    }
+
+    .chat-connect-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .chat-state-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      background: var(--surface-muted);
+      padding: 12px;
+    }
+
+    .chat-state-card.ready {
+      border-color: rgba(30,169,113,0.28);
+      background: rgba(30,169,113,0.08);
+    }
+
+    .chat-state-card.blocked {
+      border-color: rgba(220,93,115,0.3);
+      background: rgba(220,93,115,0.08);
+    }
+
+    .chat-state-card.warning {
+      border-color: rgba(230,162,60,0.3);
+      background: rgba(230,162,60,0.08);
+    }
+
+    .chat-state-title {
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 3px;
+    }
+
+    .chat-step-list {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .chat-step-row {
+      min-height: 54px;
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.7);
+      padding: 8px;
+      display: grid;
+      align-content: start;
+      gap: 3px;
+      font-size: 12px;
+      color: var(--text2);
+    }
+
+    .chat-step-row strong {
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
+    .chat-step-row span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .chat-step-row.pass {
+      border-color: rgba(30,169,113,0.24);
+      background: rgba(30,169,113,0.07);
+    }
+
+    .chat-step-row.warning {
+      border-color: rgba(230,162,60,0.24);
+      background: rgba(230,162,60,0.07);
+    }
+
+    .chat-step-row.fail {
+      border-color: rgba(220,93,115,0.24);
+      background: rgba(220,93,115,0.07);
     }
 
     .chat-status-list {
@@ -1966,18 +2513,47 @@
       overflow: hidden;
     }
 
+    .chat-diagnostics {
+      border: 1px solid var(--border-light);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.54);
+      overflow: hidden;
+    }
+
+    .chat-diagnostics summary {
+      cursor: pointer;
+      padding: 10px 12px;
+      color: var(--text2);
+      font-size: 13px;
+      font-weight: 800;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .chat-diagnostics-body {
+      display: grid;
+      gap: 10px;
+      padding: 0 12px 12px;
+    }
+
+    .chat-diagnostics .chat-advanced {
+      display: block;
+      margin-top: 0;
+      border-radius: 8px;
+      background: rgba(247, 249, 252, 0.9);
+    }
+
     .chat-connect.needs-auth,
     .chat-connect.needs-setup,
     .chat-connect.expanded {
-      padding: 18px;
+      padding: 16px;
     }
 
-    .chat-connect.needs-auth h3,
-    .chat-connect.needs-auth .chat-connect-intro,
     .chat-connect.needs-setup .chat-connected-card strong,
     .chat-connect.needs-setup .chat-connected-card .chat-muted,
-    .chat-connect.expanded h3,
-    .chat-connect.expanded .chat-connect-intro,
     .chat-connect.expanded .chat-advanced {
       display: block;
     }
@@ -2247,9 +2823,20 @@
       resize: vertical;
     }
 
+    .chat-window.locked .chat-input-bar {
+      background: rgba(247, 249, 252, 0.92);
+    }
+
+    .chat-window.locked .chat-input-bar textarea {
+      color: var(--text2);
+    }
+
     @media (max-width: 980px) {
       .chat-shell {
         min-height: 560px;
+      }
+      .chat-step-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
 
@@ -2541,6 +3128,286 @@
       box-shadow: var(--shadow-md);
     }
 
+    .companion-hero {
+      display: grid;
+      grid-template-columns: minmax(280px, 420px) minmax(360px, 1fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .companion-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .pet-stage.companion-card {
+      min-height: 360px;
+    }
+
+    .companion-panel {
+      padding: 20px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .companion-title-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .companion-eyebrow {
+      color: var(--text3);
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .companion-name {
+      color: var(--text);
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
+    .companion-state-copy {
+      color: var(--text2);
+      font-size: 13px;
+      line-height: 1.5;
+      margin-top: 6px;
+    }
+
+    .companion-level {
+      display: grid;
+      gap: 8px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface-muted);
+    }
+
+    .companion-level-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--text2);
+      font-weight: 700;
+    }
+
+    .companion-xp-track {
+      height: 9px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #e2e8f0;
+    }
+
+    .companion-xp-bar {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: #2563eb;
+      transition: width 0.3s ease;
+    }
+
+    .companion-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .companion-metric {
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      min-width: 0;
+    }
+
+    .companion-metric-label {
+      color: var(--text3);
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+
+    .companion-metric-value {
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .companion-section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .companion-section-title {
+      color: var(--text);
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .companion-process-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .companion-process-item {
+      display: grid;
+      grid-template-columns: 10px 1fr auto;
+      gap: 10px;
+      align-items: start;
+      padding: 10px;
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
+      background: #fff;
+    }
+
+    .companion-process-dot {
+      width: 8px;
+      height: 8px;
+      margin-top: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .companion-process-title {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .companion-process-detail {
+      color: var(--text2);
+      font-size: 12px;
+      line-height: 1.45;
+      margin-top: 2px;
+    }
+
+    .companion-process-time {
+      color: var(--text3);
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .companion-unlocks {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .companion-unlock {
+      min-height: 76px;
+      padding: 11px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      display: grid;
+      align-content: space-between;
+      gap: 8px;
+    }
+
+    .companion-unlock.locked {
+      color: var(--text3);
+      background: #f8fafc;
+    }
+
+    .companion-unlock-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    .companion-unlock.locked .companion-unlock-title {
+      color: var(--text2);
+    }
+
+    .companion-unlock-meta {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text3);
+    }
+
+    .floating-pet-panel {
+      position: absolute;
+      right: 0;
+      bottom: 86px;
+      width: 292px;
+      padding: 12px;
+      display: none;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.98);
+      box-shadow: var(--shadow-md);
+      pointer-events: auto;
+    }
+
+    .floating-pet.open .floating-pet-panel {
+      display: block;
+    }
+
+    .floating-pet-panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-light);
+      margin-bottom: 10px;
+    }
+
+    .floating-pet-panel-title {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .floating-pet-panel-subtitle {
+      color: var(--text3);
+      font-size: 11px;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    .floating-pet-panel .companion-process-list {
+      max-height: 214px;
+      overflow: auto;
+    }
+
+    .floating-pet-panel-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding-top: 10px;
+      margin-top: 10px;
+      border-top: 1px solid var(--border-light);
+    }
+
+    .floating-pet-panel-actions button {
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 8px;
+      padding: 7px 9px;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .floating-pet-panel-actions button:hover {
+      background: var(--surface-muted);
+    }
+
     @media (max-width: 900px) {
       .sidebar {
         width: 68px;
@@ -2560,6 +3427,17 @@
       .main-wrapper {
         padding: 16px 12px;
       }
+
+      .companion-hero,
+      .companion-metrics,
+      .companion-unlocks {
+        grid-template-columns: 1fr;
+      }
+
+      .floating-pet-panel {
+        right: -2px;
+        width: min(292px, calc(100vw - 24px));
+      }
     }
 
   </style>
@@ -2568,27 +3446,27 @@
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-brand">
-      <div class="sidebar-brand-icon"><img src="cat-icon.png" style="width:100%;height:100%;object-fit:contain;border-radius:inherit" alt="XiaoBa"></div>
+      <div class="sidebar-brand-icon"><img src="cat-icon.png" style="width:100%;height:100%;object-fit:contain;border-radius:inherit" alt="CatsCo"></div>
       <div>
-        <div class="sidebar-brand-text">XiaoBa TEST</div>
+        <div class="sidebar-brand-text">CatsCo</div>
         <div class="sidebar-brand-ver">v0.1.1</div>
       </div>
     </div>
     <nav class="sidebar-nav">
       <a class="nav-item active" onclick="switchPage('services')" data-page="services">
-        <span class="nav-icon">&gt;</span> <span>服务</span>
+        <span class="nav-icon">&gt;</span> <span>运行</span>
       </a>
       <a class="nav-item" onclick="switchPage('companion')" data-page="companion">
         <span class="nav-icon">*</span> <span>伙伴</span>
       </a>
       <a class="nav-item" onclick="switchPage('chat')" data-page="chat">
-        <span class="nav-icon">@</span> <span>Chat</span>
+        <span class="nav-icon">@</span> <span>CatsCo</span>
       </a>
       <a class="nav-item" onclick="switchPage('config')" data-page="config">
-        <span class="nav-icon">~</span> <span>配置</span>
+        <span class="nav-icon">~</span> <span>设置</span>
       </a>
       <a class="nav-item" onclick="switchPage('store')" data-page="store">
-        <span class="nav-icon">+</span> <span>商店</span>
+        <span class="nav-icon">+</span> <span>Skills</span>
       </a>
     </nav>
     <div class="sidebar-footer">
@@ -2607,26 +3485,87 @@
 
       <!-- Page: Services -->
       <div class="page active" id="page-services">
-        <div class="section-title">服务</div>
-        <div class="services-grid" id="services-grid"><div class="loading">加载中...</div></div>
-        <div style="margin-top:22px">
-          <div class="section-title">状态</div>
-          <div class="status-grid" id="status-grid"></div>
+        <div class="section-title">运行</div>
+        <div class="run-overview">
+          <div class="run-summary" id="run-summary">
+            <div class="run-summary-main">
+              <div class="run-summary-label">启动状态</div>
+              <div class="run-summary-title">正在检查本地 agent</div>
+              <div class="run-summary-meta">检查模型来源、CatsCo Chat、Runtime Profile 和 Skills。</div>
+            </div>
+            <button class="btn btn-primary" onclick="fetchStatus()">刷新</button>
+          </div>
+          <div class="readiness-grid" id="readiness-grid"><div class="loading">加载中...</div></div>
         </div>
+        <details class="run-details">
+          <summary><span>Service details</span><span class="tag">connector</span></summary>
+          <div class="run-details-body">
+            <div class="services-grid" id="services-grid"><div class="loading">加载中...</div></div>
+          </div>
+        </details>
+        <details class="run-details" id="diagnostics-details">
+          <summary><span>Diagnostics</span><span class="tag">version / host / paths</span></summary>
+          <div class="run-details-body">
+            <div class="status-grid" id="status-grid"></div>
+          </div>
+        </details>
       </div>
 
       <!-- Page: Companion -->
       <div class="page" id="page-companion">
         <div class="section-title">伙伴 <span class="badge" id="skill-count">0</span></div>
-        <div class="pet-layout">
-          <div class="pet-stage" aria-label="电子宠物动画预览">
-            <img class="pet-frame" id="pet-frame" src="pet/idle/01.png" alt="XiaoBa pet" />
+        <div class="companion-hero">
+          <div class="pet-stage companion-card" aria-label="电子宠物动画预览">
+            <img class="pet-frame" id="pet-frame" src="pet/idle/01.png" alt="CatsCo companion" />
           </div>
-          <div class="pet-controls">
-            <div class="pet-status">
-              <h3>XiaoBa Pet</h3>
+          <div class="companion-card companion-panel">
+            <div class="companion-title-row">
+              <div>
+                <div class="companion-eyebrow">CatsCo Companion</div>
+                <div class="companion-name" id="pet-profile-name">XiaoBa</div>
+                <div class="companion-state-copy" id="pet-state-copy">正在等待下一项任务。</div>
+              </div>
               <span class="pet-state-pill" id="pet-state-pill">idle</span>
             </div>
+
+            <div class="companion-level">
+              <div class="companion-level-meta">
+                <span id="pet-level-label">Lv.1</span>
+                <span id="pet-xp-label">0 / 100 XP</span>
+              </div>
+              <div class="companion-xp-track"><div class="companion-xp-bar" id="pet-xp-bar"></div></div>
+            </div>
+
+            <div class="companion-metrics">
+              <div class="companion-metric">
+                <div class="companion-metric-label">Token 经验</div>
+                <div class="companion-metric-value" id="pet-token-xp">待接入</div>
+              </div>
+              <div class="companion-metric">
+                <div class="companion-metric-label">能力调用</div>
+                <div class="companion-metric-value" id="pet-skill-xp">0</div>
+              </div>
+              <div class="companion-metric">
+                <div class="companion-metric-label">当前形态</div>
+                <div class="companion-metric-value" id="pet-form-label">基础小猫</div>
+              </div>
+            </div>
+
+            <div>
+              <div class="companion-section-head">
+                <div class="companion-section-title">工作过程</div>
+                <button class="btn" onclick="clearPetProcess()" style="font-size:12px;padding:6px 10px">清空</button>
+              </div>
+              <div class="companion-process-list" id="companion-process-list"></div>
+            </div>
+
+            <div>
+              <div class="companion-section-head">
+                <div class="companion-section-title">解锁预告</div>
+              </div>
+              <div class="companion-unlocks" id="companion-unlocks"></div>
+            </div>
+
             <div class="pet-action-grid">
               <button class="btn pet-action active" data-pet-state="idle" onclick="setPetState('idle')">待机<span>4 帧循环</span></button>
               <button class="btn pet-action" data-pet-state="thinking" onclick="setPetState('thinking')">思考<span>4 帧循环</span></button>
@@ -2645,18 +3584,31 @@
 
       <!-- Page: Chat -->
       <div class="page" id="page-chat">
-        <div class="section-title">XiaoBa Chat</div>
+        <div class="section-title">CatsCo Chat</div>
         <div class="chat-shell">
           <div class="chat-panel chat-connect">
-            <h3>CatsCompany 连接</h3>
-            <div class="chat-muted chat-connect-intro">登录后自动绑定 XiaoBa bot，并启动本地服务。</div>
+            <div class="chat-connect-header">
+              <div>
+                <h3>CatsCo 连接</h3>
+                <div class="chat-muted chat-connect-intro">Dashboard Chat 连接同一个 CatsCo webapp 会话；本地 agent 通过 connector 回复。</div>
+              </div>
+              <span class="status-dot stopped" id="cats-chat-state">checking</span>
+            </div>
 
-            <div class="chat-status-list" id="cats-status">
+            <div class="chat-state-card warning" id="cats-state-card">
+              <div>
+                <div class="chat-state-title" id="cats-state-title">正在检查 CatsCo Chat</div>
+                <div class="chat-muted" id="cats-state-copy">检查模型来源、CatsCo 账号、agent 绑定和本地 connector。</div>
+              </div>
+              <button class="btn btn-primary" id="cats-state-action" onclick="runCatsNextAction()">查看</button>
+            </div>
+
+            <div class="chat-step-list" id="cats-checklist">
               <div class="loading">加载中...</div>
             </div>
 
             <div class="chat-connected-card" id="cats-connected-card">
-              <strong>已连接 CatsCompany</strong>
+              <strong>已连接 CatsCo</strong>
               <div class="chat-muted" id="cats-connected-copy">可以直接开始对话。</div>
               <div class="chat-connected-actions">
                 <button class="btn btn-success" onclick="setupCatsBot()" id="cats-setup-btn">检查并启动</button>
@@ -2673,7 +3625,7 @@
                 <div class="chat-secondary-action">还没有账号？ <button class="chat-link-button" onclick="setCatsAuthMode('register')">创建账号</button></div>
               </div>
               <div id="cats-register-fields" style="display:none">
-                <div class="chat-muted" style="margin-bottom:12px">创建账号后会自动登录并连接 XiaoBa。</div>
+                <div class="chat-muted" style="margin-bottom:12px">创建账号后会自动登录并连接 CatsCo。</div>
                 <input class="config-input" id="cats-email" type="email" placeholder="邮箱地址" style="margin-bottom:10px" />
                 <div class="chat-form-row" style="margin-bottom:10px">
                   <input class="config-input" id="cats-code" type="text" placeholder="邮箱验证码" />
@@ -2686,31 +3638,39 @@
               </div>
             </div>
 
-            <details class="chat-advanced" id="cats-advanced">
-              <summary>高级设置</summary>
-              <div class="chat-advanced-body">
-                <div class="chat-advanced-note">默认连接 CatsCompany 生产环境。只有在调试私有部署时才需要修改。</div>
-                <input class="config-input" id="cats-http-base" type="text" placeholder="HTTP Base URL" />
-                <input class="config-input" id="cats-ws-url" type="text" placeholder="WebSocket URL" />
+            <details class="chat-diagnostics" id="cats-connection-details">
+              <summary><span>连接详情</span><span class="tag" id="cats-details-summary">account / agent / connector</span></summary>
+              <div class="chat-diagnostics-body">
+                <div class="chat-status-list" id="cats-status">
+                  <div class="loading">加载中...</div>
+                </div>
+                <details class="chat-advanced" id="cats-advanced">
+                  <summary>高级 endpoint</summary>
+                  <div class="chat-advanced-body">
+                    <div class="chat-advanced-note">默认连接 CatsCo 生产环境。只有在调试私有部署时才需要修改。</div>
+                    <input class="config-input" id="cats-http-base" type="text" placeholder="HTTP Base URL" />
+                    <input class="config-input" id="cats-ws-url" type="text" placeholder="WebSocket URL" />
+                  </div>
+                </details>
               </div>
             </details>
             <div class="chat-muted" id="cats-action-status" style="margin-top:12px"></div>
           </div>
 
-          <div class="chat-panel chat-window">
+          <div class="chat-panel chat-window locked">
             <div class="chat-window-header">
               <div>
-                <div class="chat-window-title">XiaoBa Bot</div>
+                <div class="chat-window-title">CatsCo Agent</div>
                 <div class="chat-muted" id="cats-topic-label">尚未绑定会话</div>
               </div>
               <button class="btn" onclick="loadCatsMessages()">刷新</button>
             </div>
             <div class="chat-messages" id="cats-messages">
-              <div class="loading">连接 CatsCompany 后开始对话</div>
+              <div class="loading">连接 CatsCo 后开始对话</div>
             </div>
             <div class="chat-input-bar">
-              <textarea class="config-input" id="cats-message-input" placeholder="输入消息，Enter 发送，Shift+Enter 换行"></textarea>
-              <button class="btn btn-primary" onclick="sendCatsMessage()" id="cats-send-btn">发送</button>
+              <textarea class="config-input" id="cats-message-input" placeholder="等待 CatsCo Chat 检查完成" disabled></textarea>
+              <button class="btn btn-primary" onclick="sendCatsMessage()" id="cats-send-btn" disabled>发送</button>
             </div>
           </div>
         </div>
@@ -2718,20 +3678,35 @@
 
       <!-- Page: Config -->
       <div class="page" id="page-config">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-          <div class="section-title" style="margin-bottom:0">配置</div>
-          <div class="config-actions">
-            <button class="btn btn-primary" id="save-config-btn" onclick="saveConfig()" style="display:none">保存</button>
-            <span class="config-saved" id="config-saved">已保存</span>
+        <div class="settings-header">
+          <div class="settings-heading">
+            <div class="settings-kicker">Settings</div>
+            <div class="section-title" style="margin-bottom:0">模型来源与 Runtime Profile</div>
+            <div class="settings-meta">优先使用 CatsCo 托管模型；自定义模型和本地环境变量保留在高级区域。</div>
           </div>
+          <button class="btn" onclick="refreshSettingsPage()">刷新</button>
         </div>
+        <div class="config-section" id="model-source-panel"><div class="loading">加载模型来源...</div></div>
         <div class="config-section" id="runtime-config-panel"><div class="loading">加载 runtime 配置...</div></div>
-        <div class="config-section" id="config-panel"><div class="loading">加载中...</div></div>
+        <details class="config-section settings-advanced-shell" id="env-config-details">
+          <summary class="settings-advanced-summary">
+            <span>本地环境变量（高级诊断）</span>
+            <span class="tag warm">兼容入口</span>
+          </summary>
+          <div class="settings-advanced-body">
+            <div class="runtime-note warning">这个区域保留给 adapter 和本地调试变量。访问凭证、token、secret 不会写入 Runtime Profile。</div>
+            <div class="config-actions" style="margin-bottom:14px">
+              <button class="btn btn-primary" id="save-config-btn" onclick="saveConfig()" style="display:none">保存 .env</button>
+              <span class="config-saved" id="config-saved">已保存</span>
+            </div>
+            <div id="config-panel"><div class="loading">展开后加载 .env 配置...</div></div>
+          </div>
+        </details>
       </div>
 
       <!-- Page: Store -->
       <div class="page" id="page-store">
-        <div class="section-title">Skill Store <button class="btn" onclick="refreshStore()" id="refresh-store-btn" style="font-size:12px;padding:6px 14px;margin-left:8px">刷新</button></div>
+        <div class="section-title">Skills <button class="btn" onclick="refreshStore()" id="refresh-store-btn" style="font-size:12px;padding:6px 14px;margin-left:8px">刷新</button></div>
         <div class="store-install-bar">
           <input class="config-input" id="github-url-input" type="text" placeholder="输入 GitHub 仓库地址安装 skill..." />
           <button class="btn btn-primary" onclick="installFromGithub()">安装</button>
@@ -2744,15 +3719,21 @@
 
   <div class="floating-pet" id="floating-pet" aria-live="polite">
     <div class="floating-pet-bubble" id="floating-pet-bubble">待机中</div>
-    <div class="floating-pet-menu" id="floating-pet-menu">
-      <button type="button" onclick="setPetState('idle', { manual: true });closeFloatingPetMenu()">待机</button>
-      <button type="button" onclick="setPetState('thinking', { manual: true });closeFloatingPetMenu()">思考</button>
-      <button type="button" onclick="setPetState('typing', { manual: true });closeFloatingPetMenu()">输入</button>
-      <button type="button" onclick="setPetState('success', { manual: true });closeFloatingPetMenu()">成功</button>
-      <button type="button" onclick="setPetState('error', { manual: true });closeFloatingPetMenu()">错误</button>
-      <button type="button" onclick="switchPage('companion');closeFloatingPetMenu()">打开伙伴页</button>
+    <div class="floating-pet-panel" id="floating-pet-panel">
+      <div class="floating-pet-panel-head">
+        <div>
+          <div class="floating-pet-panel-title">Working Process</div>
+          <div class="floating-pet-panel-subtitle" id="floating-pet-panel-state">idle</div>
+        </div>
+        <span class="pet-state-pill" id="floating-pet-panel-level">Lv.1</span>
+      </div>
+      <div class="companion-process-list" id="floating-process-list"></div>
+      <div class="floating-pet-panel-actions">
+        <button type="button" onclick="switchPage('companion');closeFloatingPetMenu()">打开伙伴页</button>
+        <button type="button" onclick="clearPetProcess()">清空</button>
+      </div>
     </div>
-    <button class="floating-pet-button" type="button" onclick="toggleFloatingPetMenu()" aria-label="XiaoBa 悬浮宠物">
+    <button class="floating-pet-button" type="button" onclick="toggleFloatingPetMenu()" aria-label="CatsCo 悬浮伙伴">
       <img class="floating-pet-frame" id="floating-pet-frame" src="pet/idle/01.png" alt="" />
     </button>
   </div>
@@ -2815,9 +3796,13 @@
   <script>
     const API = '';
     let appStatusSnapshot = {};
-    const pageTitles = { services:'服务', companion:'伙伴', chat:'Chat', config:'配置', store:'商店' };
+    let appReadinessSnapshot = {};
+    let appReadinessLoaded = false;
+    let appReadinessError = '';
+    const pageTitles = { services:'运行', companion:'伙伴', chat:'CatsCo', config:'Runtime Profile', store:'Skills' };
     let catsAuthMode = 'login';
     let catsState = {};
+    let catsNextAction = 'none';
     let catsPollTimer = null;
     const CATS_DEFAULT_HTTP_BASE = 'https://app.catsco.cc';
     const CATS_DEFAULT_WS_URL = 'wss://app.catsco.cc/v0/channels';
@@ -2830,14 +3815,135 @@
     };
     const petSpeeds = { idle: 520, thinking: 620, typing: 140, success: 360, error: 420 };
     const petStateLabels = { idle: '待机中', thinking: '思考中', typing: '输入中', success: '完成了', error: '出错了' };
+    const petStateCopy = {
+      idle: '正在等待下一项任务。',
+      thinking: '正在整理上下文和下一步动作。',
+      typing: '正在处理输入或输出内容。',
+      success: '刚完成了一项工作。',
+      error: '遇到异常，需要你看一眼。'
+    };
+    const PET_PROFILE_KEY = 'xiaoba.petProfile';
+    const PET_PROCESS_KEY = 'xiaoba.petProcess';
+    const petUnlocks = [
+      { level: 2, title: '专注表情', meta: '更多 thinking 动态' },
+      { level: 4, title: 'CatsCo 皮肤', meta: '浅色工作台主题' },
+      { level: 7, title: '新伙伴位', meta: '解锁第二只宠物' }
+    ];
     let petState = 'idle';
     let petFrameIndex = 0;
     let petTimer = null;
     let petStateHoldTimer = null;
     let petBubbleTimer = null;
     let petAutoBaseline = 'idle';
+    let petProfile = loadPetProfile();
+    let petProcess = loadPetProcess();
     let lastCatsMessageSignature = '';
     let catsWorkingActive = false;
+
+    function loadPetProfile() {
+      try {
+        return {
+          name: 'XiaoBa',
+          level: 1,
+          xp: 0,
+          tokenXp: 0,
+          skillCalls: 0,
+          form: '基础小猫',
+          ...JSON.parse(localStorage.getItem(PET_PROFILE_KEY) || '{}')
+        };
+      } catch (_error) {
+        return { name: 'XiaoBa', level: 1, xp: 0, tokenXp: 0, skillCalls: 0, form: '基础小猫' };
+      }
+    }
+
+    function savePetProfile() {
+      localStorage.setItem(PET_PROFILE_KEY, JSON.stringify(petProfile));
+    }
+
+    function xpForLevel(level) {
+      return Math.max(100, level * 100);
+    }
+
+    function awardPetXp(amount, source) {
+      const value = Number(amount || 0);
+      if (!Number.isFinite(value) || value <= 0) return;
+      petProfile.xp += value;
+      while (petProfile.xp >= xpForLevel(petProfile.level)) {
+        petProfile.xp -= xpForLevel(petProfile.level);
+        petProfile.level += 1;
+        recordPetProcess('升级了', '解锁进度推进到 Lv.' + petProfile.level, 'success');
+      }
+      if (source === 'token') petProfile.tokenXp += value;
+      savePetProfile();
+      renderPetProfile();
+    }
+
+    function loadPetProcess() {
+      try {
+        const items = JSON.parse(localStorage.getItem(PET_PROCESS_KEY) || '[]');
+        return Array.isArray(items) ? items.slice(0, 8) : [];
+      } catch (_error) {
+        return [];
+      }
+    }
+
+    function savePetProcess() {
+      localStorage.setItem(PET_PROCESS_KEY, JSON.stringify(petProcess.slice(0, 8)));
+    }
+
+    function formatPetTime(ts) {
+      const date = new Date(ts);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function recordPetProcess(title, detail, state = petState) {
+      const item = { title, detail, state, ts: Date.now() };
+      const prev = petProcess[0];
+      if (prev && prev.title === item.title && prev.detail === item.detail && Date.now() - prev.ts < 1200) return;
+      petProcess = [item, ...petProcess].slice(0, 8);
+      savePetProcess();
+      renderPetProcess();
+    }
+
+    function clearPetProcess() {
+      petProcess = [];
+      savePetProcess();
+      renderPetProcess();
+    }
+
+    function renderPetProcess() {
+      const empty = '<div class="companion-process-item"><span class="companion-process-dot"></span><div><div class="companion-process-title">暂无工作过程</div><div class="companion-process-detail">当小猫开始思考、执行或遇到问题时，会在这里留下简短记录。</div></div><span class="companion-process-time">--:--</span></div>';
+      const html = petProcess.length ? petProcess.map(item => '<div class="companion-process-item"><span class="companion-process-dot"></span><div><div class="companion-process-title">'+escapeHtml(item.title)+'</div><div class="companion-process-detail">'+escapeHtml(item.detail || petStateCopy[item.state] || '')+'</div></div><span class="companion-process-time">'+formatPetTime(item.ts)+'</span></div>').join('') : empty;
+      const pageList = document.getElementById('companion-process-list');
+      const floatingList = document.getElementById('floating-process-list');
+      if (pageList) pageList.innerHTML = html;
+      if (floatingList) floatingList.innerHTML = html;
+    }
+
+    function renderPetProfile() {
+      const next = xpForLevel(petProfile.level);
+      const percent = Math.max(0, Math.min(100, Math.round((petProfile.xp / next) * 100)));
+      const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+      setText('pet-profile-name', petProfile.name || 'XiaoBa');
+      setText('pet-level-label', 'Lv.' + petProfile.level);
+      setText('pet-xp-label', petProfile.xp + ' / ' + next + ' XP');
+      setText('pet-token-xp', petProfile.tokenXp ? String(petProfile.tokenXp) : '待接入');
+      setText('pet-skill-xp', String(petProfile.skillCalls || 0));
+      setText('pet-form-label', petProfile.form || '基础小猫');
+      setText('floating-pet-panel-level', 'Lv.' + petProfile.level);
+      const bar = document.getElementById('pet-xp-bar');
+      if (bar) bar.style.width = percent + '%';
+      renderPetUnlocks();
+    }
+
+    function renderPetUnlocks() {
+      const box = document.getElementById('companion-unlocks');
+      if (!box) return;
+      box.innerHTML = petUnlocks.map(item => {
+        const locked = petProfile.level < item.level;
+        return '<div class="companion-unlock'+(locked?' locked':'')+'"><div class="companion-unlock-title">'+escapeHtml(item.title)+'</div><div class="companion-unlock-meta">'+(locked?'Lv.'+item.level+' 解锁':'已解锁')+' · '+escapeHtml(item.meta)+'</div></div>';
+      }).join('');
+    }
 
     function preloadPetFrames() {
       Object.values(petFrames).flat().forEach(src => {
@@ -2876,16 +3982,24 @@
         clearTimeout(petStateHoldTimer);
         petStateHoldTimer = null;
       }
+      const previousState = petState;
       petState = state;
       petFrameIndex = 0;
       document.querySelectorAll('.pet-action').forEach(btn => btn.classList.toggle('active', btn.dataset.petState === state));
       const pill = document.getElementById('pet-state-pill');
       if (pill) pill.textContent = state;
+      const copy = document.getElementById('pet-state-copy');
+      if (copy) copy.textContent = options.message || petStateCopy[state] || petStateLabels[state] || state;
+      const panelState = document.getElementById('floating-pet-panel-state');
+      if (panelState) panelState.textContent = petStateLabels[state] || state;
       renderPetFrameStrip(state);
       showPetFrame();
       if (petTimer) clearInterval(petTimer);
       petTimer = setInterval(showPetFrame, petSpeeds[state] || 420);
       if (options.message || options.manual || state !== 'idle') showPetBubble(options.message || petStateLabels[state]);
+      if (options.message || options.manual || (previousState !== state && state !== 'idle')) {
+        recordPetProcess(petStateLabels[state] || state, options.message || petStateCopy[state] || '', state);
+      }
       if (options.holdMs) {
         petStateHoldTimer = setTimeout(() => setPetState(petAutoBaseline), options.holdMs);
       }
@@ -2952,6 +4066,7 @@
         document.querySelector('.sidebar-brand-ver').textContent = 'v' + (data.version || '-');
         renderStatus(data);
         renderServices(data.services || []);
+        fetchReadiness();
         document.getElementById('footer-platform').textContent = data.platform || '-';
         document.getElementById('footer-node').textContent = data.nodeVersion || '-';
         document.getElementById('topbar-status').textContent = '在线';
@@ -2966,6 +4081,29 @@
       }
     }
 
+    async function fetchReadiness() {
+      try {
+        const res = await fetch(API+'/api/readiness');
+        if (!res.ok) throw new Error('HTTP '+res.status);
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          throw new Error('Readiness API 尚未加载，请重启 Dashboard。');
+        }
+        const data = await res.json();
+        appReadinessSnapshot = data || {};
+        appReadinessLoaded = true;
+        appReadinessError = '';
+        renderReadiness(appReadinessSnapshot);
+        if (document.getElementById('page-chat')?.classList.contains('active')) renderCatsStatus();
+      } catch (e) {
+        appReadinessSnapshot = {};
+        appReadinessLoaded = false;
+        appReadinessError = e && e.message ? e.message : 'Readiness API 暂不可用';
+        renderReadinessError(e);
+        if (document.getElementById('page-chat')?.classList.contains('active')) renderCatsStatus();
+      }
+    }
+
     async function fetchSkills() {
       try {
         const res = await fetch(API+'/api/skills-all');
@@ -2976,10 +4114,89 @@
 
     function renderStatus(d) {
       document.getElementById('status-grid').innerHTML =
-        '<div class="status-card"><div class="label">Version</div><div class="value">'+d.version+'</div></div>'+
-        '<div class="status-card"><div class="label">Provider</div><div class="value">'+(d.provider||'-')+'</div></div>'+
-        '<div class="status-card"><div class="label">Host</div><div class="value">'+d.hostname+'</div></div>'+
-        '<div class="status-card"><div class="label">Skills Path</div><div class="value" style="font-size:12px;word-break:break-all">'+d.skillsPath+'</div></div>';
+        '<div class="status-card"><div class="label">Version</div><div class="value">'+escapeHtml(d.version||'-')+'</div></div>'+
+        '<div class="status-card"><div class="label">Runtime</div><div class="value">'+escapeHtml(d.platform||'-')+'</div><div class="readiness-summary">Host: '+escapeHtml(d.hostname||'-')+'</div></div>'+
+        '<div class="status-card"><div class="label">Model</div><div class="value">'+escapeHtml(d.model||'-')+'</div><div class="readiness-summary">'+escapeHtml(d.provider||'-')+'</div></div>'+
+        '<div class="status-card"><div class="label">Skills Path</div><div class="value" style="font-size:12px;word-break:break-all">'+escapeHtml(d.skillsPath||'-')+'</div></div>';
+    }
+
+    function renderReadiness(data) {
+      const status = data.status || 'blocked';
+      const statusText = formatReadinessStatus(status);
+      const summaryTitle = document.querySelector('#run-summary .run-summary-title');
+      const summaryMeta = document.querySelector('#run-summary .run-summary-meta');
+      if (summaryTitle) summaryTitle.textContent = statusText.title;
+      if (summaryMeta) summaryMeta.textContent = statusText.meta;
+
+      const grid = document.getElementById('readiness-grid');
+      const sections = data.sections || [];
+      if (!sections.length) {
+        grid.innerHTML = '<div class="loading">暂无 readiness 数据</div>';
+        return;
+      }
+
+      grid.innerHTML = sections.map(section => {
+        const checks = selectReadinessChecks(section.checks || []);
+        return '<div class="readiness-card '+escapeHtml(section.status||'blocked')+'">'+
+          '<div class="readiness-card-head"><div><div class="readiness-title">'+escapeHtml(section.label||section.id||'-')+'</div><div class="readiness-summary">'+escapeHtml(section.summary||'')+'</div></div>'+
+          '<span class="status-dot '+readinessStatusClass(section.status)+'">'+escapeHtml(formatReadinessLabel(section.status))+'</span></div>'+
+          '<div class="readiness-checks">'+checks.map(renderReadinessCheck).join('')+'</div>'+
+          readinessActionButton(section.action)+
+        '</div>';
+      }).join('');
+    }
+
+    function renderReadinessError(error) {
+      const summaryTitle = document.querySelector('#run-summary .run-summary-title');
+      const summaryMeta = document.querySelector('#run-summary .run-summary-meta');
+      if (summaryTitle) summaryTitle.textContent = '无法读取启动状态';
+      if (summaryMeta) summaryMeta.textContent = error && error.message ? error.message : 'Readiness API 暂不可用';
+      const grid = document.getElementById('readiness-grid');
+      if (grid) grid.innerHTML = '<div class="runtime-note danger">Readiness API 暂不可用，请重启 Dashboard 后重试。</div>';
+    }
+
+    function selectReadinessChecks(checks) {
+      const active = checks.filter(check => check.status !== 'pass');
+      return (active.length ? active : checks).slice(0, 3);
+    }
+
+    function renderReadinessCheck(check) {
+      return '<div class="readiness-check '+escapeHtml(check.status||'pass')+'"><span>'+escapeHtml(check.message||check.label||'')+'</span></div>';
+    }
+
+    function readinessActionButton(action) {
+      if (!action) return '';
+      return '<button class="btn btn-ghost" style="margin-top:14px" onclick="runReadinessAction(\''+escapeHtml(action.target||'diagnostics')+'\')">'+escapeHtml(action.label||'查看')+'</button>';
+    }
+
+    function runReadinessAction(target) {
+      if (target === 'settings') return switchPage('config');
+      if (target === 'catsco') return switchPage('chat');
+      if (target === 'skills') return switchPage('store');
+      if (target === 'service') return svcAction('catscompany','start');
+      const details = document.getElementById('diagnostics-details');
+      if (details) {
+        details.open = true;
+        details.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    function formatReadinessStatus(status) {
+      if (status === 'ready') return { title: '可以启动并使用 CatsCo', meta: '模型、CatsCo、Runtime Profile 和 Skills 已通过本地检查。' };
+      if (status === 'warning') return { title: '基本就绪，还有待处理项', meta: '可以继续，但建议先处理黄色提示，尤其是 connector 是否运行。' };
+      return { title: '启动前需要处理配置', meta: '红色项目会阻止默认启动；按卡片提示补齐后再启动。' };
+    }
+
+    function formatReadinessLabel(status) {
+      if (status === 'ready') return 'ready';
+      if (status === 'warning') return 'warning';
+      return 'blocked';
+    }
+
+    function readinessStatusClass(status) {
+      if (status === 'ready') return 'running';
+      if (status === 'warning') return 'stopped';
+      return 'error';
     }
 
     function renderServices(svcs) {
@@ -3023,14 +4240,38 @@
     async function svcAction(n,a) {
       pulsePetState('thinking', '处理中...', 1200);
       try{
-        const resp = await fetch(API+'/api/services/'+n+'/'+a,{method:'POST'});
-        if(!resp.ok) throw new Error('HTTP '+resp.status);
+        const resp = await fetch(API+'/api/services/'+n+'/'+a,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+        const payload = await resp.json().catch(()=>({}));
+        if(!resp.ok) {
+          if (payload.preflight) {
+            renderPreflightFailure(payload.preflight);
+            fetchReadiness();
+          }
+          throw new Error(formatServiceError(payload, resp.status));
+        }
         pulsePetState('success', '服务已更新', 1800);
         setTimeout(fetchStatus,500);
       }catch(e){
         pulsePetState('error', '操作失败', 2600);
         alert('操作失败: '+e.message);
       }
+    }
+
+    function renderPreflightFailure(preflight) {
+      const blocked = (preflight.checks || []).filter(check => check.status === 'fail');
+      const summaryTitle = document.querySelector('#run-summary .run-summary-title');
+      const summaryMeta = document.querySelector('#run-summary .run-summary-meta');
+      if (summaryTitle) summaryTitle.textContent = '启动前检查未通过';
+      if (summaryMeta) summaryMeta.textContent = blocked.map(check => check.message).slice(0, 3).join('；') || '请根据 readiness 卡片处理阻断项。';
+    }
+
+    function formatServiceError(payload, status) {
+      if (payload && payload.preflight) {
+        const blocked = (payload.preflight.checks || []).filter(check => check.status === 'fail');
+        const details = blocked.map(check => check.message).slice(0, 3).join('；');
+        return details ? '启动前检查未通过：' + details : '启动前检查未通过';
+      }
+      return (payload && payload.error) ? payload.error : 'HTTP ' + status;
     }
 
     async function showLogs(n,l) {
@@ -3327,22 +4568,197 @@
 
     // === Config with collapsible LLM groups ===
     let configData={};
+    let dashboardSettingsSnapshot={};
     let runtimeConfigSnapshot={};
+    let envConfigLoaded=false;
+    let envConfigLoading=false;
     const configGroups=[
-      {title:'LLM 主模型', collapsed:true, keys:[{key:'GAUZ_LLM_PROVIDER',label:'Provider',type:'select',options:['anthropic','openai']},{key:'GAUZ_LLM_API_BASE',label:'API Base URL'},{key:'GAUZ_LLM_API_KEY',label:'API Key',sensitive:true},{key:'GAUZ_LLM_MODEL',label:'Model'}]},
-      {title:'LLM 备用模型', collapsed:true, keys:[{key:'GAUZ_LLM_BACKUP_PROVIDER',label:'Provider',type:'select',options:['','anthropic','openai']},{key:'GAUZ_LLM_BACKUP_API_BASE',label:'API Base URL'},{key:'GAUZ_LLM_BACKUP_API_KEY',label:'API Key',sensitive:true},{key:'GAUZ_LLM_BACKUP_MODEL',label:'Model'}]},
-      {title:'Cats Company（高级）', collapsed:true, keys:[{key:'CATSCOMPANY_API_KEY',label:'Bot API Key',sensitive:true}]},
+      {title:'自定义模型兼容配置', collapsed:true, keys:[{key:'GAUZ_LLM_PROVIDER',label:'兼容类型',type:'select',options:['anthropic','openai']},{key:'GAUZ_LLM_API_BASE',label:'模型地址'},{key:'GAUZ_LLM_API_KEY',label:'访问凭证',sensitive:true},{key:'GAUZ_LLM_MODEL',label:'模型名称'}]},
+      {title:'CatsCo webapp（高级）', collapsed:true, keys:[{key:'CATSCOMPANY_API_KEY',label:'Agent 访问凭证',sensitive:true}]},
       {title:'飞书', collapsed:false, keys:[{key:'FEISHU_APP_ID',label:'App ID'},{key:'FEISHU_APP_SECRET',label:'App Secret',sensitive:true},{key:'FEISHU_BOT_OPEN_ID',label:'Bot Open ID'},{key:'FEISHU_BOT_ALIASES',label:'Bot Aliases'}]},
       {title:'微信', collapsed:false, keys:[{key:'WEIXIN_TOKEN',label:'Token',sensitive:true}]},
     ];
 
-    async function fetchConfig(){try{const r=await fetch(API+'/api/config');configData=await r.json();renderConfig();}catch(e){document.getElementById('config-panel').innerHTML='<div class="loading">加载失败</div>';}}
+    async function refreshSettingsPage(){
+      await Promise.all([fetchDashboardSettings(), fetchRuntimeConfig()]);
+    }
+
+    async function fetchDashboardSettings(){
+      try{
+        const r=await fetch(API+'/api/settings');
+        const data=await r.json();
+        if(!r.ok||data.error)throw new Error(data.error||'settings 加载失败');
+        dashboardSettingsSnapshot=data;
+        renderModelSource(data);
+      }catch(e){
+        const p=document.getElementById('model-source-panel');
+        if(p)p.innerHTML='<div class="runtime-note danger">模型来源加载失败：'+escapeHtml(e.message||String(e))+'</div>';
+      }
+    }
+
+    function settingField(id){
+      return (dashboardSettingsSnapshot.fields||[]).find(field=>field.id===id)||{};
+    }
+
+    function settingValue(id){
+      return settingField(id).value||'';
+    }
+
+    function renderModelSource(snapshot){
+      const p=document.getElementById('model-source-panel');
+      if(!p)return;
+      const fields=(snapshot&&snapshot.fields)||[];
+      if(!fields.length){
+        p.innerHTML='<div class="runtime-note warning">模型来源暂不可用，请稍后刷新。</div>';
+        return;
+      }
+      const user=catsState.user||{};
+      const catsConnected=Boolean(catsState.connected||catsState.tokenPresent);
+      const managedStatus=catsConnected?'待后端接入':'需要登录';
+      const managedTone=catsConnected?'warm':'gray';
+      const managedCopy=catsConnected
+        ? 'CatsCo 已登录。托管模型目录和用量服务还没有接入当前本地版本，当前请使用自定义模型启动本地 agent。'
+        : '登录 CatsCo 后，后续将直接使用 CatsCo 提供的模型目录。当前版本需要先在高级区配置自定义模型。';
+      const keyField=settingField('model.apiKey');
+      const credentialMeta=keyField.present
+        ? '已配置访问凭证'
+        : '未配置访问凭证';
+      const apiBaseValue=settingValue('model.apiBase');
+      const hideInternalGateway=isInternalModelGateway(apiBaseValue);
+      const apiBaseDisplayValue=hideInternalGateway?'':apiBaseValue;
+      const apiBasePlaceholder=hideInternalGateway?'已配置 CatsCo 内部兼容网关（隐藏）':'https://example.com/v1/messages';
+
+      p.innerHTML=`<div class="config-group" id="model-source-group">
+        <div class="config-group-title" onclick="document.getElementById('model-source-group').classList.toggle('collapsed')">
+          <span>模型来源</span>
+          <span class="tag warm" style="margin-left:8px">CatsCo 托管模型优先</span>
+        </div>
+        <div class="config-group-body model-source-layout">
+          <div class="runtime-note">普通用户只需要登录 CatsCo。托管模型后端接入前，自定义模型是当前可运行路径；保存后影响新 session 或下一次启动的 connector。</div>
+          <div class="model-source-grid">
+            <div class="model-source-card primary">
+              <div class="model-source-head">
+                <div>
+                  <div class="model-source-title">CatsCo 托管模型</div>
+                  <div class="model-source-copy">${managedCopy}</div>
+                </div>
+                ${runtimeTag(managedStatus, managedTone)}
+              </div>
+              <div class="model-source-actions">
+                <button class="btn" onclick="switchPage('chat')">${catsConnected?'查看 CatsCo 连接':'登录 CatsCo'}</button>
+              </div>
+            </div>
+            <details class="model-source-card warning" id="custom-model-settings">
+              <summary>
+                <div class="model-source-head">
+                  <div>
+                    <div class="model-source-title">自定义模型（高级）</div>
+                    <div class="model-source-copy">用于开发、自有模型或托管模型未接入前。访问凭证只保存 presence，不会回显。</div>
+                  </div>
+                  ${runtimeTag(credentialMeta, keyField.present?'green':'red')}
+                </div>
+              </summary>
+              <div class="model-source-form">
+                <div class="config-row"><label class="config-label">兼容类型</label><select class="config-select" id="model-provider-setting"><option value="anthropic"${settingValue('model.provider')==='anthropic'?' selected':''}>Anthropic-compatible</option><option value="openai"${settingValue('model.provider')==='openai'?' selected':''}>OpenAI-compatible</option></select></div>
+                <div class="config-row"><label class="config-label">模型地址</label><input class="config-input" id="model-api-base-setting" value="${escapeHtml(apiBaseDisplayValue)}" placeholder="${escapeHtml(apiBasePlaceholder)}" data-hidden-internal="${hideInternalGateway?'true':'false'}" /></div>
+                <div class="config-row"><label class="config-label">模型名称</label><input class="config-input" id="model-name-setting" value="${escapeHtml(settingValue('model.model'))}" placeholder="model-name" /></div>
+                <div class="config-row"><label class="config-label">访问凭证</label><input class="config-input" id="model-secret-setting" type="password" value="" placeholder="${keyField.present?'留空表示保持现有凭证':'输入访问凭证'}" /></div>
+                <div class="model-secret-row">
+                  <label><input type="checkbox" id="model-secret-clear-setting" /> 清除已保存的访问凭证</label>
+                  <span>${credentialMeta}</span>
+                </div>
+                <div class="model-source-actions">
+                  <button class="btn btn-primary" onclick="saveCustomModelSettings()">保存自定义模型</button>
+                  <span class="config-saved" id="model-source-saved">已保存</span>
+                </div>
+                <div id="model-source-status" style="color:var(--text2);font-size:13px"></div>
+              </div>
+            </details>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    function isInternalModelGateway(value){
+      try{
+        const host=new URL(value).hostname.toLowerCase();
+        const legacyHost=['buildsense','asia'].join('.');
+        return host===legacyHost||host.endsWith('.'+legacyHost);
+      }catch(_e){
+        return false;
+      }
+    }
+
+    async function saveCustomModelSettings(){
+      const status=document.getElementById('model-source-status');
+      const secret=document.getElementById('model-secret-setting').value;
+      const clearSecret=document.getElementById('model-secret-clear-setting').checked;
+      if(secret && clearSecret){
+        status.style.color='var(--red)';
+        status.textContent='不能同时替换和清除访问凭证。';
+        return;
+      }
+      const secretUpdate=clearSecret
+        ? {action:'clear'}
+        : secret
+          ? {action:'replace',value:secret}
+          : {action:'keep'};
+      const apiBaseInput=document.getElementById('model-api-base-setting');
+      const apiBaseValue=apiBaseInput.value.trim() || (apiBaseInput.dataset.hiddenInternal==='true'?settingValue('model.apiBase'):'');
+      const sensitive=secretUpdate.action!=='keep';
+      const message=sensitive
+        ? '保存自定义模型设置？访问凭证会写入本地 .env，仅用于本机 runtime。保存后新 session 或下一次启动的 connector 生效。'
+        : '保存自定义模型设置？保存后新 session 或下一次启动的 connector 生效。';
+      if(!confirm(message))return;
+      try{
+        status.style.color='var(--text2)';
+        status.textContent='保存中...';
+        const payload={
+          settings:{
+            'model.provider':document.getElementById('model-provider-setting').value,
+            'model.apiBase':apiBaseValue,
+            'model.model':document.getElementById('model-name-setting').value.trim(),
+            'model.apiKey':secretUpdate,
+          }
+        };
+        const r=await fetch(API+'/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const d=await r.json();
+        if(!r.ok||d.error)throw new Error(d.error||'保存失败');
+        status.style.color='var(--green)';
+        status.textContent='已保存。新 session 或下一次启动的 connector 生效。';
+        const saved=document.getElementById('model-source-saved');
+        if(saved){saved.classList.add('show');setTimeout(()=>saved.classList.remove('show'),2000);}
+        await Promise.all([fetchDashboardSettings(),fetchStatus(),fetchRuntimeConfig()]);
+      }catch(e){
+        status.style.color='var(--red)';
+        status.textContent='保存失败：'+(e.message||String(e));
+      }
+    }
+
+    async function fetchConfig(){
+      if(envConfigLoading)return;
+      envConfigLoading=true;
+      try{
+        const r=await fetch(API+'/api/config');
+        configData=await r.json();
+        envConfigLoaded=true;
+        renderConfig();
+      }catch(e){
+        envConfigLoaded=false;
+        document.getElementById('config-panel').innerHTML='<div class="loading">加载失败</div>';
+      }finally{
+        envConfigLoading=false;
+      }
+    }
     async function fetchRuntimeConfig(){try{const r=await fetch(API+'/api/runtime/config');renderRuntimeConfig(await r.json());}catch(e){document.getElementById('runtime-config-panel').innerHTML='<div class="loading">runtime 配置加载失败</div>';}}
 
     function renderRuntimeConfig(snapshot){
       const p=document.getElementById('runtime-config-panel');
       if(!p)return;
-      if(snapshot.error){p.innerHTML='<div class="loading">runtime 配置加载失败：'+escapeHtml(snapshot.error)+'</div>';return;}
+      if(snapshot.error){
+        p.innerHTML='<div class="runtime-note danger">Runtime Profile 状态加载失败：'+escapeHtml(snapshot.error)+'</div>';
+        return;
+      }
       runtimeConfigSnapshot=snapshot;
       const profile=snapshot.profile||{};
       const profileConfig=snapshot.profileConfig||{};
@@ -3355,29 +4771,81 @@
       const disabled=(snapshot.tools&&snapshot.tools.disabled)||[];
       const skills=snapshot.skills||{};
       const prompt=snapshot.systemPrompt||{text:'',length:0};
-      const issueCount=snapshot.validation&&snapshot.validation.issues?snapshot.validation.issues.length:0;
-      const configIssueCount=profileConfig.issues?profileConfig.issues.length:0;
-      const toolTags=tools.map(t=>'<span class="tag active">'+escapeHtml(t.name)+(t.transcriptMode&&t.transcriptMode!=='default'?' · '+escapeHtml(t.transcriptMode):'')+'</span>').join('');
-      const skillTags=(skills.items||[]).slice(0,18).map(s=>'<span class="tag">'+escapeHtml(s.name)+'</span>').join('');
-      const disabledLine=disabled.length?'<div class="config-row"><label class="config-label">禁用工具</label><div style="flex:1;color:var(--text3);font-size:12px">'+disabled.map(t=>escapeHtml(t.name)).join(', ')+'</div></div>':'';
-      const validationRows=(snapshot.validation&&snapshot.validation.issues||[]).concat(profileConfig.issues||[]).map(i=>'<div style="padding:10px 12px;border-radius:12px;background:var(--red-light);color:var(--red);font-size:12px;margin-top:8px"><strong>'+escapeHtml(i.path||'-')+'</strong> · '+escapeHtml(i.message||'')+'</div>').join('');
-      const editFields=(editing.editableFields||[]).map(f=>'<span class="tag green">'+escapeHtml(f)+'</span>').join('');
-      const readOnlyFields=(editing.readOnlyFields||[]).map(f=>'<span class="tag gray">'+escapeHtml(f)+'</span>').join('');
+      const validationIssues=(snapshot.validation&&snapshot.validation.issues)||[];
+      const configIssues=profileConfig.issues||[];
+      const allIssues=validationIssues.concat(configIssues);
+      const issueCount=allIssues.length;
+      const valid=issueCount===0;
+      const workingDirectory=snapshot.workingDirectory||{};
+      const profileState=profileConfig.exists?(profileConfig.loaded?'profile loaded':'profile file issue'):'using defaults';
+      const profileStateTone=profileConfig.exists?(profileConfig.loaded?'green':'red'):'gray';
+      const toolTags=tools.map(t=>runtimeTag(t.name+(t.transcriptMode&&t.transcriptMode!=='default'?' · '+t.transcriptMode:''),'active')).join('');
+      const disabledTags=disabled.map(t=>runtimeTag(t.name,'gray')).join('');
+      const skillTags=(skills.items||[]).slice(0,18).map(s=>runtimeTag(s.name,'')).join('');
+      const editFields=(editing.editableFields||[]).map(f=>runtimeTag(f,'green')).join('');
+      const readOnlyFields=(editing.readOnlyFields||[]).map(f=>runtimeTag(f,'gray')).join('');
+      const validationRows=renderRuntimeIssueRows(allIssues);
+      const missingProfileNote=!profileConfig.exists
+        ? '<div class="runtime-note warning">尚未创建 profile 文件；当前 session 使用默认配置。保存受控字段会创建 <code>'+escapeHtml(profileConfig.path||'-')+'</code>，并在新 session 生效。</div>'
+        : '';
+      const unsafeProfileNote=configIssues.length
+        ? '<div class="runtime-note danger">Profile 文件存在校验问题。Dashboard 只允许保存安全字段，请先处理下面的问题。</div>'
+        : '';
+      const skillLoadError=skills.loadError
+        ? '<div class="runtime-issue-row"><strong>skills.loadError</strong> · '+escapeHtml(skills.loadError)+'</div>'
+        : '';
+
       p.innerHTML=`<div class="config-group" id="runtime-config-group">
-        <div class="config-group-title" onclick="document.getElementById('runtime-config-group').classList.toggle('collapsed')">Runtime 当前快照 <button class="btn btn-ghost" onclick="event.stopPropagation();fetchRuntimeConfig()" style="font-size:12px;padding:4px 10px">刷新</button></div>
+        <div class="config-group-title" onclick="document.getElementById('runtime-config-group').classList.toggle('collapsed')">
+          <span>Runtime Profile 状态</span>
+          <button class="btn btn-ghost" onclick="event.stopPropagation();fetchRuntimeConfig()" style="font-size:12px;padding:4px 10px">刷新</button>
+        </div>
         <div class="config-group-body">
-          <div class="config-row"><label class="config-label">Profile</label><div style="flex:1"><code>${escapeHtml(profile.id||'-')}</code> <span class="tag">${escapeHtml(profile.surface||'-')}</span> ${issueCount||configIssueCount?'<span class="tag red">配置问题 '+(issueCount+configIssueCount)+'</span>':'<span class="tag green">valid</span>'}</div></div>
-          <div class="config-row"><label class="config-label">Profile 文件</label><div style="flex:1"><code>${escapeHtml(profileConfig.path||'-')}</code> <span class="tag ${profileConfig.exists?'green':'gray'}">${profileConfig.exists?'exists':'not created'}</span> <span class="tag ${profileConfig.loaded?'green':'gray'}">${profileConfig.loaded?'loaded':'defaults'}</span></div></div>
-          <div class="config-row"><label class="config-label">可编辑字段</label><div style="flex:1;display:flex;gap:6px;flex-wrap:wrap">${editFields||'<span class="tag gray">未开放编辑</span>'}</div></div>
-          <div class="config-row"><label class="config-label">只读字段</label><div style="flex:1;display:flex;gap:6px;flex-wrap:wrap">${readOnlyFields||'<span class="tag gray">-</span>'}</div></div>
-          ${validationRows?'<div class="config-row"><label class="config-label">配置问题</label><div style="flex:1">'+validationRows+'</div></div>':''}
-          <div class="config-row"><label class="config-label">工作目录</label><div style="flex:1"><code>${escapeHtml((snapshot.workingDirectory&&snapshot.workingDirectory.path)||profile.workingDirectory||'-')}</code> ${((snapshot.workingDirectory&&snapshot.workingDirectory.exists)?'<span class="tag green">exists</span>':'<span class="tag red">missing</span>')}</div></div>
-          <div class="config-row"><label class="config-label">模型</label><div style="flex:1"><code>${escapeHtml(model.provider||'-')}</code> / <code>${escapeHtml(model.model||'-')}</code><div style="color:var(--text3);font-size:12px;margin-top:4px">${escapeHtml(model.apiUrl||'未配置 API Base')}</div></div></div>
-          <div class="config-row"><label class="config-label">工具</label><div style="flex:1;display:flex;gap:6px;flex-wrap:wrap">${toolTags||'<span class="tag gray">无启用工具</span>'}</div></div>
-          ${disabledLine}
-          <div class="config-row"><label class="config-label">Skills</label><div style="flex:1"><span class="tag ${skills.enabled?'green':'gray'}">${skills.enabled?'enabled':'disabled'}</span> <code>${escapeHtml(skills.path||'-')}</code><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${skillTags||'<span class="tag gray">未加载 skill</span>'}</div></div></div>
-          <div class="config-row"><label class="config-label">日志</label><div style="flex:1"><div><code>${escapeHtml(logging.sessionLogDir||'-')}</code></div><div style="color:var(--text3);font-size:12px;margin-top:4px">runtime: ${escapeHtml(logging.runtimeLogDir||'-')} · reports: ${escapeHtml(logging.reportDir||'-')} · upload: ${upload.enabled?'on':'off'}${upload.serverUrl?' · '+escapeHtml(upload.serverUrl):''}</div></div></div>
-          <details style="margin-top:14px"><summary style="cursor:pointer;color:var(--text2);font-weight:700">System prompt 展开结果（${Number(prompt.length||0)} chars）</summary><pre style="margin-top:10px;max-height:340px;overflow:auto;white-space:pre-wrap;background:var(--surface-muted);border:1px solid var(--border);border-radius:16px;padding:14px;color:var(--text);font-size:12px;line-height:1.6">${escapeHtml(prompt.text||'')}</pre></details>
+          <div class="profile-status-line">
+            ${runtimeTag(valid?'配置有效':'配置问题 '+issueCount, valid?'green':'red')}
+            ${runtimeTag(profileState, profileStateTone)}
+            ${runtimeTag('保存后新 session 生效','warm')}
+          </div>
+          ${missingProfileNote}
+          ${unsafeProfileNote}
+          <div class="profile-summary-grid">
+            <div class="profile-summary-item">
+              <div class="profile-summary-label">Profile 文件</div>
+              <div class="profile-summary-value"><code>${escapeHtml(profileConfig.path||'-')}</code></div>
+              <div class="profile-summary-meta">${profileConfig.exists?(profileConfig.loaded?'已加载':'存在但未加载'):'尚未创建，当前使用默认值'}</div>
+            </div>
+            <div class="profile-summary-item">
+              <div class="profile-summary-label">当前 Profile</div>
+              <div class="profile-summary-value"><code>${escapeHtml(profile.id||'-')}</code></div>
+              <div class="profile-summary-meta">${escapeHtml(formatRuntimeSurface(profile.surface))}</div>
+            </div>
+            <div class="profile-summary-item">
+              <div class="profile-summary-label">运行根目录</div>
+              <div class="profile-summary-value"><code>${escapeHtml(snapshot.runtimeRoot||'-')}</code></div>
+              <div class="profile-summary-meta">Dashboard 只展示和编辑当前本地 runtime。</div>
+            </div>
+            <div class="profile-summary-item">
+              <div class="profile-summary-label">生效范围</div>
+              <div class="profile-summary-value">新 session</div>
+              <div class="profile-summary-meta">当前已运行 session 不会热更新。</div>
+            </div>
+          </div>
+          ${validationRows?'<div class="runtime-subsection-title">配置问题</div>'+validationRows:''}
+          <div class="runtime-subsection-title">最终生效配置</div>
+          <div class="runtime-field-list">
+            ${renderRuntimeField('工作目录','<code>'+escapeHtml(workingDirectory.path||profile.workingDirectory||'-')+'</code> '+runtimeTag(workingDirectory.exists?'exists':'missing', workingDirectory.exists?'green':'red'))}
+            ${renderRuntimeField('模型','<code>'+escapeHtml(model.provider||'-')+'</code> / <code>'+escapeHtml(model.model||'-')+'</code><div class="profile-summary-meta">'+(model.apiUrl?'模型地址已配置，详情见高级诊断':'未配置模型地址')+'</div>')}
+            ${renderRuntimeField('工具', '<div class="runtime-tag-list">'+(toolTags||runtimeTag('无启用工具','gray'))+'</div>')}
+            ${disabledTags?renderRuntimeField('禁用工具','<div class="runtime-tag-list">'+disabledTags+'</div>'):''}
+            ${renderRuntimeField('Skills','<div class="runtime-tag-list">'+runtimeTag(skills.enabled?'enabled':'disabled', skills.enabled?'green':'gray')+' <code>'+escapeHtml(skills.path||'-')+'</code></div><div class="runtime-tag-list" style="margin-top:8px">'+(skillTags||runtimeTag('未加载 skill','gray'))+'</div>'+skillLoadError)}
+            ${renderRuntimeField('日志','<code>'+escapeHtml(logging.sessionLogDir||'-')+'</code><div class="profile-summary-meta">runtime: '+escapeHtml(logging.runtimeLogDir||'-')+' · reports: '+escapeHtml(logging.reportDir||'-')+' · upload: '+(upload.enabled?'on':'off')+(upload.serverUrl?' · '+escapeHtml(upload.serverUrl):'')+'</div>')}
+            ${renderRuntimeField('可编辑字段','<div class="runtime-tag-list">'+(editFields||runtimeTag('未开放编辑','gray'))+'</div>')}
+            ${renderRuntimeField('只读字段','<div class="runtime-tag-list">'+(readOnlyFields||runtimeTag('-','gray'))+'</div>')}
+          </div>
+          <details style="margin-top:18px">
+            <summary style="cursor:pointer;color:var(--text2);font-weight:700">Diagnostics: System prompt 展开结果（${Number(prompt.length||0)} chars）</summary>
+            <pre style="margin-top:10px;max-height:340px;overflow:auto;white-space:pre-wrap;background:var(--surface-muted);border:1px solid var(--border);border-radius:16px;padding:14px;color:var(--text);font-size:12px;line-height:1.6">${escapeHtml(prompt.text||'')}</pre>
+          </details>
         </div>
       </div>
       ${renderRuntimeProfileEditor(profile, registeredTools, skills)}`;
@@ -3385,17 +4853,18 @@
 
     function renderRuntimeProfileEditor(profile, registeredTools, skills){
       const enabledTools=new Set((profile.tools&&profile.tools.enabled)||[]);
-      const toolControls=(registeredTools||[]).map(t=>'<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--surface-muted);font-size:12px"><input type="checkbox" data-runtime-tool="'+escapeHtml(t.name)+'" '+(enabledTools.has(t.name)?'checked':'')+' /> <span>'+escapeHtml(t.name)+'</span></label>').join('');
+      const toolControls=(registeredTools||[]).map(t=>'<label class="runtime-check-row"><input type="checkbox" data-runtime-tool="'+escapeHtml(t.name)+'" '+(enabledTools.has(t.name)?'checked':'')+' /> <span>'+escapeHtml(t.name)+'</span></label>').join('');
       return `<div class="config-group" id="runtime-profile-editor">
-        <div class="config-group-title">Runtime Profile 编辑 <span class="tag warm" style="margin-left:8px">保存后新 session 生效</span></div>
+        <div class="config-group-title">受控编辑 <span class="tag warm" style="margin-left:8px">保存后新 session 生效</span></div>
         <div class="config-group-body">
-          <div class="config-row"><label class="config-label">Assistant Name</label><input class="config-input" id="runtime-profile-display-name" value="${escapeHtml(profile.displayName||'')}" placeholder="例如 CatsCo Assistant" /></div>
-          <div class="config-row"><label class="config-label">Working Directory</label><input class="config-input" id="runtime-profile-working-directory" value="${escapeHtml(profile.workingDirectory||'')}" placeholder="默认工作目录" /></div>
+          <div class="runtime-note">只保存显示名、默认工作目录、启用工具和 skills 开关。访问凭证、token、secret 不会写入 Runtime Profile。</div>
+          <div class="config-row"><label class="config-label">Agent 显示名</label><input class="config-input" id="runtime-profile-display-name" value="${escapeHtml(profile.displayName||'')}" placeholder="例如 CatsCo Assistant" /></div>
+          <div class="config-row"><label class="config-label">默认工作目录</label><input class="config-input" id="runtime-profile-working-directory" value="${escapeHtml(profile.workingDirectory||'')}" placeholder="默认工作目录" /></div>
           <div class="config-row"><label class="config-label">Skills</label><div style="flex:1"><label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700"><input type="checkbox" id="runtime-profile-skills-enabled" ${skills.enabled?'checked':''} /> 启用 skills</label></div></div>
-          <div class="config-row" style="align-items:flex-start"><label class="config-label">Enabled Tools</label><div style="flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">${toolControls||'<span class="tag gray">没有注册工具</span>'}</div></div>
+          <div class="config-row" style="align-items:flex-start"><label class="config-label">可用工具</label><div class="runtime-tool-grid" style="flex:1">${toolControls||'<span class="tag gray">没有注册工具</span>'}</div></div>
           <div class="config-actions">
-            <button class="btn" onclick="previewRuntimeProfileEdit()">预览变更</button>
-            <button class="btn btn-primary" onclick="saveRuntimeProfileEdit()">保存 profile</button>
+            <button class="btn" onclick="previewRuntimeProfileEdit()">预览影响</button>
+            <button class="btn btn-primary" onclick="saveRuntimeProfileEdit()">保存到 profile</button>
             <button class="btn btn-ghost" onclick="rollbackRuntimeProfileEdit()">回滚上次保存</button>
             <span class="config-saved" id="runtime-profile-edit-saved">已保存</span>
           </div>
@@ -3403,6 +4872,26 @@
           <div id="runtime-profile-diff" style="margin-top:12px"></div>
         </div>
       </div>`;
+    }
+
+    function runtimeTag(label, tone){
+      return '<span class="tag '+(tone||'')+'">'+escapeHtml(label)+'</span>';
+    }
+
+    function renderRuntimeField(label, valueHtml){
+      return '<div class="runtime-field-row"><div class="runtime-field-label">'+escapeHtml(label)+'</div><div class="runtime-field-value">'+valueHtml+'</div></div>';
+    }
+
+    function renderRuntimeIssueRows(issues){
+      return (issues||[]).map(i=>'<div class="runtime-issue-row"><strong>'+escapeHtml(i.path||'-')+'</strong> · '+escapeHtml(i.message||'')+'</div>').join('');
+    }
+
+    function formatRuntimeSurface(surface){
+      if(surface==='catscompany')return 'CatsCo';
+      if(surface==='feishu')return 'Feishu';
+      if(surface==='weixin')return 'Weixin';
+      if(surface==='cli')return 'CLI';
+      return surface||'-';
     }
 
     function collectRuntimeProfileEditInput(){
@@ -3420,12 +4909,14 @@
     }
 
     async function saveRuntimeProfileEdit(){
+      if(!confirm('保存 Runtime Profile？保存后只影响新 session，当前 session 不会热更新。'))return;
       await submitRuntimeProfileEdit('save');
     }
 
     async function submitRuntimeProfileEdit(mode){
       const status=document.getElementById('runtime-profile-edit-status');
       try{
+        status.style.color='var(--text2)';
         status.textContent=mode==='save'?'保存中...':'预览中...';
         const r=await fetch(API+(mode==='save'?'/api/runtime/profile':'/api/runtime/profile/preview'),{method:mode==='save'?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(collectRuntimeProfileEditInput())});
         const d=await r.json();
@@ -3448,9 +4939,9 @@
       const diff=document.getElementById('runtime-profile-diff');
       const issues=(result.validation&&result.validation.issues)||[];
       status.style.color=issues.length?'var(--red)':'var(--green)';
-      status.textContent=(saved?'已保存。':'预览完成。')+(issues.length?' 有 '+issues.length+' 个配置问题。':' 配置有效。');
-      const diffRows=(result.diff||[]).map(item=>'<div style="padding:10px 12px;border-radius:12px;background:var(--surface-muted);border:1px solid var(--border);margin-bottom:8px;font-size:12px"><strong>'+escapeHtml(item.path)+'</strong><div style="color:var(--text3);margin-top:6px">before: <code>'+escapeHtml(formatRuntimeValue(item.before))+'</code></div><div style="color:var(--text2);margin-top:4px">after: <code>'+escapeHtml(formatRuntimeValue(item.after))+'</code></div></div>').join('');
-      const issueRows=issues.map(i=>'<div style="padding:10px 12px;border-radius:12px;background:var(--red-light);color:var(--red);margin-bottom:8px;font-size:12px"><strong>'+escapeHtml(i.path)+'</strong> · '+escapeHtml(i.message)+'</div>').join('');
+      status.textContent=(saved?'已保存到 Runtime Profile。新 session 生效。':'预览完成，未写入文件。')+(issues.length?' 有 '+issues.length+' 个配置问题。':' 配置有效。');
+      const diffRows=(result.diff||[]).map(item=>'<div class="runtime-result-row"><strong>'+escapeHtml(item.path)+'</strong><div style="color:var(--text3);margin-top:6px">before: <code>'+escapeHtml(formatRuntimeValue(item.before))+'</code></div><div style="color:var(--text2);margin-top:4px">after: <code>'+escapeHtml(formatRuntimeValue(item.after))+'</code></div></div>').join('');
+      const issueRows=renderRuntimeIssueRows(issues);
       diff.innerHTML=(issueRows||'')+(diffRows||'<div style="color:var(--text3);font-size:12px">没有字段变化。</div>');
     }
 
@@ -3473,12 +4964,21 @@
     function formatRuntimeValue(value){
       if(value===undefined)return '(未设置)';
       if(Array.isArray(value))return value.join(', ');
+      if(value&&typeof value==='object')return JSON.stringify(value);
       return String(value);
     }
 
     function toggleConfigGroup(idx) {
       const el = document.getElementById('config-grp-'+idx);
       if (el) el.classList.toggle('collapsed');
+    }
+
+    function setupEnvConfigLazyLoad(){
+      const details=document.getElementById('env-config-details');
+      if(!details)return;
+      const loadIfOpen=()=>{if(details.open&&!envConfigLoaded&&!envConfigLoading)fetchConfig();};
+      details.addEventListener('toggle',loadIfOpen);
+      loadIfOpen();
     }
 
     function renderConfig(){
@@ -3488,15 +4988,16 @@
         const collapsedClass = g.collapsed ? ' collapsed' : '';
         const rows = g.keys.map(i=>{
           const v=configData[i.key]||'';
-          if(i.type==='select') return '<div class="config-row"><label class="config-label">'+i.label+'</label><select class="config-select" data-key="'+i.key+'">'+i.options.map(o=>'<option value="'+o+'"'+(v===o?' selected':'')+'>'+(o||'(空)')+'</option>').join('')+'</select></div>';
+          if(i.type==='select') return '<div class="config-row"><label class="config-label">'+escapeHtml(i.label)+'</label><select class="config-select" data-key="'+escapeHtml(i.key)+'">'+i.options.map(o=>'<option value="'+escapeHtml(o)+'"'+(v===o?' selected':'')+'>'+escapeHtml(o||'(空)')+'</option>').join('')+'</select></div>';
           const extraBtn = (i.key==='WEIXIN_TOKEN')?'<button class="btn btn-primary" onclick="getWeixinToken()" style="margin-left:8px">获取Token</button>':'';
-          return '<div class="config-row"><label class="config-label">'+i.label+'</label><input class="config-input" data-key="'+i.key+'" type="'+(i.sensitive?'password':'text')+'" value="'+v+'" placeholder="'+i.key+'" />'+extraBtn+'</div>';
+          return '<div class="config-row"><label class="config-label">'+escapeHtml(i.label)+'</label><input class="config-input" data-key="'+escapeHtml(i.key)+'" type="'+(i.sensitive?'password':'text')+'" value="'+escapeHtml(v)+'" placeholder="'+escapeHtml(i.key)+'" />'+extraBtn+'</div>';
         }).join('');
-        return '<div class="config-group'+collapsedClass+'" id="config-grp-'+idx+'"><div class="config-group-title" onclick="toggleConfigGroup('+idx+')">'+g.title+'</div><div class="config-group-body">'+rows+'</div></div>';
-      }).join('')+'<span class="config-saved" id="config-saved">已保存</span>';
+        return '<div class="config-group'+collapsedClass+'" id="config-grp-'+idx+'"><div class="config-group-title" onclick="toggleConfigGroup('+idx+')">'+escapeHtml(g.title)+'</div><div class="config-group-body">'+rows+'</div></div>';
+      }).join('');
     }
 
     async function saveConfig(){
+      if(!confirm('保存本地环境变量配置？这会写入项目 .env，可能包含访问凭证、token 或 secret。'))return;
       const inputs=document.querySelectorAll('[data-key]'),updates={};
       inputs.forEach(el=>{updates[el.dataset.key]=el.value;});
       try{const r=await fetch(API+'/api/config',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(updates)});const d=await r.json();if(d.ok){const s=document.getElementById('config-saved');s.classList.add('show');setTimeout(()=>s.classList.remove('show'),2000);}}catch(e){alert('保存失败: '+e.message);}
@@ -3542,7 +5043,7 @@
       try{const r=await fetch(API+'/api/store/install-github',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});const d=await r.json();if(d.error)alert('安装失败: '+d.error);else{input.value='';fetchStore();fetchSkills();}}catch(e){alert('安装失败: '+e.message);}
     }
 
-    // === CatsCompany Chat ===
+    // === CatsCo Chat ===
     function escapeHtml(value){
       return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
     }
@@ -3564,8 +5065,10 @@
     }
 
     function toggleCatsAdvanced(){
-      const panel=document.querySelector('.chat-connect');
-      if(panel)panel.classList.toggle('expanded');
+      const details=document.getElementById('cats-connection-details');
+      const advanced=document.getElementById('cats-advanced');
+      if(details)details.open=true;
+      if(advanced)advanced.open=!advanced.open;
     }
 
     async function parseCatsResponse(resp){
@@ -3581,11 +5084,198 @@
       };
     }
 
+    function getReadinessSection(id){
+      return (appReadinessSnapshot.sections||[]).find(section=>section.id===id)||null;
+    }
+
+    function firstReadinessProblem(section){
+      const checks=(section&&section.checks)||[];
+      const active=checks.find(check=>check.status==='fail'&&check.severity==='blocker')
+        || checks.find(check=>check.status!=='pass');
+      return active?.message || section?.summary || '';
+    }
+
+    function buildCatsChatStage(){
+      const service=catsState.service||{};
+      const connected=Boolean(catsState.connected || catsState.tokenPresent);
+      const configured=Boolean(catsState.configured);
+      const running=service.status==='running';
+      const topicReady=connected && configured && Boolean(catsState.topicId);
+      const modelSection=getReadinessSection('model');
+      const catscoSection=getReadinessSection('catsco');
+      if(!appReadinessLoaded || !modelSection || !catscoSection){
+        return {
+          key:'needs-readiness',
+          status:'blocked',
+          badge:'checking',
+          title:'正在读取启动状态',
+          copy:appReadinessError||'等待模型来源和 CatsCo readiness 检查完成。',
+          action:'settings',
+          actionLabel:'打开设置',
+          inputPlaceholder:'等待启动状态检查',
+        };
+      }
+      const modelBlocked=modelSection?.status==='blocked';
+      if(modelBlocked){
+        return {
+          key:'needs-model',
+          status:'blocked',
+          badge:'blocked',
+          title:'先完成模型来源',
+          copy:firstReadinessProblem(modelSection)||'需要配置自定义模型后，本地 agent 才能回复 CatsCo Chat。',
+          action:'settings',
+          actionLabel:'打开设置',
+          inputPlaceholder:'先完成模型来源设置',
+        };
+      }
+      if(!connected){
+        return {
+          key:'needs-auth',
+          status:'blocked',
+          badge:'login',
+          title:'登录 CatsCo',
+          copy:'登录后会绑定同一个 CatsCo webapp 账号，并为本地 agent 准备会话。',
+          action:'auth',
+          actionLabel:'登录或注册',
+          inputPlaceholder:'先登录 CatsCo',
+        };
+      }
+      if(catscoSection.status==='blocked'){
+        return {
+          key:'needs-catsco-readiness',
+          status:'blocked',
+          badge:'blocked',
+          title:'完善 CatsCo 连接',
+          copy:firstReadinessProblem(catscoSection)||'CatsCo Chat readiness 未通过。',
+          action:'setup',
+          actionLabel:'检查连接',
+          inputPlaceholder:'先完成 CatsCo 连接检查',
+        };
+      }
+      if(!configured){
+        return {
+          key:'needs-binding',
+          status:'blocked',
+          badge:'bind',
+          title:'绑定 CatsCo agent',
+          copy:'账号已登录，需要创建或绑定本地 agent 在 CatsCo 中的身份。',
+          action:'setup',
+          actionLabel:'绑定 agent',
+          inputPlaceholder:'先绑定 CatsCo agent',
+        };
+      }
+      if(!running){
+        return {
+          key:'needs-connector',
+          status:'warning',
+          badge:'start',
+          title:'启动本地 connector',
+          copy:'账号和 agent 已绑定，启动 connector 后 webapp 消息会进入本地 runtime。',
+          action:'setup',
+          actionLabel:'检查并启动',
+          inputPlaceholder:'先启动本地 connector',
+        };
+      }
+      if(!topicReady){
+        return {
+          key:'needs-topic',
+          status:'blocked',
+          badge:'topic',
+          title:'准备 Chat 会话',
+          copy:'账号和 agent 已就绪，但还没有拿到可对话的 topic。',
+          action:'setup',
+          actionLabel:'重新检查',
+          inputPlaceholder:'先准备 Chat 会话',
+        };
+      }
+      return {
+        key:'ready',
+        status:'ready',
+        badge:'ready',
+        title:'可以直接对话',
+        copy:'消息会发送到 CatsCo webapp 会话，本地 agent 通过 connector 回复。',
+        action:'refresh',
+        actionLabel:'刷新消息',
+        inputPlaceholder:'输入消息，Enter 发送，Shift+Enter 换行',
+      };
+    }
+
+    function renderCatsChecklist(stage){
+      const list=document.getElementById('cats-checklist');
+      if(!list)return;
+      const service=catsState.service||{};
+      const user=catsState.user||{};
+      const connected=Boolean(catsState.connected || catsState.tokenPresent);
+      const configured=Boolean(catsState.configured);
+      const running=service.status==='running';
+      const topicReady=connected && configured && Boolean(catsState.topicId);
+      const modelSection=getReadinessSection('model');
+      const modelStatus=modelSection
+        ? (modelSection.status==='blocked'?'fail':modelSection.status==='warning'?'warning':'pass')
+        : 'fail';
+      const steps=[
+        {label:'模型来源', status:modelStatus, meta:modelSection?firstReadinessProblem(modelSection)||modelSection.summary:'等待 readiness'},
+        {label:'CatsCo 账号', status:connected?'pass':'fail', meta:connected?(user.display_name||user.username||'已登录'):'未登录'},
+        {label:'Agent 绑定', status:configured?'pass':'fail', meta:configured&&catsState.botUid?('uid '+catsState.botUid):'未绑定'},
+        {label:'Connector', status:running?'pass':(configured?'warning':'fail'), meta:running?'运行中':'未启动'},
+        {label:'Chat 会话', status:topicReady?'pass':'fail', meta:topicReady?'已就绪':'等待 topic'},
+      ];
+      list.innerHTML=steps.map(step=>
+        '<div class="chat-step-row '+step.status+'"><strong>'+escapeHtml(step.label)+'</strong><span>'+escapeHtml(step.meta||'')+'</span></div>'
+      ).join('');
+    }
+
+    function updateCatsChatGate(stage){
+      const state=document.getElementById('cats-chat-state');
+      if(state){
+        state.textContent=stage.badge;
+        state.className='status-dot '+readinessStatusClass(stage.status);
+      }
+      const card=document.getElementById('cats-state-card');
+      if(card)card.className='chat-state-card '+stage.status;
+      const title=document.getElementById('cats-state-title');
+      if(title)title.textContent=stage.title;
+      const copy=document.getElementById('cats-state-copy');
+      if(copy)copy.textContent=stage.copy;
+      const action=document.getElementById('cats-state-action');
+      catsNextAction=stage.action;
+      if(action){
+        action.textContent=stage.actionLabel||'查看';
+        action.style.display=stage.action==='none'?'none':'inline-flex';
+      }
+      const details=document.getElementById('cats-details-summary');
+      if(details)details.textContent=stage.key==='ready'?'ready':'needs attention';
+      const input=document.getElementById('cats-message-input');
+      const send=document.getElementById('cats-send-btn');
+      const locked=stage.key!=='ready';
+      if(input){
+        input.disabled=locked;
+        input.placeholder=stage.inputPlaceholder||'连接 CatsCo 后开始对话';
+      }
+      if(send)send.disabled=locked;
+      const chatWindow=document.querySelector('.chat-window');
+      if(chatWindow)chatWindow.classList.toggle('locked', locked);
+    }
+
+    function runCatsNextAction(){
+      if(catsNextAction==='settings')return switchPage('config');
+      if(catsNextAction==='setup')return setupCatsBot();
+      if(catsNextAction==='refresh')return loadCatsMessages(true);
+      if(catsNextAction==='auth'){
+        const input=document.getElementById('cats-account');
+        if(input)input.focus();
+        return;
+      }
+      const details=document.getElementById('cats-connection-details');
+      if(details)details.open=true;
+    }
+
     async function fetchCatsStatus(){
       try{
         const data=await parseCatsResponse(await fetch(API+'/api/cats/status'));
         catsState=data||{};
         renderCatsStatus();
+        if((dashboardSettingsSnapshot.fields||[]).length)renderModelSource(dashboardSettingsSnapshot);
         if(catsState.topicId) loadCatsMessages(false);
       }catch(e){
         document.getElementById('cats-status').innerHTML='<div class="chat-muted" style="color:var(--red)">状态加载失败：'+escapeHtml(e.message)+'</div>';
@@ -3597,8 +5287,8 @@
       if(!panel)return;
       const service=catsState.service||{};
       const user=catsState.user||{};
-      const connected=Boolean(catsState.connected || catsState.tokenPresent || user.uid);
-      const configured=Boolean(catsState.configured || catsState.botUid);
+      const connected=Boolean(catsState.connected || catsState.tokenPresent);
+      const configured=Boolean(catsState.configured);
       const running=service.status==='running';
       panel.classList.toggle('needs-auth', !connected);
       panel.classList.toggle('needs-setup', connected && (!configured || !running));
@@ -3611,11 +5301,13 @@
       const user=catsState.user||{};
       const status=document.getElementById('cats-status');
       const running=service.status==='running';
-      const connected=Boolean(catsState.connected || catsState.tokenPresent || user.uid);
-      const configured=Boolean(catsState.configured || catsState.botUid);
+      const connected=Boolean(catsState.connected || catsState.tokenPresent);
+      const configured=Boolean(catsState.configured);
+      const stage=buildCatsChatStage();
       status.innerHTML=
         '<div class="chat-status-row"><span>账号</span><strong>'+(connected?(user.display_name?escapeHtml(user.display_name):'已登录'):'未登录')+'</strong></div>'+
-        '<div class="chat-status-row"><span>XiaoBa Bot</span><strong>'+(catsState.botUid?escapeHtml(catsState.botUid):'未绑定')+'</strong></div>'+
+        '<div class="chat-status-row"><span>CatsCo Agent</span><strong>'+(catsState.botUid?escapeHtml(catsState.botUid):'未绑定')+'</strong></div>'+
+        '<div class="chat-status-row"><span>Topic</span><strong>'+(catsState.topicId?escapeHtml(catsState.topicId):'未就绪')+'</strong></div>'+
         '<div class="chat-status-row"><span>本地服务</span><strong style="color:'+(running?'var(--green)':'var(--orange)')+'">'+(running?'运行中':'未启动')+'</strong></div>';
 
       const httpInput=document.getElementById('cats-http-base');
@@ -3626,8 +5318,10 @@
       document.getElementById('cats-auth-panel').style.display=connected?'none':'grid';
       document.getElementById('cats-connected-card').style.display=connected?'block':'none';
       document.getElementById('cats-connected-copy').textContent=configured
-        ? (running?'可以直接开始对话。':'账号和 bot 已绑定，点击“检查并启动”恢复本地服务。')
-        : '账号已登录，点击“检查并启动”完成 XiaoBa bot 绑定。';
+        ? (running?'可以直接开始对话。':'账号和 agent 已绑定，点击“检查并启动”恢复本地服务。')
+        : '账号已登录，点击“检查并启动”完成 CatsCo agent 绑定。';
+      renderCatsChecklist(stage);
+      updateCatsChatGate(stage);
       updateCatsLayoutState();
     }
 
@@ -3666,7 +5360,7 @@
         }
         document.getElementById('cats-password').value='';
         document.getElementById('cats-register-password').value='';
-        setCatsAction('登录态已保存，正在绑定 XiaoBa bot...');
+        setCatsAction('登录态已保存，正在绑定 CatsCo agent...');
         await setupCatsBot();
       }catch(e){
         setCatsAction('连接失败：'+e.message,true);
@@ -3695,7 +5389,7 @@
     }
 
     async function resetCatsAuth(){
-      if(!confirm('是否切换 CatsCompany 账号？这会清除本地保存的登录态，但不会删除 CatsCompany 账号或 bot。'))return;
+      if(!confirm('是否切换 CatsCo 账号？这会清除本地保存的登录态，但不会删除 CatsCo 账号或 agent。'))return;
       try{
         await parseCatsResponse(await fetch(API+'/api/cats/auth/logout',{method:'POST'}));
         catsState={};
@@ -3703,7 +5397,7 @@
         lastCatsMessageSignature='';
         document.getElementById('cats-account').value='';
         document.getElementById('cats-password').value='';
-        document.getElementById('cats-messages').innerHTML='<div class="loading">连接 CatsCompany 后开始对话</div>';
+        document.getElementById('cats-messages').innerHTML='<div class="loading">连接 CatsCo 后开始对话</div>';
         setCatsAuthMode('login');
         await fetchCatsStatus();
         applyPetBaseline();
@@ -3931,7 +5625,7 @@
       catsWorkingActive=nextWorking;
       if(nextWorking){
         setPetAutoBaseline('thinking');
-        showPetBubble('XiaoBa 正在处理');
+        showPetBubble('CatsCo 正在处理');
       }else{
         applyPetBaseline();
       }
@@ -3943,7 +5637,7 @@
       if(signature && signature!==lastCatsMessageSignature){
         lastCatsMessageSignature=signature;
         if(!latestMine && !isCatsWorkingMessage(latest) && lastBotTextIndex >= lastUserIndex){
-          pulsePetState('success','XiaoBa 回复了',1800);
+          pulsePetState('success','CatsCo 回复了',1800);
         }
       }
     }
@@ -4034,7 +5728,13 @@
       const input=document.getElementById('cats-message-input');
       const content=input.value.trim();
       if(!content)return;
-      if(!catsState.topicId){setCatsAction('请先完成 CatsCompany 连接和 bot 绑定',true);return;}
+      const stage=buildCatsChatStage();
+      if(stage.key!=='ready'){
+        renderCatsStatus();
+        setCatsAction(stage.copy||'请先完成 CatsCo Chat 检查项',true);
+        return;
+      }
+      if(!catsState.topicId){setCatsAction('请先完成 CatsCo 连接和 agent 绑定',true);return;}
       const btn=document.getElementById('cats-send-btn');
       btn.disabled=true;
       pulsePetState('typing', '发送中...', 1400);
@@ -4082,8 +5782,8 @@
     }
 
     // Init
-    preloadPetFrames();setPetState('idle');
-    fetchStatus();fetchSkills();fetchRuntimeConfig();fetchConfig();fetchStore();fetchUpdateStatus(true);fetchCatsStatus();
+    preloadPetFrames();renderPetProfile();renderPetProcess();setPetState('idle');
+    setupEnvConfigLazyLoad();fetchStatus();fetchSkills();fetchDashboardSettings();fetchRuntimeConfig();fetchStore();fetchUpdateStatus(true);fetchCatsStatus();
     setInterval(fetchStatus,5000);setInterval(fetchSkills,30000);setInterval(()=>fetchUpdateStatus(true),5000);
     const catsMessageInput = document.getElementById('cats-message-input');
     catsMessageInput.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendCatsMessage();}});

@@ -1,9 +1,10 @@
 {
   "name": "xiaoba-cli",
   "version": "1.0.3",
-  "description": "XiaoBa - 一个智能的AI对话助手CLI工具",
+  "description": "CatsCo - local agent runtime and dashboard",
   "main": "electron/main.js",
   "bin": {
+    "catsco": "dist/index.js",
     "xiaoba": "dist/index.js"
   },
   "scripts": {
@@ -31,6 +32,7 @@
     "cli",
     "ai",
     "assistant",
+    "catsco",
     "xiaoba",
     "chatbot",
     "command-line",

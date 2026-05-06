@@ -187,7 +187,7 @@ export class DailyReportGenerator {
     }
 
     if (grouped.catscompany.length > 0) {
-      prompt += `## 团队工作（CatsCompany）\n`;
+      prompt += `## 团队工作（CatsCo）\n`;
       for (const session of grouped.catscompany) {
         prompt += `- 会话 ${session.session_id.slice(0, 8)}（${session.turn_count} 轮）\n`;
         prompt += `  主题：${session.topics.join(', ')}\n`;

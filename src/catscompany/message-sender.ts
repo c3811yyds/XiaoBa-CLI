@@ -155,7 +155,7 @@ export class MessageSender {
         await this.bot.sendFile(topic, uploadResult);
       }
 
-      Logger.info(`CatsCompany 文件已发送: ${fileName}`);
+      Logger.info(`CatsCo 文件已发送: ${fileName}`);
     } catch (err: any) {
       Logger.error(`文件发送失败 (${fileName}): ${err.message}`);
       Logger.error(`错误堆栈: ${err.stack}`);
