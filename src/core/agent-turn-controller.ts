@@ -6,7 +6,7 @@ import { SkillManager } from '../skills/skill-manager';
 import { SessionSkillRuntime } from '../skills/session-skill-runtime';
 import { Logger } from '../utils/logger';
 import { Metrics } from '../utils/metrics';
-import { ConversationRunner, RunnerCallbacks } from './conversation-runner';
+import { ConversationRunner, RunnerCallbacks, PendingUserInputProvider } from './conversation-runner';
 import { resolveSessionSurface } from './session-surface';
 import { TurnContextBuilder } from './turn-context-builder';
 import { TurnLogRecorder } from './turn-log-recorder';
@@ -34,6 +34,7 @@ export interface RunAgentTurnParams {
   activeSkillMaxTurns?: number;
   callbacks?: AgentTurnCallbacks;
   channel?: ChannelCallbacks;
+  pendingUserInputProvider?: PendingUserInputProvider;
   shouldContinue: () => boolean;
 }
 
@@ -97,6 +98,7 @@ export class AgentTurnController {
       activeSkillName,
       effectiveMaxTurns,
       channel: params.channel,
+      pendingUserInputProvider: params.pendingUserInputProvider,
       shouldContinue: params.shouldContinue,
     });
 
@@ -141,6 +143,7 @@ export class AgentTurnController {
     activeSkillName?: string;
     effectiveMaxTurns?: number;
     channel?: ChannelCallbacks;
+    pendingUserInputProvider?: PendingUserInputProvider;
     shouldContinue: () => boolean;
   }): ConversationRunner {
     const surface = resolveSessionSurface(this.options.sessionKey, this.options.sessionType);
@@ -151,6 +154,7 @@ export class AgentTurnController {
         ...(options.effectiveMaxTurns ? { maxTurns: options.effectiveMaxTurns } : {}),
         initialSkillName: options.activeSkillName,
         shouldContinue: options.shouldContinue,
+        pendingUserInputProvider: options.pendingUserInputProvider,
         // AgentSession/ContextWindowManager compacts durable history before the turn.
         // Runner-level compaction can fold transient runtime feedback into summary.
         enableCompression: false,

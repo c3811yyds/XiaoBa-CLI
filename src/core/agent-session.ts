@@ -22,6 +22,7 @@ import { TurnLogRecorder } from './turn-log-recorder';
 import { TurnContextBuilder } from './turn-context-builder';
 import { AgentTurnController } from './agent-turn-controller';
 import { SessionLifecycleManager } from './session-lifecycle-manager';
+import type { PendingUserInputProvider } from './conversation-runner';
 
 export type { RuntimeFeedbackInput, RuntimeFeedbackOptions } from './runtime-feedback-inbox';
 
@@ -57,6 +58,8 @@ export interface HandleMessageOptions {
   channel?: ChannelCallbacks;
   /** 当前 turn 专属、给 agent 可见的运行时反馈 */
   runtimeFeedback?: RuntimeFeedbackInput[];
+  /** Pulls user messages that arrived while this session was busy. */
+  pendingUserInputProvider?: PendingUserInputProvider;
 }
 
 /** 命令处理结果 */
@@ -260,18 +263,21 @@ export class AgentSession {
       let callbacks: SessionCallbacks | undefined;
       let channel: ChannelCallbacks | undefined;
       let runtimeFeedbackInputs: RuntimeFeedbackInput[] = [];
+      let pendingUserInputProvider: PendingUserInputProvider | undefined;
 
       if (callbacksOrOptions) {
         if (
           'channel' in callbacksOrOptions
           || 'callbacks' in callbacksOrOptions
           || 'runtimeFeedback' in callbacksOrOptions
+          || 'pendingUserInputProvider' in callbacksOrOptions
         ) {
           // 新签名 HandleMessageOptions
           const opts = callbacksOrOptions as HandleMessageOptions;
           callbacks = opts.callbacks;
           channel = opts.channel;
           runtimeFeedbackInputs = opts.runtimeFeedback || [];
+          pendingUserInputProvider = opts.pendingUserInputProvider;
         } else {
           // 旧签名 SessionCallbacks
           callbacks = callbacksOrOptions as SessionCallbacks;
@@ -304,6 +310,7 @@ export class AgentSession {
           runtimeFeedback,
           callbacks,
           channel,
+          pendingUserInputProvider,
           activeSkillName: this.activeSkillName,
           activeSkillMaxTurns: this.activeSkillMaxTurns,
           shouldContinue: () => !this.interruptRequested,
