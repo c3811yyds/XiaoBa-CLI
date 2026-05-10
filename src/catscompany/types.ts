@@ -1,5 +1,5 @@
 /**
- * Cats Company 机器人配置
+ * CatsCo agent 连接配置
  */
 export interface CatsCompanyConfig {
   /** WebSocket 服务器地址，如 "ws://localhost:6061/v0/channels" */
@@ -13,7 +13,7 @@ export interface CatsCompanyConfig {
 }
 
 /**
- * 解析后的 Cats Company 消息
+ * 解析后的 CatsCo 消息
  */
 export interface ParsedCatsMessage {
   /** topic（如 p2p_6_7 或 grp_1） */
@@ -33,7 +33,7 @@ export interface ParsedCatsMessage {
 }
 
 /**
- * Cats Company 文件信息
+ * CatsCo 文件信息
  */
 export interface CatsFileInfo {
   /** 文件 URL */

@@ -6,7 +6,8 @@ const DASHBOARD_PORT = 3800;
 let mainWindow = null;
 let tray = null;
 let autoUpdater = null;
-const REFRESHABLE_BUNDLED_SKILLS = new Set(['advanced-reader', 'vision-analysis']);
+const REFRESHABLE_BUNDLED_SKILLS = new Set([]);
+const RETIRED_BUNDLED_SKILLS = new Set(['advanced-reader', 'vision-analysis']);
 const SKILL_SYNC_MARKER = '.xiaoba-bundled-skill.json';
 
 // 闂佽绻愮换鎴犳崲閸℃稒鍎婃い鏍仜缁€澶愭煟濡厧鍔嬬紒?electron-updater闂備焦瀵х粙鎴︽偋閸℃哎浜归柡灞诲劜閻掕顭块懜鐢点€掔紒鈧?
@@ -287,6 +288,23 @@ function shouldRefreshBundledSkill(fs, skillName, dest) {
   return readBundledSkillSyncVersion(fs, dest) !== app.getVersion();
 }
 
+function removeRetiredBundledSkills(fs, skillsPath) {
+  for (const skillName of RETIRED_BUNDLED_SKILLS) {
+    const skillPath = path.join(skillsPath, skillName);
+    const skillMdPath = path.join(skillPath, 'SKILL.md');
+    if (!fs.existsSync(skillMdPath)) continue;
+
+    try {
+      const skillMd = fs.readFileSync(skillMdPath, 'utf8');
+      if (skillMd.includes(`name: ${skillName}`)) {
+        fs.rmSync(skillPath, { recursive: true, force: true });
+      }
+    } catch (error) {
+      console.warn(`Failed to remove retired bundled skill ${skillName}:`, error);
+    }
+  }
+}
+
 function syncBundledSkillDir(fs, skillName, src, dest, overwrite = false) {
   if (overwrite && fs.existsSync(dest)) {
     fs.rmSync(dest, { recursive: true, force: true });
@@ -322,6 +340,7 @@ async function startServer() {
 
   if (fs.existsSync(bundledSkills)) {
     fs.mkdirSync(skillsPath, { recursive: true });
+    removeRetiredBundledSkills(fs, skillsPath);
 
     // 濠电姰鍨煎▔娑氱矓閹绢喖鏄ユ俊銈傚亾鐞氭瑩鐓崶褔鍙勯柛銈咁儔閺屾盯骞囬浣告闂?skill闂備焦瀵х粙鎴︽偋閸涱垳绠斿璺烘湰閸熸椽鏌涢埄鍐噭缁剧偓澹嗛埀顒傛嚀閹猜ゃ亹閸愵喗鍋ら柕濞炬櫅閹瑰爼鏌曟繛褍瀚弳鐘绘⒑?
     const bundledSkillDirs = fs.readdirSync(bundledSkills, { withFileTypes: true })
@@ -348,13 +367,6 @@ async function startServer() {
     }
   }
 
-  // 婵犳鍣徊鐣屾崲閹达富鏁冨┑鍌滎焾鐟欙附銇勯弽銊ㄥ鐞氱喖姊绘笟鍥ф灕濠殿喓鍊曠叅闁秆勵殔濡?skill-registry.json闂備焦瀵х粙鎴︽偋韫囨稑鐏虫俊顖濆吹閳瑰秵绻濋棃娑氬闁哄棗绻橀弻鐔衡偓闈涙啞閻掓寧顨ラ悙鑼妞ゆ洏鍎辫灃濞达綁鈧稓甯涢梻浣告惈閸婅绔熼崱妞绘灁闁硅揪绠戠€氬銇勯幒鍡椾壕濠电姭鍋撻悗闈涙啞椤洟鏌曡箛鏇炐ョ紒灞芥健閺?
-  const registryDest = path.join(userDataPath, 'skill-registry.json');
-  const registrySrc = path.join(appRoot, 'skill-registry.json');
-  if (fs.existsSync(registrySrc)) {
-    fs.copyFileSync(registrySrc, registryDest);
-  }
-
   // 濠电姰鍨煎▔娑氱矓閹绢喖鏄?prompts 闂備胶鍎甸弲鈺呭窗閺嶎偆绀?
   const promptsDest = path.join(userDataPath, 'prompts');
   const promptsSrc = path.join(appRoot, 'prompts');
@@ -367,6 +379,7 @@ async function startServer() {
 
   // 闂備礁鎲＄粙鎴︽晝閵娾晜鍎?dashboard server app 闂備焦鐪归崝宀€鈧凹鍓熼幃鍧楀礋椤栨稈鎸冮梺鍛婁緱閸撴稓绮旂€靛摜纾介柛鎰劤濞呮瑧绱掓潏銊у磼sar 闂備礁鎲￠崝鏇㈠箯閹寸姵顫?
   process.env.XIAOBA_APP_ROOT = appRoot;
+  process.env.XIAOBA_IS_PACKAGED = app.isPackaged ? '1' : '0';
   process.env.XIAOBA_RUNTIME_ROOT = getRuntimeRoot();
 
   // 闂備胶鎳撻悘姘跺箰閸濄儮鍋撻崹顐€块柟顔ㄥ洤閱囨い鎺戝€婚悰銉╂煟閻樿京顦﹀褌绮欓幃?NODE_PATH 闂佽崵濮崇拋鏌ュ疾濞戙垺鍋ゆ繛鍡樺姈娴溿倖绻涢幋鐐茬劰闁哄被鍊濋弻銈団偓鍦Т琚氭繝銏ｎ潐閿曘垹鐣?node_modules
@@ -385,6 +398,9 @@ async function startServer() {
     runtimeRoot: process.env.XIAOBA_RUNTIME_ROOT,
     isPackaged: app.isPackaged,
   });
+  if (runtimeEnvironment.binaries.node.executable) {
+    runtimeEnvironment.env.XIAOBA_NODE_EXECUTABLE = runtimeEnvironment.binaries.node.executable;
+  }
   Object.assign(process.env, runtimeEnvironment.env);
   console.log('[runtime]', formatRuntimeSummary(runtimeEnvironment.binaries.node));
   console.log('[runtime]', formatRuntimeSummary(runtimeEnvironment.binaries.python));
@@ -392,7 +408,7 @@ async function startServer() {
 
   // 闂備胶鍎甸弲娑㈡偤閵娧勬殰闁圭虎鍠栭幑鍫曟煏婵炲灝鈧洟鎯佸鍫濈骇闁冲搫鍊婚妴鎺楁煃鐠囧眰鍋㈢€规洏鍎甸、娑橆潩椤戭偅顣筧shboard server
   const { startDashboard } = require(path.join(appRoot, 'dist', 'dashboard', 'server'));
-  await startDashboard(DASHBOARD_PORT, { updateController });
+  await startDashboard(DASHBOARD_PORT, { updateController, projectRoot: appRoot });
 }
 
 function createWindow() {
@@ -401,7 +417,7 @@ function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    title: 'XiaoBa Dashboard',
+    title: 'CatsCo Dashboard',
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#0f1117',
     webPreferences: {
@@ -431,7 +447,7 @@ function createTray() {
   tray = new Tray(icon.resize({ width: 16, height: 16 }));
 
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'Open Dashboard', click: () => {
+    { label: 'Open CatsCo Dashboard', click: () => {
       if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
       else createWindow();
     }},
@@ -439,7 +455,7 @@ function createTray() {
     { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); }} ,
   ]);
 
-  tray.setToolTip('XiaoBa Dashboard');
+  tray.setToolTip('CatsCo Dashboard');
   tray.setContextMenu(contextMenu);
   tray.on('click', () => {
     if (mainWindow) { mainWindow.show(); mainWindow.focus(); }

@@ -3,23 +3,30 @@ import { WeixinConfig, WeixinMessage } from './types';
 import { MessageHandler } from './message-handler';
 import { MessageSender } from './message-sender';
 import { MessageSessionManager } from '../core/message-session-manager';
-import { AIService } from '../utils/ai-service';
-import { ToolManager } from '../tools/tool-manager';
-import { SkillManager } from '../skills/skill-manager';
-import { AgentServices } from '../core/agent-session';
+import { AgentServices, RuntimeFeedbackInput } from '../core/agent-session';
 import { Logger } from '../utils/logger';
 import { ChannelCallbacks } from '../types/tool';
+import { AdapterRuntimeBundle, createAdapterRuntime } from '../runtime/adapter-runtime';
 import { promises as fs } from 'fs';
 import path from 'path';
 
 const CHANNEL_VERSION = 'xiaoba-weixin/1.0';
 const DEFAULT_LONGPOLL_MS = 30000;
 
+export function createWeixinRuntime(): AdapterRuntimeBundle {
+  return createAdapterRuntime({
+    surface: 'weixin',
+    promptSnapshotMode: 'fixed',
+    skillLoadMode: 'fail-fast',
+  });
+}
+
 export class WeixinBot {
   private handler: MessageHandler;
   private sender: MessageSender;
   private sessionManager: MessageSessionManager;
   private agentServices: AgentServices;
+  private runtime: AdapterRuntimeBundle;
   private contextTokens = new Map<string, string>();
   private isRunning = false;
   private getUpdatesBuf = '';
@@ -30,27 +37,16 @@ export class WeixinBot {
     this.sender = new MessageSender(config.token, config.baseUrl, config.cdnBaseUrl);
     this.stateDir = config.stateDir || path.join(process.cwd(), 'data', 'weixin');
 
-    const aiService = new AIService();
-    const toolManager = new ToolManager();
-    const skillManager = new SkillManager();
+    const runtime = createWeixinRuntime();
+    this.runtime = runtime;
+    this.agentServices = runtime.services;
 
-    this.agentServices = {
-      aiService,
-      toolManager,
-      skillManager,
-    };
-
-    this.sessionManager = new MessageSessionManager(this.agentServices, 'weixin');
-    this.setupChannelCallbacks();
+    this.sessionManager = new MessageSessionManager(
+      this.agentServices,
+      'weixin',
+      runtime.sessionManagerOptions,
+    );
     this.loadState();
-  }
-
-  private setupChannelCallbacks(): void {
-    this.sessionManager.setWakeupSendFn((chatId, text) => {
-      const userId = chatId.replace('user:', '');
-      const contextToken = this.contextTokens.get(chatId);
-      return this.sender.sendText(userId, text, contextToken);
-    });
   }
 
   private async loadState(): Promise<void> {
@@ -104,8 +100,7 @@ export class WeixinBot {
   async start(): Promise<void> {
     Logger.openLogFile('weixin');
     Logger.info('正在启动微信机器人...');
-    await this.agentServices.skillManager.loadSkills();
-    Logger.info(`已加载 ${this.agentServices.skillManager.getAllSkills().length} 个 skills`);
+    await this.runtime.loadSkills();
 
     this.isRunning = true;
     Logger.success('微信机器人已启动，开始长轮询...');
@@ -181,17 +176,28 @@ export class WeixinBot {
     const parsed = this.handler.parseMessage(msg);
     if (!parsed || this.handler.shouldIgnoreMessage(parsed)) return;
 
+    const session = this.sessionManager.getOrCreate(sessionKey);
+    const channel = this.buildChannel(msg.to_user_id, sessionKey);
+    const expectedMediaCount = (parsed.item_list || []).filter(item =>
+      (item.type === 2 && item.image_item?.media)
+      || (item.type === 4 && item.file_item?.media)
+    ).length;
     const mediaFiles = await this.handler.downloadMedia(parsed);
     const hasMedia = mediaFiles.length > 0;
+    const runtimeFeedback: RuntimeFeedbackInput[] = [];
+    if (expectedMediaCount > mediaFiles.length) {
+      runtimeFeedback.push({
+        source: 'weixin.media_download',
+        message: `媒体下载不完整: expected=${expectedMediaCount}, downloaded=${mediaFiles.length}`,
+        actionHint: '请基于已下载附件继续处理；如果关键附件缺失，请告知用户重新发送。',
+      });
+    }
 
     const mediaDesc = hasMedia
       ? ` +${mediaFiles.filter(f => /\.(jpg|jpeg|png|gif)$/i.test(f)).length}图 +${mediaFiles.filter(f => !/\.(jpg|jpeg|png|gif)$/i.test(f)).length}文件`
       : '';
 
     Logger.info(`[${sessionKey}] 收到消息: ${parsed.text?.slice(0, 50) || '[媒体消息]'}${mediaDesc}...`);
-
-    const session = this.sessionManager.getOrCreate(sessionKey, msg.to_user_id);
-    const channel = this.buildChannel(msg.to_user_id, sessionKey);
 
     let userText = parsed.text || '';
     if (hasMedia) {
@@ -202,9 +208,11 @@ export class WeixinBot {
       });
       const attachmentContext = `[用户已上传${mediaFiles.length}个附件]\n${attachmentLines.join('\n')}`;
       userText = userText ? `${userText}\n${attachmentContext}` : `[用户仅上传了附件，暂未给出明确任务]\n${attachmentContext}`;
+    } else if (!userText && expectedMediaCount > 0) {
+      userText = '[用户发送了媒体消息，但平台未能下载附件]';
     }
 
-    await session.handleMessage(userText, { channel });
+    await session.handleMessage(userText, { channel, runtimeFeedback });
   }
 
   destroy(): void {

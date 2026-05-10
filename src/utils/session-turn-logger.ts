@@ -1,47 +1,28 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Message, ContentBlock } from '../types';
+import type {
+  SessionLogEntry,
+  SessionRuntimeLogEntry,
+  SessionToolCallLog,
+  SessionTurnLogEntry,
+} from './session-log-schema';
+
+export type {
+  LegacySessionTurnLogEntry,
+  ParsedSessionLogEntry,
+  SessionLogEntry,
+  SessionRuntimeLogEntry,
+  SessionToolCallLog,
+  SessionTurnLogEntry,
+} from './session-log-schema';
 
 const SESSION_LOG_DIR = path.resolve('logs/sessions');
 const MAX_TOOL_RESULT_LENGTH = Number(process.env.XIAOBA_SESSION_TOOL_RESULT_LIMIT || 10000);
+const MAX_RUNTIME_FEEDBACK_LENGTH = Number(process.env.XIAOBA_SESSION_RUNTIME_FEEDBACK_LIMIT || 4000);
 
-export interface SessionTurnLogEntry {
-  entry_type: 'turn';
-  turn: number;
-  timestamp: string;
-  session_id: string;
-  session_type: string;
-  user: {
-    text: string;
-    images?: string[];
-  };
-  assistant: {
-    text: string;
-    tool_calls: ToolCallLog[];
-  };
-  tokens: {
-    prompt: number;
-    completion: number;
-  };
-}
-
-export interface SessionRuntimeLogEntry {
-  entry_type: 'runtime';
-  timestamp: string;
-  session_id: string;
-  session_type: string;
-  level: string;
-  message: string;
-}
-
-export type SessionLogEntry = SessionTurnLogEntry | SessionRuntimeLogEntry;
-
-interface ToolCallLog {
-  id: string;
-  name: string;
-  arguments: any;
-  result: string;
-  duration_ms?: number;
+export interface LogTurnOptions {
+  runtimeFeedback?: string[];
 }
 
 /**
@@ -78,13 +59,17 @@ export class SessionTurnLogger {
   logTurn(
     userInput: string | ContentBlock[],
     assistantText: string,
-    toolCalls: ToolCallLog[],
-    tokens: { prompt: number; completion: number }
+    toolCalls: SessionToolCallLog[],
+    tokens: { prompt: number; completion: number },
+    options: LogTurnOptions = {},
   ): void {
     this.turnCounter++;
 
     const userText = this.extractText(userInput);
     const userImages = this.extractImages(userInput);
+    const runtimeFeedback = (options.runtimeFeedback || [])
+      .filter(Boolean)
+      .map(feedback => this.truncate(feedback, MAX_RUNTIME_FEEDBACK_LENGTH));
 
     const turnLog: SessionTurnLogEntry = {
       entry_type: 'turn',
@@ -95,6 +80,7 @@ export class SessionTurnLogger {
       user: {
         text: userText,
         ...(userImages.length > 0 && { images: userImages }),
+        ...(runtimeFeedback.length > 0 && { runtime_feedback: runtimeFeedback }),
       },
       assistant: {
         text: assistantText,

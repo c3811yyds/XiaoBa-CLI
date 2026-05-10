@@ -3,6 +3,7 @@ import * as path from 'path';
 import { glob } from 'glob';
 import { Logger } from './logger';
 import { AutoDevLogClient } from './autodev-log-client';
+import { readSessionIdFromJsonl } from './session-log-schema';
 import {
   getLogIngestAutoMaxFiles,
   getLogIngestAutoTime,
@@ -128,24 +129,8 @@ export class LogIngestScheduler {
     const sessionType = parts[2] || 'unknown';
     const logDate = parts[3] || '';
     const filename = parts[4] || '';
-    const sessionId = this.readSessionIdFromJsonl(absolutePath) || this.parseSessionIdFromFilename(filename) || filename.replace(/\.jsonl$/i, '');
+    const sessionId = readSessionIdFromJsonl(absolutePath) || this.parseSessionIdFromFilename(filename) || filename.replace(/\.jsonl$/i, '');
     return { sessionType, sessionId, logDate };
-  }
-
-  private readSessionIdFromJsonl(filePath: string): string | undefined {
-    try {
-      const firstLine = fs.readFileSync(filePath, 'utf-8')
-        .split(/\r?\n/)
-        .map(line => line.trim())
-        .find(Boolean);
-      if (!firstLine) {
-        return undefined;
-      }
-      const parsed = JSON.parse(firstLine);
-      return typeof parsed?.session_id === 'string' ? parsed.session_id : undefined;
-    } catch {
-      return undefined;
-    }
   }
 
   private parseSessionIdFromFilename(filename: string): string | undefined {

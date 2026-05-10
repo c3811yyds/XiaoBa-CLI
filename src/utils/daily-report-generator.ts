@@ -1,19 +1,19 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { AIService } from './ai-service';
+import {
+  isSessionTurnEntry,
+  readSessionLogFile,
+} from './session-log-schema';
+import type {
+  LegacySessionTurnLogEntry,
+  SessionTurnLogEntry,
+} from './session-log-schema';
 
 const SESSION_LOG_DIR = path.resolve('logs/sessions');
 const REPORT_DIR = path.resolve('logs/reports');
 
-interface TurnLog {
-  turn: number;
-  timestamp: string;
-  session_id: string;
-  session_type: string;
-  user: { text: string; images?: string[] };
-  assistant: { text: string; tool_calls: any[] };
-  tokens: { prompt: number; completion: number };
-}
+type TurnLog = SessionTurnLogEntry | LegacySessionTurnLogEntry;
 
 interface SessionSummary {
   session_id: string;
@@ -39,7 +39,7 @@ export class DailyReportGenerator {
     const sessions = this.scanLogs(date);
 
     if (sessions.length === 0) {
-      return `# XiaoBa 工作日报 - ${date}\n\n今天没有记录到任何会话。`;
+      return `# CatsCo 工作日报 - ${date}\n\n今天没有记录到任何会话。`;
     }
 
     const grouped = this.groupByType(sessions);
@@ -77,12 +77,13 @@ export class DailyReportGenerator {
    */
   private parseSessionLog(filePath: string, sessionType: string): SessionSummary | null {
     try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const lines = content.trim().split('\n').filter(l => l.trim());
+      const entries = readSessionLogFile(filePath);
+      if (entries.length === 0) return null;
 
-      if (lines.length === 0) return null;
+      const turns = entries.filter((entry): entry is TurnLog => isSessionTurnEntry(entry));
 
-      const turns: TurnLog[] = lines.map(line => JSON.parse(line));
+      if (turns.length === 0) return null;
+
       const toolCalls = new Set<string>();
       let totalTokens = 0;
 
@@ -186,7 +187,7 @@ export class DailyReportGenerator {
     }
 
     if (grouped.catscompany.length > 0) {
-      prompt += `## 团队工作（CatsCompany）\n`;
+      prompt += `## 团队工作（CatsCo）\n`;
       for (const session of grouped.catscompany) {
         prompt += `- 会话 ${session.session_id.slice(0, 8)}（${session.turn_count} 轮）\n`;
         prompt += `  主题：${session.topics.join(', ')}\n`;
@@ -211,7 +212,7 @@ export class DailyReportGenerator {
     grouped: Record<string, SessionSummary[]>,
     stats: any
   ): string {
-    let report = `# XiaoBa 工作日报 - ${date}\n\n`;
+    let report = `# CatsCo 工作日报 - ${date}\n\n`;
     report += `## 📊 统计概览\n`;
     report += `- 总会话数：${stats.total_sessions}（个人 ${stats.chat_sessions}，团队 ${stats.team_sessions}）\n`;
     report += `- 总交互轮次：${stats.total_turns}\n`;

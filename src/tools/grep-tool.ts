@@ -142,18 +142,18 @@ export class GrepTool implements Tool {
   private async executeWithRipgrep(args: any, searchPath: string, context: ToolExecutionContext): Promise<FallbackResult> {
     const { pattern, path: originalPath, glob: globPattern, type: fileType, case_insensitive = false, context: contextLines, output_mode = 'files', limit = DEFAULT_LIMIT, offset = 0 } = args;
     const rgArgs: string[] = ['--color=never', '--no-heading', '--hidden'];
-    
+
     for (const dir of VCS_DIRECTORIES_TO_EXCLUDE) rgArgs.push('--glob', `!${dir}`);
     rgArgs.push('--max-columns', '500');
-    
+
     if (output_mode === 'files') rgArgs.push('--files-with-matches');
     else if (output_mode === 'count') rgArgs.push('--count');
     else { rgArgs.push('--line-number'); if (contextLines !== undefined) rgArgs.push(`--context=${contextLines}`); }
-    
+
     if (case_insensitive) rgArgs.push('--ignore-case');
     if (fileType) rgArgs.push(`--type=${fileType}`);
     if (globPattern) rgArgs.push(`--glob=${globPattern}`);
-    
+
     if (pattern.startsWith('-')) { rgArgs.push('-e', pattern); } else { rgArgs.push('--', pattern); }
     rgArgs.push(originalPath ? searchPath : '.');
 
@@ -174,12 +174,12 @@ export class GrepTool implements Tool {
   private async executeWithSystemGrep(args: any, searchPath: string, context: ToolExecutionContext): Promise<FallbackResult> {
     const { pattern, path: originalPath, glob: globPattern, type: fileType, case_insensitive = false, context: contextLines, output_mode = 'files', limit = DEFAULT_LIMIT, offset = 0 } = args;
     const grepArgs: string[] = [];
-    
+
     if (case_insensitive) grepArgs.push('-i');
     if (output_mode === 'files') grepArgs.push('-l');
     else if (output_mode === 'count') grepArgs.push('-c');
     else { grepArgs.push('-n'); if (contextLines !== undefined) grepArgs.push(`-C${contextLines}`); }
-    
+
     grepArgs.push('-r');
     for (const dir of VCS_DIRECTORIES_TO_EXCLUDE) grepArgs.push('--exclude-dir=' + dir);
     grepArgs.push(pattern, searchPath);
@@ -187,13 +187,13 @@ export class GrepTool implements Tool {
     try {
       const output = execFileSync('grep', grepArgs, { cwd: context.workingDirectory, encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024, stdio: ['pipe', 'pipe', 'pipe'] }) as string;
       let processedOutput = output;
-      
+
       if (globPattern) {
         const lines = output.trim().split('\n').filter(Boolean);
         const globRegex = new RegExp(globPattern.replace(/\*/g, '.*').replace(/\?/g, '.'));
         processedOutput = lines.filter(line => globRegex.test(path.basename(line.split(':')[0]))).join('\n');
       }
-      
+
       return { content: this.processOutput(processedOutput, args, context) };
     } catch (error: any) {
       if (error.status === 1) {
@@ -206,15 +206,15 @@ export class GrepTool implements Tool {
 
   private async executeWithNodeJS(args: any, searchPath: string, context: ToolExecutionContext): Promise<FallbackResult> {
     const { pattern, path: originalPath, glob: globPattern, type: fileType, case_insensitive = false, context: contextLines, output_mode = 'files', limit = DEFAULT_LIMIT, offset = 0 } = args;
-    
+
     if (!fs.existsSync(searchPath)) {
       throw new Error(`目录不存在: ${searchPath}`);
     }
-    
+
     const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(escapeRegex(pattern), case_insensitive ? 'i' : '');
     const results: string[] = [];
-    
+
     const walkDir = (dir: string) => {
       if (!fs.existsSync(dir)) return;
       try {
@@ -243,7 +243,7 @@ export class GrepTool implements Tool {
         throw new Error(`读取目录失败: ${error.message}`);
       }
     };
-    
+
     walkDir(searchPath);
     return { content: this.processOutput(results.join('\n'), args, context) };
   }

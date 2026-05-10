@@ -28,19 +28,7 @@ export class OpenAIProvider implements AIProvider {
    * 构建请求体
    */
   private buildRequestBody(messages: Message[], tools?: ToolDefinition[], stream = false): any {
-    const sanitizedMessages = messages.map(message => {
-      if (Array.isArray(message.content)) {
-        return {
-          ...message,
-          content: message.content.map(block =>
-            block.type === 'text'
-              ? { type: 'text', text: block.text }
-              : { type: 'image_url', image_url: { url: `data:${block.source.media_type};base64,${block.source.data}` } }
-          )
-        };
-      }
-      return { ...message, content: message.content ?? '' };
-    });
+    const sanitizedMessages = messages.map(message => this.sanitizeMessage(message));
 
     const body: any = {
       model: this.model,
@@ -66,6 +54,41 @@ export class OpenAIProvider implements AIProvider {
     }
 
     return body;
+  }
+
+  private sanitizeMessage(message: Message): any {
+    const sanitized: any = {
+      role: message.role,
+      content: this.sanitizeContent(message.content),
+    };
+
+    if (message.name) {
+      sanitized.name = message.name;
+    }
+    if (message.role === 'assistant' && message.tool_calls) {
+      sanitized.tool_calls = message.tool_calls.map(toolCall => ({
+        id: toolCall.id,
+        type: toolCall.type,
+        function: {
+          name: toolCall.function.name,
+          arguments: toolCall.function.arguments,
+        },
+      }));
+    }
+    if (message.role === 'tool' && message.tool_call_id) {
+      sanitized.tool_call_id = message.tool_call_id;
+    }
+
+    return sanitized;
+  }
+
+  private sanitizeContent(content: Message['content']): any {
+    if (!Array.isArray(content)) return content ?? '';
+    return content.map(block =>
+      block.type === 'text'
+        ? { type: 'text', text: block.text }
+        : { type: 'image_url', image_url: { url: `data:${block.source.media_type};base64,${block.source.data}` } }
+    );
   }
 
   /**

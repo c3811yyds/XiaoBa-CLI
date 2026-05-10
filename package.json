@@ -1,9 +1,10 @@
 {
   "name": "xiaoba-cli",
   "version": "1.1.0",
-  "description": "XiaoBa - 一个智能的AI对话助手CLI工具",
+  "description": "CatsCo - local agent runtime and dashboard",
   "main": "electron/main.js",
   "bin": {
+    "catsco": "dist/index.js",
     "xiaoba": "dist/index.js"
   },
   "scripts": {
@@ -11,26 +12,31 @@
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "start:cli": "node dist/index.js",
-    "electron:dev": "npm run build && electron .",
+    "electron:dev": "npm run build && node scripts/start-electron-dev.mjs",
     "electron:build": "npm run build && npm run prepare:runtime && electron-builder --config electron-builder.config.cjs --publish never",
     "electron:build:mac": "npm run build && npm run prepare:runtime && electron-builder --config electron-builder.config.cjs --mac --publish never",
-    "electron:build:mac:x64": "npm run build && node scripts/prepare-runtime.mjs darwin x64 && electron-builder --config electron-builder.config.cjs --mac --x64 --publish never",
-    "electron:build:mac:arm64": "npm run build && node scripts/prepare-runtime.mjs darwin arm64 && electron-builder --config electron-builder.config.cjs --mac --arm64 --publish never",
     "electron:build:win": "npm run build && npm run prepare:runtime && electron-builder --config electron-builder.config.cjs --win --publish never",
     "electron:build:linux": "npm run build && npm run prepare:runtime && electron-builder --config electron-builder.config.cjs --linux --publish never",
     "watch": "tsc --watch",
-    "test": "tsx --test tests/**/*.test.ts",
-    "release:check": "node scripts/check-release-branding.mjs",
-    "version:sync": "node scripts/inject-version.js",
+    "test": "node scripts/run-tests.mjs runtime",
+    "test:runtime": "node scripts/run-tests.mjs runtime",
+    "test:legacy": "node scripts/run-tests.mjs legacy",
+    "test:all": "node scripts/run-tests.mjs all",
+    "test:list": "node scripts/run-tests.mjs runtime --list",
     "report": "node dist/index.js chat --exec '/report'",
     "clean-logs": "node scripts/clean-logs.mjs",
     "prepare:runtime": "node scripts/prepare-runtime.mjs",
-    "prepare:runtime:refresh": "node scripts/prepare-runtime.mjs --refresh"
+    "prepare:runtime:refresh": "node scripts/prepare-runtime.mjs --refresh",
+    "electron:build:mac:x64": "npm run build && node scripts/prepare-runtime.mjs darwin x64 && electron-builder --config electron-builder.config.cjs --mac --x64 --publish never",
+    "electron:build:mac:arm64": "npm run build && node scripts/prepare-runtime.mjs darwin arm64 && electron-builder --config electron-builder.config.cjs --mac --arm64 --publish never",
+    "release:check": "node scripts/check-release-branding.mjs",
+    "version:sync": "node scripts/inject-version.js"
   },
   "keywords": [
     "cli",
     "ai",
     "assistant",
+    "catsco",
     "xiaoba",
     "chatbot",
     "command-line",
@@ -82,7 +88,7 @@
   },
   "build": {
     "appId": "com.catcompany.xiaoba",
-    "productName": "XiaoBa",
+    "productName": "CatsCo",
     "icon": null,
     "directories": {
       "output": "release"
@@ -99,18 +105,14 @@
       "dashboard/**/*",
       "prompts/**/*",
       "skills/agent-browser/**/*",
-      "skills/advanced-reader/**/*",
       "skills/_tool-skills/**/*",
       "skills/report/**/*",
       "skills/self-evolution/**/*",
-      "skills/skill-publish/**/*",
-      "skills/vision-analysis/**/*",
       "skills/remember/**/*",
-      "!skills/**/__pycache__/**",
-      "!skills/**/*.pyc",
       "!skills/**/*.pyo",
+      "!skills/**/*.pyc",
+      "!skills/**/__pycache__/**",
       "skills/README.md",
-      "skill-registry.json",
       ".env.example",
       "package.json"
     ],
@@ -148,7 +150,7 @@
         "dmg"
       ],
       "icon": "build-resources/icon.png",
-      "artifactName": "${productName}-${version}-mac-${arch}.${ext}"
+      "artifactName": "${productName}-${version}-mac.${ext}"
     },
     "win": {
       "target": [
@@ -161,7 +163,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "XiaoBa"
+      "shortcutName": "CatsCo"
     },
     "linux": {
       "target": [
@@ -173,7 +175,7 @@
       "artifactName": "${productName}-${version}-linux.${ext}"
     },
     "dmg": {
-      "title": "XiaoBa",
+      "title": "CatsCo",
       "contents": [
         {
           "x": 130,

@@ -22,6 +22,12 @@ function assertEqual(name, actual, expected) {
   }
 }
 
+function assertIncludes(name, text, expected) {
+  if (!text.includes(expected)) {
+    fail(`${name} should include ${JSON.stringify(expected)}`);
+  }
+}
+
 function walk(relativeDir, results = []) {
   const absoluteDir = path.join(root, relativeDir);
   if (!fs.existsSync(absoluteDir)) return results;
@@ -39,9 +45,17 @@ function walk(relativeDir, results = []) {
 }
 
 const packageJson = JSON.parse(readText('package.json'));
-assertEqual('build.productName', packageJson.build?.productName, 'XiaoBa');
-assertEqual('build.nsis.shortcutName', packageJson.build?.nsis?.shortcutName, 'XiaoBa');
-assertEqual('build.dmg.title', packageJson.build?.dmg?.title, 'XiaoBa');
+assertEqual('build.productName', packageJson.build?.productName, 'CatsCo');
+assertEqual('build.nsis.shortcutName', packageJson.build?.nsis?.shortcutName, 'CatsCo');
+assertEqual('build.dmg.title', packageJson.build?.dmg?.title, 'CatsCo');
+
+assertIncludes('dashboard title', readText('dashboard/index.html'), '<title>CatsCo Dashboard</title>');
+assertIncludes('electron window title', readText('electron/main.js'), "title: 'CatsCo Dashboard'");
+assertIncludes('electron tray tooltip', readText('electron/main.js'), "tray.setToolTip('CatsCo Dashboard')");
+assertIncludes('GitHub release title', readText('.github/workflows/release.yml'), 'name: CatsCo ${{ github.ref_name }}');
+assertIncludes('Windows install shortcut', readText('install.ps1'), 'CatsCo Dashboard');
+assertIncludes('Unix install launcher', readText('install.sh'), 'CatsCo Dashboard');
+assertIncludes('default workspace prompt', readText('src/runtime/prompt-composer.ts'), '~/catsco-workspace/');
 
 const filesToScan = [
   'package.json',
@@ -56,7 +70,7 @@ const filesToScan = [
 
 for (const file of filesToScan) {
   const text = readText(file);
-  if (/XiaoBa\s+TEST/i.test(text)) {
+  if (/(XiaoBa|CatsCo)\s+TEST/i.test(text)) {
     fail(`${file} contains a test app name`);
   }
 

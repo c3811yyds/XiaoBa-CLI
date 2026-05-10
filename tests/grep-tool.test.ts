@@ -20,30 +20,30 @@ describe('GrepTool', () => {
   before(() => {
     // 创建临时测试目录
     testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'grep-test-'));
-    
+
     // 创建测试文件
-    fs.writeFileSync(path.join(testDir, 'test1.js'), 
+    fs.writeFileSync(path.join(testDir, 'test1.js'),
       'function hello() {\n  console.log("Hello World");\n}\n');
-    
-    fs.writeFileSync(path.join(testDir, 'test2.ts'), 
+
+    fs.writeFileSync(path.join(testDir, 'test2.ts'),
       'const greeting = "Hello";\nconst name = "World";\n');
-    
-    fs.writeFileSync(path.join(testDir, 'test3.py'), 
+
+    fs.writeFileSync(path.join(testDir, 'test3.py'),
       'def hello():\n    print("Hello World")\n');
-    
-    fs.writeFileSync(path.join(testDir, 'README.md'), 
+
+    fs.writeFileSync(path.join(testDir, 'README.md'),
       '# Test Project\nHello World example\n');
-    
+
     // 创建子目录
     const subDir = path.join(testDir, 'subdir');
     fs.mkdirSync(subDir);
-    fs.writeFileSync(path.join(subDir, 'nested.js'), 
+    fs.writeFileSync(path.join(subDir, 'nested.js'),
       'export function greet() {\n  return "Hello";\n}\n');
-    
+
     // 创建.git目录（应该被排除）
     const gitDir = path.join(testDir, '.git');
     fs.mkdirSync(gitDir);
-    fs.writeFileSync(path.join(gitDir, 'config'), 
+    fs.writeFileSync(path.join(gitDir, 'config'),
       'Hello from git config\n');
   });
 
@@ -186,7 +186,7 @@ describe('GrepTool', () => {
 
       // 由于路径不存在，应该返回错误
       assert.ok(!result.ok, '应该返回错误');
-      assert.ok(result.message.includes('目录不存在') || result.message.includes('rg') || result.message.includes('grep'), 
+      assert.ok(result.message.includes('目录不存在') || result.message.includes('rg') || result.message.includes('grep'),
         `错误信息应该有用，实际: ${result.message}`);
     });
   });
@@ -222,7 +222,7 @@ describe('GrepTool', () => {
 
     test('在没有ripgrep时应该fallback到其他方案', async () => {
       const originalPath = process.env.PATH;
-      
+
       try {
         // 移除包含rg的路径
         process.env.PATH = process.env.PATH!
@@ -246,7 +246,7 @@ describe('GrepTool', () => {
 
   describe('边界情况', () => {
     test('应该处理特殊字符pattern', async () => {
-      fs.writeFileSync(path.join(testDir, 'special.txt'), 
+      fs.writeFileSync(path.join(testDir, 'special.txt'),
         'test@example.com\n$100 price\n');
 
       const result = await grepTool.execute({
@@ -259,7 +259,7 @@ describe('GrepTool', () => {
     });
 
     test('应该处理以-开头的pattern', async () => {
-      fs.writeFileSync(path.join(testDir, 'dash.txt'), 
+      fs.writeFileSync(path.join(testDir, 'dash.txt'),
         '-flag option\n');
 
       const result = await grepTool.execute({

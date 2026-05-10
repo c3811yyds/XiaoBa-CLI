@@ -17,6 +17,8 @@ export interface Message {
   name?: string;
   /** 标记由 injectContext 注入的消息，用于滑动窗口清理 */
   __injected?: boolean;
+  /** 标记注入给 agent 看的运行时反馈，仅供内部清理和日志记录使用 */
+  __runtimeFeedback?: boolean;
 }
 
 export interface ChatConfig {

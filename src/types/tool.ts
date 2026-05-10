@@ -89,7 +89,7 @@ export type ToolErrorCode =
   | 'FILE_NOT_FOUND'
   | 'EXECUTION_TIMEOUT';
 
-export type ToolSurface = 'cli' | 'feishu' | 'catscompany' | 'agent' | 'research' | 'unknown';
+export type ToolSurface = 'cli' | 'feishu' | 'catscompany' | 'weixin' | 'agent' | 'research' | 'unknown';
 export type ToolPermissionProfile = 'strict' | 'default' | 'relaxed';
 
 /**

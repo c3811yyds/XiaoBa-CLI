@@ -1,5 +1,5 @@
-import * as fs from 'fs';
 import * as path from 'path';
+import { PromptComposer } from '../runtime/prompt-composer';
 
 /**
  * System Prompt 管理器
@@ -11,62 +11,35 @@ export class PromptManager {
    * 获取基础 system prompt
    */
   static getBaseSystemPrompt(): string {
-    try {
-      return fs.readFileSync(path.join(this.promptsDir, 'system-prompt.md'), 'utf-8');
-    } catch (error) {
-      return this.getDefaultSystemPrompt();
-    }
+    return PromptComposer.getBaseSystemPrompt(this.promptsDir, this.getDefaultSystemPrompt());
   }
 
   /**
    * 获取 behavior prompt（用户偏好）
    */
   static getBehaviorPrompt(): string {
-    try {
-      const content = fs.readFileSync(path.join(this.promptsDir, 'behavior.md'), 'utf-8').trim();
-      // 如果只有模板内容，返回空
-      if (content.includes('（在下方添加你的个性化设置）')) {
-        return '';
-      }
-      return content;
-    } catch {
-      return '';
-    }
+    return PromptComposer.getBehaviorPrompt(this.promptsDir);
   }
 
   /**
    * 构建完整 system prompt（包含运行时信息）
    */
   static async buildSystemPrompt(): Promise<string> {
-    const basePrompt = this.getBaseSystemPrompt().trim();
-    const behaviorPrompt = this.getBehaviorPrompt().trim();
-    const displayName = (
-      process.env.CURRENT_AGENT_DISPLAY_NAME
-      || process.env.BOT_BRIDGE_NAME
-      || ''
-    ).trim();
-    const platform = process.env.CURRENT_PLATFORM || '';
-    const today = new Date().toISOString().slice(0, 10);
+    return PromptComposer.composeSystemPrompt({
+      promptsDir: this.promptsDir,
+      defaultSystemPrompt: this.getDefaultSystemPrompt(),
+    });
+  }
 
-    // 动态生成工作空间路径
-    const workspaceName = displayName || 'default';
-    const workspacePath = `~/xiaoba-workspace/${workspaceName}`;
-
-    const runtimeInfo = [
-      displayName ? `你在这个平台上的名字是：${displayName}` : '',
-      platform ? `当前平台：${platform}` : '',
-      `当前日期：${today}`,
-      `你的默认工作目录是：\`${workspacePath}\``,
-    ].filter(Boolean).join('\n');
-
-    return [basePrompt, behaviorPrompt, runtimeInfo].filter(Boolean).join('\n\n');
+  static getPromptsDir(): string {
+    return this.promptsDir;
   }
 
   /**
    * 默认 system prompt（当文件不存在时使用）
    */
-  private static getDefaultSystemPrompt(): string {
-    return `你是小八。
+  static getDefaultSystemPrompt(): string {
+    return `你是用户的私人助理。
 
 你和用户交流时，保持自然、直接、可信。
 

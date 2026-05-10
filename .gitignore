@@ -33,6 +33,11 @@ Thumbs.db
 .idea/
 *.sublime-*
 
+# 本地 agent / IDE 生成配置
+.claude/
+.kiro/
+.playwright-mcp/
+
 # 打包文件
 *.dmg
 *.exe
@@ -47,4 +52,3 @@ bash.exe.stackdump
 build-resources/runtime/
 
 .cache/runtime-downloads/
-

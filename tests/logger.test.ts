@@ -3,12 +3,14 @@ import * as assert from 'node:assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { Logger } from '../src/utils/logger';
-import { SessionTurnLogger } from '../src/utils/session-turn-logger';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 
 describe('Logger', () => {
   let testRoot: string;
   let originalCwd: string;
+  let Logger: any;
 
   beforeEach(() => {
     originalCwd = process.cwd();
@@ -17,7 +19,7 @@ describe('Logger', () => {
   });
 
   afterEach(async () => {
-    Logger.closeLogFile();
+    Logger?.closeLogFile();
     await waitForFlush();
     process.chdir(originalCwd);
     if (testRoot && fs.existsSync(testRoot)) {
@@ -26,6 +28,11 @@ describe('Logger', () => {
   });
 
   test('runtime log lines include session_id from async context', async () => {
+    delete require.cache[require.resolve('../src/utils/logger')];
+    delete require.cache[require.resolve('../src/utils/session-turn-logger')];
+    Logger = require('../src/utils/logger').Logger;
+    const { SessionTurnLogger } = require('../src/utils/session-turn-logger');
+
     Logger.openLogFile('test', undefined, true);
     const sessionLogger = new SessionTurnLogger('feishu', 'user:ou_demo');
 

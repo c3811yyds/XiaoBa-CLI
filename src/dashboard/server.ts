@@ -1,10 +1,12 @@
 import express from 'express';
 import * as path from 'path';
+import type { Server } from 'http';
 import { Logger } from '../utils/logger';
 import { createApiRouter } from './routes/api';
 import { ServiceManager } from './service-manager';
 
 const DEFAULT_PORT = 3800;
+const activeServers: Server[] = [];
 export interface UpdateController {
   getStatus: () => any;
   checkForUpdates: (manual?: boolean) => Promise<any>;
@@ -14,6 +16,7 @@ export interface UpdateController {
 
 export interface DashboardControllers {
   updateController?: UpdateController;
+  projectRoot?: string;
 }
 
 export async function startDashboard(
@@ -21,7 +24,8 @@ export async function startDashboard(
   controllers: DashboardControllers = {}
 ): Promise<void> {
   const app = express();
-  const projectRoot = process.cwd();
+  const envPackaged = /^(1|true|yes)$/i.test(process.env.XIAOBA_IS_PACKAGED || '');
+  const projectRoot = controllers.projectRoot || (envPackaged ? process.env.XIAOBA_APP_ROOT : undefined) || process.cwd();
   const serviceManager = new ServiceManager(projectRoot);
 
   app.use(express.json());
@@ -48,8 +52,9 @@ export async function startDashboard(
     process.exit(0);
   });
 
-  app.listen(port, '127.0.0.1', () => {
-    Logger.success(`\nXiaoBa Dashboard 已启动`);
+  const server = app.listen(port, '127.0.0.1', () => {
+    Logger.success(`\nCatsCo Dashboard 已启动`);
     Logger.info(`打开浏览器访问: http://localhost:${port}\n`);
   });
+  activeServers.push(server);
 }

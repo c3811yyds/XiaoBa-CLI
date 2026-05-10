@@ -2,6 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import axios from 'axios';
 import { Logger } from './logger';
+import {
+  parseSessionLogContent,
+  resolveSessionIdFromEntries,
+} from './session-log-schema';
 
 interface UploadState {
   [key: string]: {
@@ -59,17 +63,21 @@ export class LogUploader {
 
   private async uploadFile(platform: string, date: string, filename: string): Promise<number> {
     const filePath = path.join(this.logsDir, 'sessions', platform, date, filename);
-    const session_id = filename.replace('.jsonl', '');
-    const stateKey = `${platform}/${date}/${session_id}`;
+    const fallbackSessionId = filename.replace('.jsonl', '');
 
     // 读取日志
     const content = fs.readFileSync(filePath, 'utf-8').trim();
     if (!content) return 0;
 
-    const allLogs = content.split('\n').map(line => JSON.parse(line));
-    
+    const allLogs = parseSessionLogContent(content);
+    const session_id = resolveSessionIdFromEntries(allLogs, fallbackSessionId);
+    const stateKey = `${platform}/${date}/${session_id}`;
+    const legacyStateKey = `${platform}/${date}/${fallbackSessionId}`;
+
     // 检查已上传的数量
-    const uploadedCount = this.state[stateKey]?.uploadedTurns || 0;
+    const uploadedCount = this.state[stateKey]?.uploadedTurns
+      ?? this.state[legacyStateKey]?.uploadedTurns
+      ?? 0;
     const newLogs = allLogs.slice(uploadedCount);
 
     if (newLogs.length === 0) return 0;
@@ -91,6 +99,9 @@ export class LogUploader {
           lastUploadTime: new Date().toISOString(),
           uploadedTurns: allLogs.length,
         };
+        if (legacyStateKey !== stateKey) {
+          delete this.state[legacyStateKey];
+        }
         this.saveState();
         Logger.info(`Uploaded ${newLogs.length} logs for ${stateKey}`);
         return newLogs.length;
