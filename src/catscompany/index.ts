@@ -537,8 +537,10 @@ export class CatsCompanyBot {
       }
     }
 
-    // 纯文本和文件都为空则忽略
-    const mergedText = text || blockTextParts.join('\n\n');
+    // content_blocks 里的 text block 是新协议的 canonical 用户文本；
+    // 顶层 content 可能只是附件摘要，因此只作为没有 text block 时的 fallback。
+    const blockText = blockTextParts.join('\n\n');
+    const mergedText = blockText || text;
     if (!mergedText && files.length === 0) return null;
 
     return {

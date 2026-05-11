@@ -101,6 +101,28 @@ describe('CatsCo content blocks', () => {
     assert.deepStrictEqual(parsed.files.map((file: any) => file.url), ['/uploads/images/a.png', '/uploads/images/b.png']);
   });
 
+  test('prefers content block text over top-level attachment summary', () => {
+    const bot = Object.create(CatsCompanyBot.prototype);
+
+    const parsed = (bot as any).parseMessage({
+      topic: 'p2p_1_2',
+      senderId: 'usr1',
+      text: '[图片] crack.png',
+      content: '[图片] crack.png',
+      content_blocks: [
+        { type: 'text', text: '帮我分析这张图里的裂缝' },
+        { type: 'image', payload: { url: '/uploads/images/crack.png', name: 'crack.png', size: 12 } },
+      ],
+      isGroup: false,
+      seq: 9,
+    });
+
+    assert.ok(parsed);
+    assert.strictEqual(parsed.text, '帮我分析这张图里的裂缝');
+    assert.strictEqual(parsed.files.length, 1);
+    assert.strictEqual(parsed.files[0].fileName, 'crack.png');
+  });
+
   test('processes multiple attachments as one user turn', async () => {
     const { bot, downloads, multimodalCalls, handledTurns } = createProcessHarness();
 
