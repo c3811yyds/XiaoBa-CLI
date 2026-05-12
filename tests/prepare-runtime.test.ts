@@ -7,6 +7,7 @@ import {
   loadRuntimeManifest,
   normalizeArch,
   normalizePlatform,
+  removeBrokenRuntimeSymlinks,
   repairNodeRuntimeEntrypoints,
   resolveExtractedRoot,
   resolveRuntimeTarget,
@@ -173,6 +174,33 @@ describe('repairNodeRuntimeEntrypoints', () => {
   });
 });
 
+describe('removeBrokenRuntimeSymlinks', () => {
+  test('removes broken POSIX symlinks before macOS signing walks bundled runtimes', (t) => {
+    if (process.platform === 'win32') {
+      t.skip('Creating symlinks on Windows depends on local developer mode/admin policy');
+      return;
+    }
+
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-python-runtime-'));
+    try {
+      const bin = path.join(root, 'bin');
+      fs.mkdirSync(bin, { recursive: true });
+      writeExecutable(path.join(bin, 'python3'));
+      fs.symlinkSync('python3', path.join(bin, 'python'));
+      fs.symlinkSync('2to3-3.12', path.join(bin, '2to3'));
+
+      assert.deepStrictEqual(
+        removeBrokenRuntimeSymlinks(root).map(normalize),
+        ['bin/2to3'],
+      );
+      assert.strictEqual(fs.existsSync(path.join(bin, '2to3')), false);
+      assertSymlinkTarget(path.join(bin, 'python'), 'python3');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
 function writeExecutable(filePath: string): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, '#!/usr/bin/env node\n');
@@ -182,4 +210,8 @@ function writeExecutable(filePath: string): void {
 function assertSymlinkTarget(linkPath: string, expectedTarget: string): void {
   assert.strictEqual(fs.lstatSync(linkPath).isSymbolicLink(), true);
   assert.strictEqual(path.normalize(fs.readlinkSync(linkPath)), path.normalize(expectedTarget));
+}
+
+function normalize(value: string): string {
+  return value.split(path.sep).join('/');
 }

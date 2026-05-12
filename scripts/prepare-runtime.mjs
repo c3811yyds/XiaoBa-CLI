@@ -178,6 +178,10 @@ async function prepareDownloadedRuntime(manifest, runtimeName, platform, arch, r
       console.log(`  node: repaired bin entrypoints: ${repaired.join(', ')}`);
     }
   }
+  const removedBrokenSymlinks = removeBrokenRuntimeSymlinks(destination);
+  if (removedBrokenSymlinks.length > 0) {
+    console.log(`  ${runtimeName}: removed broken symlinks: ${removedBrokenSymlinks.join(', ')}`);
+  }
 
   console.log(`  ${runtimeName}: ${artifact.selectedSource.url} -> ${destination}`);
 
@@ -420,6 +424,36 @@ export function repairNodeRuntimeEntrypoints(nodeRuntimeRoot, platform = process
   }
 
   return repaired;
+}
+
+export function removeBrokenRuntimeSymlinks(runtimeRoot) {
+  if (!fs.existsSync(runtimeRoot)) {
+    return [];
+  }
+
+  const removed = [];
+
+  function walk(directory) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const entryPath = path.join(directory, entry.name);
+      const stat = fs.lstatSync(entryPath);
+
+      if (stat.isSymbolicLink()) {
+        if (!fs.existsSync(entryPath)) {
+          fs.rmSync(entryPath, { force: true });
+          removed.push(path.relative(runtimeRoot, entryPath));
+        }
+        continue;
+      }
+
+      if (stat.isDirectory()) {
+        walk(entryPath);
+      }
+    }
+  }
+
+  walk(runtimeRoot);
+  return removed.sort();
 }
 
 function isExpectedSymlink(linkPath, expectedTarget) {
