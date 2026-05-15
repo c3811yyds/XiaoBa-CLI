@@ -886,15 +886,18 @@ export class ConversationRunner {
     activeTools: ToolDefinition[],
     callbacks?: RunnerCallbacks,
   ) {
+    const requestOptions = {
+      signal: this.toolExecutionContext?.abortSignal,
+    };
     try {
       if (this.stream) {
         const streamCallbacks: StreamCallbacks = {
           onText: (text) => callbacks?.onText?.(text),
           onRetry: (attempt, maxRetries) => callbacks?.onRetry?.(attempt, maxRetries),
         };
-        return await this.aiService.chatStream(messages, activeTools, streamCallbacks);
+        return await this.aiService.chatStream(messages, activeTools, streamCallbacks, requestOptions);
       }
-      return await this.aiService.chat(messages, activeTools);
+      return await this.aiService.chat(messages, activeTools, requestOptions);
     } catch (error: any) {
       if (!this.isPromptTooLongError(error)) {
         throw error;
@@ -908,9 +911,9 @@ export class ConversationRunner {
         const streamCallbacks: StreamCallbacks = {
           onText: (text) => callbacks?.onText?.(text),
         };
-        return await this.aiService.chatStream(messages, activeTools, streamCallbacks);
+        return await this.aiService.chatStream(messages, activeTools, streamCallbacks, requestOptions);
       }
-      return await this.aiService.chat(messages, activeTools);
+      return await this.aiService.chat(messages, activeTools, requestOptions);
     }
   }
 
