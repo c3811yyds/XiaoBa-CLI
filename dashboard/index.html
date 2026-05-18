@@ -4741,6 +4741,7 @@
     let catsMessagesLoading = false;
     let catsMessagesLoadingOlder = false;
     let catsMessagesTopicId = '';
+    let catsMessagesOwnerKey = '';
     let catsConnectCollapsed = true;
     let catsConnectManualOverride = false;
     const CATS_MESSAGES_PAGE_SIZE = 50;
@@ -6723,10 +6724,44 @@
       if(details)details.open=true;
     }
 
+    function catsMessageOwnerKey(state){
+      const uid=String(state?.user?.uid||'').trim();
+      const topic=String(state?.topicId||'').trim();
+      return uid && topic ? uid+'|'+topic : '';
+    }
+
+    function resetCatsMessageCache(ownerKey=''){
+      catsMessagesCache=[];
+      catsMessagesHasOlder=true;
+      catsMessagesLoading=false;
+      catsMessagesLoadingOlder=false;
+      catsMessagesTopicId='';
+      catsMessagesOwnerKey=ownerKey;
+      catsScrollPinnedToBottom=true;
+    }
+
+    function showCatsMessagePlaceholder(text){
+      const box=document.getElementById('cats-messages');
+      if(box)box.innerHTML='<div class="loading">'+escapeHtml(text)+'</div>';
+      catsWorkingActive=false;
+      applyPetBaseline();
+    }
+
     async function fetchCatsStatus(){
       try{
+        const previousOwnerKey=catsMessagesOwnerKey;
         const data=await parseCatsResponse(await fetch(API+'/api/cats/status'));
         catsState=data||{};
+        const nextOwnerKey=catsMessageOwnerKey(catsState);
+        if(!nextOwnerKey){
+          resetCatsMessageCache();
+          showCatsMessagePlaceholder('登录 CatsCo 后查看当前账号消息');
+        }else if(previousOwnerKey && previousOwnerKey!==nextOwnerKey){
+          resetCatsMessageCache(nextOwnerKey);
+          showCatsMessagePlaceholder('正在加载当前账号消息...');
+        }else if(!previousOwnerKey){
+          catsMessagesOwnerKey=nextOwnerKey;
+        }
         renderCatsStatus();
         if((dashboardSettingsSnapshot.fields||[]).length && !shouldDeferModelSourceRender())renderModelSource(dashboardSettingsSnapshot);
         if(catsState.topicId) loadCatsMessages(false);
@@ -6870,9 +6905,7 @@
         await parseCatsResponse(await fetch(API+'/api/cats/auth/logout',{method:'POST'}));
         catsState={};
         catsWorkingActive=false;
-        catsMessagesCache=[];
-        catsMessagesHasOlder=true;
-        catsMessagesTopicId='';
+        resetCatsMessageCache();
         lastCatsMessageSignature='';
         catsScrollPinnedToBottom=true;
         document.getElementById('cats-account').value='';
@@ -7688,6 +7721,16 @@
     }
 
     async function loadCatsMessages(showErrors=true, options={}){
+      const ownerKey=catsMessageOwnerKey(catsState);
+      if(!ownerKey){
+        resetCatsMessageCache();
+        showCatsMessagePlaceholder('登录 CatsCo 后查看当前账号消息');
+        return;
+      }
+      if(catsMessagesOwnerKey!==ownerKey){
+        resetCatsMessageCache(ownerKey);
+        options=Object.assign({}, options, {reset:true, forceBottom:true});
+      }
       if(!catsState.topicId)return;
       if(catsMessagesLoading)return;
       catsMessagesLoading=true;

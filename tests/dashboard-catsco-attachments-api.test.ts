@@ -32,7 +32,7 @@ describe('dashboard CatsCo attachment API', () => {
   let originalCwd: string;
   let dashboardServer: Server | undefined;
   let catsServer: Server | undefined;
-  const envKeys = ['CATSCO_HTTP_BASE_URL', 'CATSCO_USER_TOKEN', 'CATSCO_API_KEY'];
+  const envKeys = ['CATSCO_HTTP_BASE_URL', 'CATSCO_USER_TOKEN', 'CATSCO_USER_UID', 'CATSCO_BOT_UID', 'CATSCO_API_KEY'];
   const originalEnv: Record<string, string | undefined> = {};
 
   beforeEach(() => {
@@ -144,6 +144,23 @@ describe('dashboard CatsCo attachment API', () => {
 
     assert.equal(response.status, 400);
     assert.equal(data.error, 'topic_id and file_token are required');
+  });
+
+  test('rejects message history for a topic outside the current account', async () => {
+    process.env.CATSCO_USER_TOKEN = 'user-token';
+    process.env.CATSCO_USER_UID = '38';
+    process.env.CATSCO_BOT_UID = '110';
+
+    const dashboardApp = express();
+    dashboardApp.use(express.json());
+    dashboardApp.use('/api', createApiRouter({ getAll: () => [] } as any));
+    dashboardServer = await listen(dashboardApp);
+
+    const response = await fetch(`${serverUrl(dashboardServer)}/api/cats/messages?topic=p2p_1_110&limit=1&offset=0`);
+    const data = await response.json() as any;
+
+    assert.equal(response.status, 403);
+    assert.equal(data.error, 'topic does not belong to the current CatsCo account');
   });
 
   test('local file grants are one-time tokens', () => {

@@ -1096,6 +1096,10 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
       if (!state.token) return res.status(401).json({ error: 'CatsCo user token is missing' });
       const topic = String(req.query.topic || '').trim();
       if (!topic) return res.status(400).json({ error: 'topic required' });
+      const expectedTopic = state.uid && state.botUid ? p2pTopicId(state.uid, state.botUid) : '';
+      if (expectedTopic && topic !== expectedTopic) {
+        return res.status(403).json({ error: 'topic does not belong to the current CatsCo account' });
+      }
       const limit = String(req.query.limit || '50');
       const offset = String(req.query.offset || '0');
       const data = await catsRequest('GET', state.httpBaseUrl, `/api/messages?topic_id=${encodeURIComponent(topic)}&limit=${encodeURIComponent(limit)}&offset=${encodeURIComponent(offset)}&latest=1`, undefined, state.token);
