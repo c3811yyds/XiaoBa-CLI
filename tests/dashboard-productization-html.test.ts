@@ -172,6 +172,13 @@ test('CatsCo Chat composer supports local attachments', () => {
   assert.match(dashboardHtml, /\/api\/cats\/messages\/send-file/);
 });
 
+test('CatsCo Chat composer keeps focused text readable on dark input surface', () => {
+  assert.match(
+    dashboardHtml,
+    /\.chat-input-bar textarea:focus \{[\s\S]*?background: transparent;[\s\S]*?color: #f8fafc;[\s\S]*?box-shadow: none;[\s\S]*?\}/,
+  );
+});
+
 test('CatsCo Chat preserves fallback tool metadata for WORKING rendering', () => {
   const fallbackBlock = dashboardHtml.match(/function catsContentBlocksFromMessage\(message\)\{[\s\S]*?function groupCatsWorkingBlocks/)?.[0] || '';
   assert.match(fallbackBlock, /type:'tool_use'[\s\S]*metadata:message\.metadata\|\|\{\}/);
