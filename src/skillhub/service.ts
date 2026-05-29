@@ -1,8 +1,13 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
-import { APP_VERSION } from '../version';
+import { SkillParser } from '../skills/skill-parser';
+import type { Skill } from '../types/skill';
 import { PathResolver } from '../utils/path-resolver';
 import { SkillHubClient } from './client';
+import {
+  writeSkillHubLocalMetadata,
+} from './local-skill-metadata';
 import { installVerifiedSkillHubPackage } from './package-installer';
 import { verifySkillHubPackage } from './package-verifier';
 import { CATSCO_SKILLHUB_ROOT_PUBLIC_KEYS } from './trusted-keys';
@@ -52,8 +57,6 @@ export class SkillHubService {
   async search(query = '', options: { category?: string } = {}): Promise<SkillHubSearchResponse & { installed: SkillHubPackageInstallMarker[] }> {
     const response = await this.client.searchSkills(query, {
       category: options.category,
-      agentVersion: APP_VERSION,
-      platform: process.platform,
     });
     return {
       ...response,
@@ -135,6 +138,78 @@ export class SkillHubService {
     });
   }
 
+  async shareLocalSkill(input: any): Promise<any> {
+    const skillName = String(input.skillName || input.skill || input.name || '').trim();
+    if (!skillName) {
+      const error: any = new Error('skillName required');
+      error.status = 400;
+      error.code = 'skillhub.skill_name_required';
+      throw error;
+    }
+
+    const localSkill = findLocalShareableSkill(skillName);
+    if (!localSkill) {
+      const available = listLocalSkillNames().join(', ');
+      const error: any = new Error(`Local skill not found: ${skillName}${available ? `. Available skills: ${available}` : ''}`);
+      error.status = 404;
+      error.code = 'skillhub.local_skill_not_found';
+      throw error;
+    }
+
+    const { skill } = localSkill;
+    const localPath = path.dirname(skill.filePath);
+    const files = collectSkillSourceFiles(localPath);
+    if (!files.length) {
+      const error: any = new Error('Local skill package has no shareable files.');
+      error.status = 400;
+      error.code = 'skillhub.local_skill_empty';
+      throw error;
+    }
+    const submission = await this.client.quickShare({
+      manifest: {
+        id: skill.metadata.name,
+        name: skill.metadata.name,
+        displayName: skill.metadata.name,
+        version: '1.0.0',
+        description: skill.metadata.description,
+        keywords: [skill.metadata.name, ...splitWords(skill.metadata.description)].slice(0, 8),
+        triggerExamples: skill.metadata.argumentHint ? [`/${skill.metadata.name} ${skill.metadata.argumentHint}`] : [`/${skill.metadata.name}`],
+        minAgentVersion: '0.0.0',
+        platforms: [],
+      },
+      notes: String(input.notes || 'Quick shared from local XiaoBa Skills.'),
+      confirmVersionPublish: input.confirmVersionPublish === true || input.confirmPublish === true,
+      source: {
+        type: 'files',
+        files,
+      },
+    });
+    const skillHubMetadata = skillHubMetadataFromShareResponse(submission);
+    if (skillHubMetadata) {
+      writeSkillHubLocalMetadata(skill.filePath, skillHubMetadata);
+    }
+
+    return {
+      ok: true,
+      skill: {
+        id: submission?.skill?.skillId || submission?.submission?.normalizedManifest?.id || skill.metadata.name,
+        name: skill.metadata.name,
+        description: skill.metadata.description,
+        path: localPath,
+      },
+      submission: submission?.submission || submission,
+      existing: submission?.existing,
+      requiresConfirmation: submission?.requiresConfirmation,
+      latestVersion: submission?.latestVersion,
+      contentHash: submission?.contentHash,
+    };
+  }
+
+  async getPublishedVersion(skillId: string, version: string): Promise<SkillHubRegistryEntry | undefined> {
+    const detail = await this.client.getVersion(skillId, version);
+    return detail.version || detail.skill;
+  }
+
   private async resolveRegistryEntry(skillId: string, version?: string): Promise<SkillHubRegistryEntry> {
     if (version) {
       const detail = await this.client.getVersion(skillId, version);
@@ -153,12 +228,6 @@ export class SkillHubService {
 const SOURCE_SKIP_DIRS = new Set([
   '.git',
   'node_modules',
-  'dist',
-  'build',
-  'release',
-  '__pycache__',
-  '.venv',
-  'venv',
 ]);
 const MAX_SOURCE_FILES = 200;
 const MAX_SOURCE_TOTAL_BYTES = 20 * 1024 * 1024;
@@ -265,19 +334,85 @@ function stringOrUndefined(value: any): string | undefined {
   return text || undefined;
 }
 
-function listInstalledSkillHubSkills(): SkillHubPackageInstallMarker[] {
-  const skillsRoot = PathResolver.getSkillsPath();
-  if (!fs.existsSync(skillsRoot)) return [];
-  const result: SkillHubPackageInstallMarker[] = [];
-  for (const entry of fs.readdirSync(skillsRoot, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const markerPath = path.join(skillsRoot, entry.name, '.xiaoba-skillhub-install.json');
-    if (!fs.existsSync(markerPath)) continue;
+function splitWords(text: string): string[] {
+  return String(text || '')
+    .split(/[\s,，。；;、/|]+/)
+    .map(item => item.trim())
+    .filter(item => item.length >= 2);
+}
+
+function findLocalShareableSkill(skillName: string): { skill: Skill } | undefined {
+  for (const skillFile of listLocalSkillFiles()) {
     try {
-      result.push(JSON.parse(fs.readFileSync(markerPath, 'utf-8')) as SkillHubPackageInstallMarker);
+      const skill = SkillParser.parse(skillFile);
+      const dirName = path.basename(path.dirname(skillFile));
+      if (skill.metadata.name === skillName || dirName === skillName) {
+        return { skill };
+      }
     } catch {
-      // Ignore invalid markers so one broken install does not break the Skills page.
+      // Ignore broken local skills so one bad folder does not block sharing others.
     }
   }
-  return result;
+  return undefined;
+}
+
+function listLocalSkillNames(): string[] {
+  const names: string[] = [];
+  for (const skillFile of listLocalSkillFiles()) {
+    try {
+      const skill = SkillParser.parse(skillFile);
+      names.push(skill.metadata.name);
+    } catch {
+      names.push(path.basename(path.dirname(skillFile)));
+    }
+  }
+  return Array.from(new Set(names)).sort();
+}
+
+function listLocalSkillFiles(): string[] {
+  const roots = [
+    PathResolver.getSkillsPath(),
+    getUserDataSkillsPath(),
+  ];
+  const files: string[] = [];
+  for (const root of roots) {
+    if (!root || !fs.existsSync(root)) continue;
+    files.push(...PathResolver.findSkillFiles(root));
+  }
+  return Array.from(new Set(files));
+}
+
+function findSkillRoot(skillFilePath: string): string | undefined {
+  return [
+    PathResolver.getSkillsPath(),
+    getUserDataSkillsPath(),
+  ].find(root => {
+    const relative = path.relative(path.resolve(root), path.resolve(skillFilePath));
+    return relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+  });
+}
+
+function skillHubMetadataFromShareResponse(response: any): { author: string; version: string; uploadedAt: string } | undefined {
+  const metadata = response?.skillHub || response?.submission?.skillHub || response?.submission?.normalizedManifest?.skillHub;
+  const author = String(metadata?.author || '').trim();
+  const version = String(metadata?.version || response?.latestVersion || response?.packageVersion?.latestVersion || '').trim();
+  const uploadedAt = String(metadata?.uploadedAt || metadata?.uploaded_at || response?.submission?.normalizedManifest?.skillhub_uploaded_at || '').trim();
+  if (author && version && uploadedAt) {
+    return { author, version, uploadedAt };
+  }
+  return undefined;
+}
+
+function getUserDataSkillsPath(): string {
+  if (process.platform === 'win32') {
+    return path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), 'xiaoba-cli', 'skills');
+  }
+  if (process.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library', 'Application Support', 'xiaoba-cli', 'skills');
+  }
+  return path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'xiaoba-cli', 'skills');
+}
+
+function listInstalledSkillHubSkills(): SkillHubPackageInstallMarker[] {
+  return [];
 }

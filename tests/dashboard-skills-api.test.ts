@@ -19,11 +19,7 @@ describe('dashboard skills API', () => {
     process.chdir(testRoot);
 
     writeSkill('skills/user-tool/SKILL.md', 'user-tool', 'User managed skill');
-    writeSkill('skills/bundled-tool/SKILL.md', 'bundled-tool', 'Bundled skill');
-    fs.writeFileSync(
-      path.join(testRoot, 'skills/bundled-tool/.xiaoba-bundled-skill.json'),
-      JSON.stringify({ name: 'bundled-tool', version: 'test' })
-    );
+    writeSkill('skills/local-tool/SKILL.md', 'local-tool', 'Local skill');
 
     const app = express();
     app.use(express.json());
@@ -56,12 +52,14 @@ describe('dashboard skills API', () => {
       protected: false,
       canDisable: true,
       canDelete: true,
+      canShare: true,
     });
-    assert.deepEqual(pickManagement(byName.get('bundled-tool')), {
-      source: 'bundled',
+    assert.deepEqual(pickManagement(byName.get('local-tool')), {
+      source: 'user',
       protected: false,
       canDisable: true,
-      canDelete: false,
+      canDelete: true,
+      canShare: true,
     });
   });
 
@@ -71,18 +69,15 @@ describe('dashboard skills API', () => {
     assert.equal(fs.existsSync(path.join(testRoot, 'skills/user-tool')), false);
   });
 
-  test('bundled skills can be disabled but not deleted', async () => {
-    const deleteActive = await fetch(`${baseUrl}/api/skills/bundled-tool`, { method: 'DELETE' });
-    assert.equal(deleteActive.status, 403);
-
-    const disable = await fetch(`${baseUrl}/api/skills/bundled-tool/disable`, { method: 'POST' });
+  test('local skills can be disabled and deleted', async () => {
+    const disable = await fetch(`${baseUrl}/api/skills/local-tool/disable`, { method: 'POST' });
     assert.equal(disable.status, 200);
-    assert.equal(fs.existsSync(path.join(testRoot, 'skills/bundled-tool/SKILL.md')), false);
-    assert.equal(fs.existsSync(path.join(testRoot, 'skills/bundled-tool/SKILL.md.disabled')), true);
+    assert.equal(fs.existsSync(path.join(testRoot, 'skills/local-tool/SKILL.md')), false);
+    assert.equal(fs.existsSync(path.join(testRoot, 'skills/local-tool/SKILL.md.disabled')), true);
 
-    const deleteDisabled = await fetch(`${baseUrl}/api/skills/bundled-tool`, { method: 'DELETE' });
-    assert.equal(deleteDisabled.status, 403);
-    assert.equal(fs.existsSync(path.join(testRoot, 'skills/bundled-tool')), true);
+    const deleteDisabled = await fetch(`${baseUrl}/api/skills/local-tool`, { method: 'DELETE' });
+    assert.equal(deleteDisabled.status, 200);
+    assert.equal(fs.existsSync(path.join(testRoot, 'skills/local-tool')), false);
   });
 
   function writeSkill(relativePath: string, name: string, description: string): void {
@@ -106,6 +101,7 @@ function pickManagement(skill: any): any {
     protected: skill.protected,
     canDisable: skill.canDisable,
     canDelete: skill.canDelete,
+    canShare: skill.canShare,
   };
 }
 

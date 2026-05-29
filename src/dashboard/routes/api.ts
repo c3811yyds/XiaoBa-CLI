@@ -32,6 +32,11 @@ import {
 import { inferCatsUploadType, uploadCatsLocalFile } from '../../catscompany/upload';
 import { consumeLocalFileGrant, validateLocalFileGrant } from '../local-file-grants';
 import { registerSkillHubRoutes } from './skillhub';
+import { SkillHubService } from '../../skillhub/service';
+import {
+  computeLocalSkillContentHash,
+  readSkillHubLocalMetadata,
+} from '../../skillhub/local-skill-metadata';
 // import { ReportGenerator } from '../../utils/report-generator';
 // import { LogUploader } from '../../utils/log-uploader';
 
@@ -47,6 +52,7 @@ interface SkillManagementInfo {
   protected: boolean;
   canDisable: boolean;
   canDelete: boolean;
+  canShare: boolean;
 }
 
 interface CatsAuthState {
@@ -1165,8 +1171,8 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
     try {
       const manager = new SkillManager();
       await manager.loadSkills();
-      const active = manager.getAllSkills().map(skillToDashboardPayload);
-      const disabled = findAllDisabledSkills(PathResolver.getSkillsPath());
+      const active = await Promise.all(manager.getAllSkills().map(skillToDashboardPayload));
+      const disabled = await findAllDisabledSkills(PathResolver.getSkillsPath());
       res.json([...active, ...disabled]);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -1177,14 +1183,7 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
     try {
       const manager = new SkillManager();
       await manager.loadSkills();
-      res.json(manager.getAllSkills().map(s => ({
-        name: s.metadata.name,
-        description: s.metadata.description,
-        argumentHint: s.metadata.argumentHint || null,
-        userInvocable: s.metadata.userInvocable !== false,
-        path: s.filePath,
-        files: getSkillFiles(s.filePath),
-      })));
+      res.json(await Promise.all(manager.getAllSkills().map(skillToDashboardPayload)));
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -1978,14 +1977,18 @@ function getSkillFiles(skillFilePath: string): string[] {
   } catch { return []; }
 }
 
-function skillToDashboardPayload(skill: Skill): any {
-  const installInfo = getSkillHubInstallInfo(skill.filePath);
+async function skillToDashboardPayload(skill: Skill): Promise<any> {
+  const installInfo = await getSkillHubInstallInfo(skill);
+  const skillDir = path.dirname(skill.filePath);
+  const skillsRoot = PathResolver.getSkillsPath();
   return {
     name: skill.metadata.name,
     description: skill.metadata.description,
     argumentHint: skill.metadata.argumentHint || null,
     userInvocable: skill.metadata.userInvocable !== false,
     path: skill.filePath,
+    folder: path.basename(skillDir),
+    relativePath: path.relative(skillsRoot, skillDir),
     files: getSkillFiles(skill.filePath),
     enabled: true,
     skillHub: installInfo,
@@ -1993,14 +1996,26 @@ function skillToDashboardPayload(skill: Skill): any {
   };
 }
 
-function getSkillHubInstallInfo(skillFilePath: string): any {
+async function getSkillHubInstallInfo(skill: Skill): Promise<any> {
+  const metadata = readSkillHubLocalMetadata(skill.filePath);
+  if (!metadata?.author || !metadata.version || !metadata.uploadedAt) return null;
+  const skillId = `${metadata.author}/${skill.metadata.name}`;
+  const info: any = {
+    author: metadata.author,
+    version: metadata.version,
+    uploadedAt: metadata.uploadedAt,
+    modified: 'unknown',
+  };
   try {
-    const markerPath = path.join(path.dirname(skillFilePath), '.xiaoba-skillhub-install.json');
-    if (!fs.existsSync(markerPath)) return null;
-    return JSON.parse(fs.readFileSync(markerPath, 'utf-8'));
+    const version = await new SkillHubService().getPublishedVersion(skillId, metadata.version);
+    if (version?.contentHash) {
+      const localHash = computeLocalSkillContentHash(path.dirname(skill.filePath));
+      info.modified = localHash === version.contentHash ? false : true;
+    }
   } catch {
-    return null;
+    info.modified = 'unknown';
   }
+  return info;
 }
 
 function getSkillManagementInfo(skillFilePath: string): SkillManagementInfo {
@@ -2008,17 +2023,14 @@ function getSkillManagementInfo(skillFilePath: string): SkillManagementInfo {
   const skillsRoot = PathResolver.getSkillsPath();
   const relative = path.relative(skillsRoot, dir);
   const parts = relative.split(path.sep).filter(Boolean);
-  const source: SkillSource = parts.some(part => SYSTEM_SKILL_DIRS.has(part))
-    ? 'system'
-    : fs.existsSync(path.join(dir, BUNDLED_SKILL_MARKER))
-      ? 'bundled'
-      : 'user';
+  const source: SkillSource = parts.some(part => SYSTEM_SKILL_DIRS.has(part)) ? 'system' : 'user';
 
   return {
     source,
     protected: source === 'system',
     canDisable: source !== 'system',
     canDelete: source === 'user',
+    canShare: source === 'user',
   };
 }
 
@@ -2033,43 +2045,50 @@ function formatSkillDeleteBlockedMessage(management: SkillManagementInfo): strin
 }
 
 function findDisabledSkillByName(basePath: string, name: string): string | null {
-  if (!fs.existsSync(basePath)) return null;
-  for (const entry of fs.readdirSync(basePath, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const disabledFile = path.join(basePath, entry.name, 'SKILL.md.disabled');
-    if (fs.existsSync(disabledFile)) {
-      const content = fs.readFileSync(disabledFile, 'utf-8');
-      const m = content.match(/name:\s*(.+)/);
-      if (m && m[1].trim() === name) return disabledFile;
+  for (const disabledFile of findStructuredDisabledSkillFiles(basePath)) {
+    const content = fs.readFileSync(disabledFile, 'utf-8');
+    const m = content.match(/name:\s*(.+)/);
+    if (m && m[1].trim() === name) {
+      return disabledFile;
     }
-    const found = findDisabledSkillByName(path.join(basePath, entry.name), name);
-    if (found) return found;
   }
   return null;
 }
 
 function findAllDisabledSkills(basePath: string): any[] {
   const results: any[] = [];
-  if (!fs.existsSync(basePath)) return results;
+  for (const disabledFile of findStructuredDisabledSkillFiles(basePath)) {
+    const content = fs.readFileSync(disabledFile, 'utf-8');
+    const nm = content.match(/name:\s*(.+)/);
+    const desc = content.match(/description:\s*(.+)/);
+    const management = getSkillManagementInfo(disabledFile);
+    results.push({
+      name: nm ? nm[1].trim() : path.basename(path.dirname(disabledFile)),
+      description: desc ? desc[1].trim() : '',
+      enabled: false,
+      path: disabledFile,
+      folder: path.basename(path.dirname(disabledFile)),
+      relativePath: path.relative(PathResolver.getSkillsPath(), path.dirname(disabledFile)),
+      files: getSkillFiles(disabledFile),
+      ...management,
+    });
+  }
+  return results;
+}
+
+function findStructuredDisabledSkillFiles(basePath: string): string[] {
+  if (!fs.existsSync(basePath)) return [];
+  return findDisabledSkillFilesRecursive(path.resolve(basePath));
+}
+
+function findDisabledSkillFilesRecursive(basePath: string): string[] {
+  const results: string[] = [];
   for (const entry of fs.readdirSync(basePath, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const fullPath = path.join(basePath, entry.name);
     const disabledFile = path.join(fullPath, 'SKILL.md.disabled');
-    if (fs.existsSync(disabledFile)) {
-      const content = fs.readFileSync(disabledFile, 'utf-8');
-      const nm = content.match(/name:\s*(.+)/);
-      const desc = content.match(/description:\s*(.+)/);
-      const management = getSkillManagementInfo(disabledFile);
-      results.push({
-        name: nm ? nm[1].trim() : entry.name,
-        description: desc ? desc[1].trim() : '',
-        enabled: false,
-        path: disabledFile,
-        files: getSkillFiles(disabledFile),
-        ...management,
-      });
-    }
-    results.push(...findAllDisabledSkills(fullPath));
+    if (fs.existsSync(disabledFile)) results.push(disabledFile);
+    results.push(...findDisabledSkillFilesRecursive(fullPath));
   }
   return results;
 }
