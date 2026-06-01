@@ -44,6 +44,16 @@ export function registerSkillHubRoutes(router: Router): void {
     }
   });
 
+  router.get('/skillhub/versions', async (req, res) => {
+    try {
+      const skillId = String(req.query.skillId || '').trim();
+      if (!skillId) return res.status(400).json({ error: 'skillId required' });
+      res.json(await serviceFrom(req.query).versions(skillId));
+    } catch (error: any) {
+      sendSkillHubError(res, error);
+    }
+  });
+
   router.post('/skillhub/install', async (req, res) => {
     try {
       const skillId = String(req.body?.skillId || '').trim();
@@ -89,6 +99,14 @@ export function registerSkillHubRoutes(router: Router): void {
   router.post('/skillhub/developer/share-local-skill', async (req, res) => {
     try {
       res.status(201).json(await serviceFrom(req.body).shareLocalSkill(req.body || {}));
+    } catch (error: any) {
+      sendSkillHubError(res, error);
+    }
+  });
+
+  router.post('/skillhub/developer/package-versions/:id/yank', async (req, res) => {
+    try {
+      res.json(await serviceFrom(req.body).yankOwnPackageVersion(String(req.params.id || ''), String(req.body?.reason || '')));
     } catch (error: any) {
       sendSkillHubError(res, error);
     }

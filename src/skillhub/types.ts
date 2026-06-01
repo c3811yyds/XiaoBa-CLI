@@ -38,6 +38,7 @@ export interface SkillHubDeveloperDashboard {
   developerProfile?: any;
   application?: any;
   submissions: any[];
+  packageVersions?: SkillHubRegistryEntry[];
 }
 
 export interface SkillHubInstallResult {

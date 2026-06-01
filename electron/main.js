@@ -269,21 +269,15 @@ function readBundledSkillSyncVersion(fs, dest) {
 
 function writeBundledSkillSyncMarker(fs, dest, skillName) {
   try {
-    fs.writeFileSync(
-      path.join(dest, SKILL_SYNC_MARKER),
-      JSON.stringify({
-        name: skillName,
-        version: app.getVersion(),
-        syncedAt: new Date().toISOString(),
-      }, null, 2)
-    );
+    const markerPath = path.join(dest, SKILL_SYNC_MARKER);
+    if (fs.existsSync(markerPath)) fs.rmSync(markerPath, { force: true });
   } catch (error) {
-    console.warn(`Failed to write bundled skill sync marker for ${skillName}:`, error);
+    console.warn(`Failed to remove bundled skill sync marker for ${skillName}:`, error);
   }
 }
 
 function shouldRefreshBundledSkill(fs, skillName, dest) {
-  if (!app.isPackaged) return true;
+  if (!app.isPackaged) return false;
   if (!REFRESHABLE_BUNDLED_SKILLS.has(skillName)) return false;
   return readBundledSkillSyncVersion(fs, dest) !== app.getVersion();
 }
@@ -352,10 +346,12 @@ async function startServer() {
 
       // 闂備礁鎲￠悷顖涚濠婂煻鍥蓟閵夈儳顦梺鍝勭墢閺佹悂鎮峰┑瀣€垫繛鎴烆仾椤忓嫸鑰挎い蹇撶墛閸?skill
       const shouldRefresh = shouldRefreshBundledSkill(fs, dir.name, dest);
-      if (!app.isPackaged || shouldRefresh) {
-        syncBundledSkillDir(fs, dir.name, src, dest, true);
-      } else if (!fs.existsSync(dest)) {
+      if (!fs.existsSync(dest)) {
         syncBundledSkillDir(fs, dir.name, src, dest, false);
+      } else if (shouldRefresh) {
+        syncBundledSkillDir(fs, dir.name, src, dest, true);
+      } else {
+        writeBundledSkillSyncMarker(fs, dest, dir.name);
       }
     }
 

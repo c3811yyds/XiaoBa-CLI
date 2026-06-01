@@ -28,6 +28,8 @@ const PACKAGE_METADATA_FILES = new Set([
   'skill.json',
   'REVIEW.json',
   'SBOM.json',
+  '.xiaoba-bundled-skill.json',
+  '.xiaoba-skillhub-install.json',
 ]);
 
 export function installVerifiedSkillHubPackage(

@@ -64,6 +64,10 @@ export class SkillHubService {
     };
   }
 
+  async versions(skillId: string): Promise<any> {
+    return this.client.getSkill(skillId);
+  }
+
   async install(skillId: string, version?: string): Promise<SkillHubInstallResult> {
     const registryEntry = await this.resolveRegistryEntry(skillId, version);
     const [trust, packageBytes] = await Promise.all([
@@ -111,6 +115,10 @@ export class SkillHubService {
       websiteUrl: String(input.websiteUrl || input.homepageUrl || '').trim(),
       reason: String(input.reason || '').trim(),
     });
+  }
+
+  yankOwnPackageVersion(packageVersionId: string, reason = ''): Promise<any> {
+    return this.client.yankOwnPackageVersion(packageVersionId, reason);
   }
 
   async createManifestDraft(input: any): Promise<any> {
@@ -229,6 +237,13 @@ const SOURCE_SKIP_DIRS = new Set([
   '.git',
   'node_modules',
 ]);
+const SOURCE_SKIP_FILES = new Set([
+  'skill.json',
+  'REVIEW.json',
+  'SBOM.json',
+  '.xiaoba-bundled-skill.json',
+  '.xiaoba-skillhub-install.json',
+]);
 const MAX_SOURCE_FILES = 200;
 const MAX_SOURCE_TOTAL_BYTES = 20 * 1024 * 1024;
 const MAX_SOURCE_SINGLE_FILE_BYTES = 2 * 1024 * 1024;
@@ -268,7 +283,7 @@ function walk(dir: string): string[] {
       const fullPath = path.join(current, entry.name);
       if (entry.isDirectory()) {
         if (!SOURCE_SKIP_DIRS.has(entry.name)) visit(fullPath);
-      } else if (entry.isFile()) {
+      } else if (entry.isFile() && !SOURCE_SKIP_FILES.has(entry.name)) {
         result.push(fullPath);
       }
     }

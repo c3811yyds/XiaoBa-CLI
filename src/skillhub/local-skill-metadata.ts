@@ -24,6 +24,8 @@ const GENERATED_PACKAGE_FILES = new Set([
   'skill.json',
   'REVIEW.json',
   'SBOM.json',
+  '.xiaoba-bundled-skill.json',
+  '.xiaoba-skillhub-install.json',
 ]);
 
 export function readSkillHubLocalMetadata(skillFilePath: string): SkillHubLocalMetadata | null {
