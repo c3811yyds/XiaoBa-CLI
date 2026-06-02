@@ -73,6 +73,19 @@ describe('SkillHub connected install service', () => {
     assert.equal(fs.existsSync(path.join(testRoot, 'skills', 'contract-review')), false);
   });
 
+  test('installs an explicit version when version detail omits latestVersion', async () => {
+    const fixture = createFixture();
+    CATSCO_SKILLHUB_ROOT_PUBLIC_KEYS.push(fixture.rootTrust);
+    await startFixtureServer(fixture);
+    process.env.CATSCO_SKILLHUB_BASE_URL = baseUrl;
+
+    const install = await new SkillHubService().install(fixture.entry.skillId, '1.0.0');
+
+    assert.equal(install.ok, true);
+    assert.equal((fixture as any).downloadedVersion, '1.0.0');
+    assert.equal(fs.existsSync(path.join(install.skill.path, 'SKILL.md')), true);
+  });
+
   async function startFixtureServer(fixture: ReturnType<typeof createFixture>): Promise<void> {
     const app = express();
     app.use(express.json());
@@ -87,8 +100,19 @@ describe('SkillHub connected install service', () => {
     app.get('/api/trust/public-keys', (_req, res) => {
       res.json(fixture.trust);
     });
-    app.get(/^\/api\/skills\/(.+)\/versions\/([^/]+)\/download$/, (_req, res) => {
+    app.get(/^\/api\/skills\/(.+)\/versions\/([^/]+)\/download$/, (req, res) => {
+      (fixture as any).downloadedVersion = req.params[1];
       res.type('application/octet-stream').send(fixture.packageBytes);
+    });
+    app.get(/^\/api\/skills\/(.+)\/versions\/([^/]+)$/, (req, res) => {
+      assert.equal(req.params[0], fixture.entry.skillId);
+      res.json({
+        version: {
+          ...fixture.entry,
+          latestVersion: undefined,
+          version: req.params[1],
+        },
+      });
     });
     app.get(/^\/api\/skills\/(.+)$/, (req, res) => {
       assert.equal(req.params[0], fixture.entry.skillId);

@@ -235,13 +235,14 @@ export class SkillHubService {
 
   async getPublishedVersion(skillId: string, version: string): Promise<SkillHubRegistryEntry | undefined> {
     const detail = await this.client.getVersion(skillId, version);
-    return detail.version || detail.skill;
+    return normalizeRegistryEntryVersion(detail.version || detail.skill, version);
   }
 
   private async resolveRegistryEntry(skillId: string, version?: string): Promise<SkillHubRegistryEntry> {
     if (version) {
       const detail = await this.client.getVersion(skillId, version);
-      if (detail.version) return detail.version;
+      const entry = normalizeRegistryEntryVersion(detail.version || detail.skill, version);
+      if (entry) return entry;
     } else {
       const detail = await this.client.getSkill(skillId);
       if (detail.skill) return detail.skill;
@@ -251,6 +252,15 @@ export class SkillHubService {
     error.status = 404;
     throw error;
   }
+}
+
+function normalizeRegistryEntryVersion(entry: SkillHubRegistryEntry | undefined, requestedVersion?: string): SkillHubRegistryEntry | undefined {
+  if (!entry) return undefined;
+  const version = String(entry.latestVersion || (entry as any).version || requestedVersion || '').trim();
+  return {
+    ...entry,
+    latestVersion: version,
+  };
 }
 
 const SOURCE_SKIP_DIRS = new Set([
