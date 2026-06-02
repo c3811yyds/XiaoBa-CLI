@@ -7,6 +7,7 @@ import * as dotenv from 'dotenv';
 import express from 'express';
 import type { Server } from 'http';
 import { createApiRouter } from '../src/dashboard/routes/api';
+import { createCatsCoLocalConfigService } from '../src/catscompany/local-config';
 
 describe('dashboard CatsCo account status', () => {
   let testRoot: string;
@@ -24,10 +25,22 @@ describe('dashboard CatsCo account status', () => {
     'CATSCO_USER_DISPLAY_NAME',
     'CATSCO_BOT_UID',
     'CATSCO_API_KEY',
+    'CATSCO_DEVICE_ID',
+    'CATSCO_BODY_ID',
+    'CATSCO_INSTALLATION_ID',
     'GAUZ_LLM_PROVIDER',
     'GAUZ_LLM_API_BASE',
     'GAUZ_LLM_API_KEY',
     'GAUZ_LLM_MODEL',
+    'CATSCO_MODEL_SOURCE',
+    'CATSCO_CUSTOM_LLM_PROVIDER',
+    'CATSCO_CUSTOM_LLM_API_BASE',
+    'CATSCO_CUSTOM_LLM_API_KEY',
+    'CATSCO_CUSTOM_LLM_MODEL',
+    'CATSCO_RELAY_LLM_PROVIDER',
+    'CATSCO_RELAY_LLM_API_BASE',
+    'CATSCO_RELAY_LLM_API_KEY',
+    'CATSCO_RELAY_LLM_MODEL',
     'CATSCOMPANY_HTTP_BASE_URL',
     'CATSCOMPANY_SERVER_URL',
     'CATSCOMPANY_USER_TOKEN',
@@ -36,6 +49,9 @@ describe('dashboard CatsCo account status', () => {
     'CATSCOMPANY_USER_DISPLAY_NAME',
     'CATSCOMPANY_BOT_UID',
     'CATSCOMPANY_API_KEY',
+    'CATSCOMPANY_DEVICE_ID',
+    'CATSCOMPANY_BODY_ID',
+    'CATSCOMPANY_INSTALLATION_ID',
   ];
   const originalEnv: Record<string, string | undefined> = {};
 
@@ -132,13 +148,68 @@ describe('dashboard CatsCo account status', () => {
 
     assert.equal(response.status, 200);
     assert.equal(data.connected, true);
-    assert.equal(data.configured, true);
+    assert.equal(data.configured, false);
+    assert.equal(data.bodyConfigured, false);
+    assert.equal(data.unconfirmedBotBinding, true);
     assert.equal(data.authStatus, 'valid');
     assert.deepStrictEqual(data.user, {
       uid: '42',
       username: 'webuser',
       display_name: 'Web User',
     });
+    assert.equal(data.topicId, '');
+  });
+
+  test('GET /cats/status reports ready chat only after a confirmed local body binding', async () => {
+    await startCatsServer((req, res) => {
+      assert.equal(req.header('authorization'), 'Bearer valid-user-token');
+      if (req.path === '/api/me') {
+        return res.json({ uid: 42, username: 'webuser', display_name: 'Web User' });
+      }
+      if (req.path === '/api/bots/body-status') {
+        assert.equal(req.query.uid, '110');
+        return res.json({ body_id: 'body-local', active: true });
+      }
+      return res.status(404).json({ error: 'not found' });
+    });
+    createCatsCoLocalConfigService({ runtimeRoot: testRoot }).save({
+      version: 1,
+      endpoints: {
+        httpBaseUrl: catsBaseUrl,
+        serverUrl: 'wss://app.catsco.cc/v0/channels',
+      },
+      account: {
+        token: 'valid-user-token',
+        uid: '42',
+        username: 'webuser',
+        displayName: 'Web User',
+      },
+      currentBot: {
+        uid: '110',
+        name: 'CatsCo',
+        username: 'catsco_42',
+        apiKey: 'agent-api-key',
+        boundByUserUid: '42',
+        bindingSource: 'test',
+      },
+      device: {
+        deviceId: 'body-local',
+        bodyId: 'body-local',
+        installationId: 'body-local',
+      },
+    });
+
+    const response = await fetch(`${dashboardBaseUrl}/api/cats/status`);
+    const data = await response.json() as any;
+
+    assert.equal(response.status, 200);
+    assert.equal(data.connected, true);
+    assert.equal(data.configured, true);
+    assert.equal(data.bodyConfigured, true);
+    assert.equal(data.chatReady, true);
+    assert.equal(data.unconfirmedBotBinding, false);
+    assert.equal(data.botUid, '110');
+    assert.equal(data.bodyStatus.state, 'online');
     assert.equal(data.topicId, 'p2p_42_110');
   });
 
@@ -307,6 +378,11 @@ describe('dashboard CatsCo account status', () => {
     assert.equal(env.GAUZ_LLM_API_BASE, 'https://relay.catsco.cc/anthropic');
     assert.equal(env.GAUZ_LLM_MODEL, 'glm-5.1');
     assert.equal(env.GAUZ_LLM_API_KEY, 'sk-bf-fresh-secret');
+    assert.equal(env.CATSCO_MODEL_SOURCE, 'relay');
+    assert.equal(env.CATSCO_RELAY_LLM_PROVIDER, 'anthropic');
+    assert.equal(env.CATSCO_RELAY_LLM_API_BASE, 'https://relay.catsco.cc/anthropic');
+    assert.equal(env.CATSCO_RELAY_LLM_MODEL, 'glm-5.1');
+    assert.equal(env.CATSCO_RELAY_LLM_API_KEY, 'sk-bf-fresh-secret');
     assert.equal(env.CATSCO_BOT_UID, '188');
     assert.equal(env.CATSCO_API_KEY, 'cats-agent-key');
     assert.equal(startCalled, 1);
