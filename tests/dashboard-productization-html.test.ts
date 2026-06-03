@@ -32,6 +32,8 @@ test('Agent Hub keeps connector controls and third-party model config without du
   assert.match(dashboardHtml, /\/api\/cats\/relay\/model-config\/apply/);
   assert.match(dashboardHtml, /service-config/);
   assert.match(dashboardHtml, /CatsCo 中转模型在 CatsCo 页面选择/);
+  assert.match(dashboardHtml, /自定义模型默认使用 128K 安全上下文/);
+  assert.match(dashboardHtml, /上下文 '\+escapeHtml\(contextLabel\)\+'/);
   assert.doesNotMatch(servicesPageHtml, /模型来源与 Runtime Profile/);
   assert.doesNotMatch(servicesPageHtml, /id="settings-setup-panel"/);
   assert.doesNotMatch(servicesPageHtml, /先完成关键配置/);
@@ -172,6 +174,18 @@ test('CatsCo Chat setup refreshes readiness before unlocking the composer', () =
   assert.match(setupBlock, /renderCatsStatus\(\)/);
   assert.match(setupBlock, /const stage=buildCatsChatStage\(\)/);
   assert.match(setupBlock, /await loadCatsMessages\(true, \{reset:true, forceBottom:true\}\)/);
+});
+
+test('CatsCo bot binding carries selected relay model setup', () => {
+  const bindBlock = dashboardHtml.match(/async function bindCatsBot\(botUid, botName, button, options\) \{[\s\S]*?function closeBotSelector/)?.[0] || '';
+  assert.match(bindBlock, /const setupRelayModel=shouldSetupRelayOnCatsSetup\(\)/);
+  assert.match(bindBlock, /setupRelayModel,/);
+  assert.match(bindBlock, /relayModelId:setupRelayModel \? \(relayModelIdForSetup\(\)\|\|undefined\) : undefined/);
+  assert.match(bindBlock, /rotateRelayKey:Boolean\(options\?\.rotateRelayKey\)/);
+  assert.match(bindBlock, /pendingStartupSource=''/);
+  assert.match(bindBlock, /pendingRelayModelId=''/);
+  assert.match(bindBlock, /e\.status===409 && e\.action==='rotate_required'/);
+  assert.match(bindBlock, /bindCatsBot\(botUid, botName, button, \{\.\.\.options, confirm:false, restoreText, rotateRelayKey:true\}\)/);
 });
 
 test('CatsCo Chat preserves scroll position while reading history', () => {

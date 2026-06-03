@@ -41,6 +41,7 @@ interface QueuedMessage {
 }
 
 const PENDING_ANSWER_TIMEOUT_MS = 120_000;
+const TYPING_HEARTBEAT_INTERVAL_MS = 5_000;
 const HIDDEN_CATS_TOOL_PROGRESS = new Set([
   'send_text',
   'send_file',
@@ -401,8 +402,7 @@ export class CatsCompanyBot {
       senderId: msg.senderId,
     });
 
-    // 发送 typing 指示，让用户知道 bot 正在处理
-    this.sender.sendTyping(msg.topic);
+    const stopTypingHeartbeat = this.startTypingHeartbeat(msg.topic);
 
     try {
       const result = await session.handleMessage(userMessage, {
@@ -421,6 +421,7 @@ export class CatsCompanyBot {
         }
       }
     } finally {
+      stopTypingHeartbeat();
       this.clearPendingAnswerBySession(key);
     }
 
@@ -538,6 +539,14 @@ export class CatsCompanyBot {
       senderId,
     });
 
+    const stopTypingHeartbeat = this.startTypingHeartbeat(topic);
+    let typingHeartbeatStopped = false;
+    const stopTypingHeartbeatOnce = () => {
+      if (typingHeartbeatStopped) return;
+      typingHeartbeatStopped = true;
+      stopTypingHeartbeat();
+    };
+
     try {
       const result = await session.handleRuntimeObservation(text, {
         channel,
@@ -562,8 +571,10 @@ export class CatsCompanyBot {
           Logger.warning(`子智能体结果回复发送失败: ${err.message}`);
         }
       }
+      stopTypingHeartbeatOnce();
       await this.drainMessageQueue(sessionKey);
     } finally {
+      stopTypingHeartbeatOnce();
       this.clearPendingAnswerBySession(sessionKey);
     }
   }
@@ -681,6 +692,24 @@ export class CatsCompanyBot {
     Logger.info(`[${key}] 收到 CatsCompany 取消事件，已请求中断当前回合`);
   }
 
+  private startTypingHeartbeat(topic: string, intervalMs = TYPING_HEARTBEAT_INTERVAL_MS): () => void {
+    let stopped = false;
+    const send = () => {
+      if (!stopped) {
+        this.sender.sendTyping(topic);
+      }
+    };
+
+    send();
+    const interval = setInterval(send, intervalMs);
+    (interval as any).unref?.();
+
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+    };
+  }
+
   /**
    * 排空消息队列：将忙时积压的消息合并为一条，一次性处理
    */
@@ -698,6 +727,8 @@ export class CatsCompanyBot {
       sessionKey,
       senderId: msg.senderId,
     });
+
+    const stopTypingHeartbeat = this.startTypingHeartbeat(msg.topic);
 
     try {
       const result = msg.source === 'subagent_feedback'
@@ -726,6 +757,7 @@ export class CatsCompanyBot {
         }
       }
     } finally {
+      stopTypingHeartbeat();
       this.clearPendingAnswerBySession(sessionKey);
     }
 
