@@ -159,6 +159,8 @@ const RELAY_MODEL_ENV_KEYS = {
   apiKey: 'CATSCO_RELAY_LLM_API_KEY',
 } as const;
 
+const MODEL_SOURCE_ENV_KEY = 'CATSCO_MODEL_SOURCE';
+
 function isModelSetting(id: string): boolean {
   return id.startsWith('model.');
 }
@@ -241,7 +243,15 @@ function buildModelStartupSnapshot(
       apiKeyPresent: storedRelay.apiKeyPresent || (isCatsRelayApiBase(effective.apiBase) && effective.apiKeyPresent),
       configured: isCatsRelayApiBase(effective.apiBase) && effective.configured,
     };
-  const source = isCatsRelayApiBase(effective.apiBase) ? 'relay' : 'custom';
+  const storedSource = firstNonEmpty(fileEnv[MODEL_SOURCE_ENV_KEY], env[MODEL_SOURCE_ENV_KEY]);
+  const effectiveUsesRelayGateway = isCatsRelayApiBase(effective.apiBase);
+  const source = storedSource === 'custom'
+    ? 'custom'
+    : storedSource === 'relay' && effectiveUsesRelayGateway
+    ? 'relay'
+    : effectiveUsesRelayGateway
+    ? 'relay'
+    : 'custom';
 
   return { source, effective, custom, relay };
 }
