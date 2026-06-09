@@ -41,6 +41,7 @@ import { SubAgentManager } from './sub-agent-manager';
 import type { PendingUserInputProvider } from './conversation-runner';
 import { resolveModelContextWindow } from '../utils/model-context-window';
 import { parseSessionKeyV2 } from './session-router';
+import { stripAssistantArtifactsFromMessages } from '../utils/transcript-artifacts';
 
 export type { RuntimeFeedbackInput, RuntimeFeedbackOptions } from './runtime-feedback-inbox';
 
@@ -322,6 +323,7 @@ export class AgentSession {
       const usage = this.contextWindowManager.getUsageInfo(this.messages);
       Logger.info(`[${this.key}] 恢复后上下文: ${usage.usedTokens}/${usage.maxTokens} tokens (${usage.usagePercent}%)`);
 
+      this.messages = stripAssistantArtifactsFromMessages(this.messages);
       this.messages = await this.contextWindowManager.compactIfNeeded(this.messages, {
         sessionKey: this.key,
         reason: '恢复后',
@@ -455,6 +457,7 @@ export class AgentSession {
       this.activeAbortController = new AbortController();
       this.lastActiveAt = Date.now();
 
+      this.messages = stripAssistantArtifactsFromMessages(this.messages);
       this.messages = await this.contextWindowManager.compactIfNeeded(this.messages, {
         sessionKey: this.key,
         reason: '处理前',
@@ -521,8 +524,9 @@ export class AgentSession {
         this.messages.push({
           role: 'assistant',
           content: this.formatErrorContextMessage(err, isModelTimeoutError),
+          __internalErrorArtifact: true,
         });
-        this.messages = this.turnContextBuilder.removeTransientMessages(this.messages);
+        this.messages = stripAssistantArtifactsFromMessages(this.turnContextBuilder.removeTransientMessages(this.messages));
         this.lifecycleManager.saveContext(this.messages);
 
         return { text: errorReply, visibleToUser: true };
