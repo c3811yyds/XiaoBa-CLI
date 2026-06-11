@@ -165,6 +165,22 @@ export function registerSkillHubRoutes(router: Router, options: SkillHubRouteOpt
       sendSkillHubError(res, error);
     }
   });
+
+  router.post('/skillhub/me/package-versions/:id/restore', async (req, res) => {
+    try {
+      res.json(await serviceFrom(req.body).restoreOwnPackageVersion(String(req.params.id || '')));
+    } catch (error: any) {
+      sendSkillHubError(res, error);
+    }
+  });
+
+  router.delete('/skillhub/me/package-versions/:id', async (req, res) => {
+    try {
+      res.json(await serviceFrom(req.body).deleteOwnPackageVersion(String(req.params.id || '')));
+    } catch (error: any) {
+      sendSkillHubError(res, error);
+    }
+  });
 }
 
 function serviceFrom(_input?: any): SkillHubService {

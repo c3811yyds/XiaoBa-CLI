@@ -3044,15 +3044,32 @@ async function getSkillHubInstallInfo(skill: Skill): Promise<any> {
     version: metadata.version,
     uploadedAt: metadata.uploadedAt,
     modified: 'unknown',
+    syncStatus: 'check_failed',
+    syncLabel: '未校验',
   };
   try {
     const version = await new SkillHubService().getPublishedVersion(skillId, metadata.version);
     if (version?.contentHash) {
       const localHash = computeLocalSkillContentHash(path.dirname(skill.filePath));
-      info.modified = localHash === version.contentHash ? false : true;
+      const modified = localHash !== version.contentHash;
+      info.modified = modified;
+      info.syncStatus = modified ? 'local_changes' : 'synced';
+      info.syncLabel = modified ? '本地有改动' : '已同步';
+    } else {
+      info.modified = 'unknown';
+      info.syncStatus = 'check_failed';
+      info.syncLabel = '未校验';
     }
-  } catch {
+  } catch (error: any) {
     info.modified = 'unknown';
+    if (Number(error?.status) === 404) {
+      info.syncStatus = 'source_removed';
+      info.syncLabel = '云端版本不可用';
+    } else {
+      info.syncStatus = 'check_failed';
+      info.syncLabel = '校验失败';
+      info.syncError = error?.message || String(error);
+    }
   }
   return info;
 }

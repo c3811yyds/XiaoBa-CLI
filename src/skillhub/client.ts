@@ -170,6 +170,21 @@ export class SkillHubClient {
     );
   }
 
+  async restoreOwnPackageVersion(packageVersionId: string): Promise<any> {
+    return this.request(
+      'POST',
+      `/api/me/skill-versions/${encodeURIComponent(packageVersionId)}/restore`,
+      {},
+    );
+  }
+
+  async deleteOwnPackageVersion(packageVersionId: string): Promise<any> {
+    return this.request(
+      'DELETE',
+      `/api/me/skill-versions/${encodeURIComponent(packageVersionId)}`,
+    );
+  }
+
   private async request<T>(method: string, apiPath: string, body?: unknown): Promise<T> {
     const response = await this.fetchRaw(method, apiPath, body);
     const text = await response.text();

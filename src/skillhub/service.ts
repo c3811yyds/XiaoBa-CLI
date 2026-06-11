@@ -140,6 +140,14 @@ export class SkillHubService {
     return this.client.yankOwnPackageVersion(packageVersionId, reason);
   }
 
+  restoreOwnPackageVersion(packageVersionId: string): Promise<any> {
+    return this.client.restoreOwnPackageVersion(packageVersionId);
+  }
+
+  deleteOwnPackageVersion(packageVersionId: string): Promise<any> {
+    return this.client.deleteOwnPackageVersion(packageVersionId);
+  }
+
   async createManifestDraft(input: any): Promise<any> {
     const files = input.localPath ? collectSkillSourceFiles(String(input.localPath)) : [];
     return this.client.createManifestDraft({

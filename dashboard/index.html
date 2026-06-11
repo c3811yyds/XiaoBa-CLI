@@ -5108,11 +5108,11 @@
           <div class="portal-list" id="skillhub-submissions-list"><div class="loading">暂无数据</div></div>
         </div>
 
-        <div class="config-section">
-          <div class="config-group-title-main">My Published Versions</div>
-          <div class="settings-meta" style="margin-bottom:14px">Published SkillHub versions can be managed here. Public users can install any published version.</div>
-          <div class="portal-list" id="skillhub-package-versions-list"><div class="loading">No published versions</div></div>
-        </div>
+          <div class="config-section">
+            <div class="config-group-title-main">我的发布</div>
+            <div class="settings-meta" style="margin-bottom:14px">管理你发布到 SkillHub 的 Skill 和版本。下架会隐藏公开安装；删除会移除服务器版本和包文件。</div>
+            <div class="portal-list" id="skillhub-package-versions-list"><div class="loading">暂无发布版本</div></div>
+          </div>
       </div>
 
       <!-- Page: Chat -->
@@ -6268,15 +6268,15 @@
       const name = skillJsArg(sk.name);
       const actions = [];
       if (sk.canDisable === false) {
-        actions.push('<button class="btn" disabled>Protected</button>');
+        actions.push('<button class="btn" disabled>受保护</button>');
       } else {
-        actions.push('<button class="btn" onclick="toggleSkill(\''+name+'\',' +(sk.enabled!==false)+')">'+(sk.enabled===false?'Enable':'Disable')+'</button>');
+        actions.push('<button class="btn" onclick="toggleSkill(\''+name+'\',' +(sk.enabled!==false)+')">'+(sk.enabled===false?'启用':'停用')+'</button>');
       }
       if (sk.canShare) {
-        actions.push('<button class="btn btn-primary" onclick="shareLocalSkillToSkillHub(\''+name+'\')">Share</button>');
+        actions.push('<button class="btn btn-primary" onclick="shareLocalSkillToSkillHub(\''+name+'\')">分享</button>');
       }
       if (sk.canDelete) {
-        actions.push('<button class="btn btn-danger" onclick="deleteSkill(\''+name+'\')">Delete</button>');
+        actions.push('<button class="btn btn-danger" onclick="deleteSkill(\''+name+'\')">删除</button>');
       }
       return '<div class="skill-actions">'+actions.join('')+'</div>';
     }
@@ -6318,15 +6318,18 @@
 
     function renderSkillHubLocalMeta(sk) {
       if (!sk.skillHub) return '';
-      const modified = sk.skillHub.modified === true
-        ? '<span class="tag warm">local changes</span>'
-        : sk.skillHub.modified === false
-          ? '<span class="tag green">synced</span>'
-          : '<span class="tag">not checked</span>';
+      const syncStatus = sk.skillHub.syncStatus || (sk.skillHub.modified === true ? 'local_changes' : sk.skillHub.modified === false ? 'synced' : 'check_failed');
+      const syncTag = syncStatus === 'synced'
+        ? '<span class="tag green" title="本地内容与云端版本一致">已同步</span>'
+        : syncStatus === 'local_changes'
+          ? '<span class="tag warm" title="云端版本存在，但本地内容已经改过">本地有改动</span>'
+          : syncStatus === 'source_removed'
+            ? '<span class="tag warm" title="云端版本不存在、已下架或已删除">云端版本不可用</span>'
+            : '<span class="tag" title="'+escapeHtml(sk.skillHub.syncError || '网络或 API 校验失败')+'">校验失败</span>';
       const parts = [
-        sk.skillHub.author ? '<span class="tag">by '+escapeHtml(sk.skillHub.author)+'</span>' : '',
+        sk.skillHub.author ? '<span class="tag">作者：'+escapeHtml(sk.skillHub.author)+'</span>' : '',
         sk.skillHub.version ? '<span class="tag">v'+escapeHtml(sk.skillHub.version)+'</span>' : '',
-        modified,
+        syncTag,
       ].filter(Boolean);
       return '<div class="skill-meta">'+parts.join('')+'</div>';
     }
@@ -6335,19 +6338,19 @@
       const g = document.getElementById('skills-grid');
       if (!g) return;
       if (!skills.length) { g.innerHTML = '<div class="loading">No Skills</div>'; return; }
-      g.innerHTML = skills.map(sk => '<div class="skill-card'+(sk.enabled===false?' disabled':'')+'"><div class="skill-name">'+sk.name+renderSkillSourceTag(sk)+(sk.enabled===false?' <span class="tag" style="background:rgba(220,93,115,0.12);color:var(--red)">disabled</span>':'')+'</div><div class="skill-desc">'+(sk.description||'')+'</div><div class="skill-meta">'+(sk.userInvocable?'<span class="tag active">user</span>':'')+(sk.autoInvocable?'<span class="tag active">auto</span>':'')+(sk.maxTurns?'<span class="tag">max '+sk.maxTurns+' turns</span>':'')+'</div>'+renderSkillHubLocalMeta(sk)+renderSkillGrowth(sk.name)+(sk.files?'<div class="skill-files">'+sk.files.join(', ')+'</div>':'')+renderSkillActionButtons(sk)+'</div>').join('');
+      g.innerHTML = skills.map(sk => '<div class="skill-card'+(sk.enabled===false?' disabled':'')+'"><div class="skill-name">'+sk.name+renderSkillSourceTag(sk)+(sk.enabled===false?' <span class="tag" style="background:rgba(220,93,115,0.12);color:var(--red)">已停用</span>':'')+'</div><div class="skill-desc">'+(sk.description||'')+'</div>'+renderSkillHubLocalMeta(sk)+renderSkillGrowth(sk.name)+(sk.files?'<div class="skill-files">'+sk.files.join(', ')+'</div>':'')+renderSkillActionButtons(sk)+'</div>').join('');
     }
 
     function renderLocalSkillStore(skills) {
       const g = document.getElementById('store-grid');
       if (!g) return;
       if (!skills.length) { g.innerHTML = '<div class="loading">No Skills</div>'; return; }
-      g.innerHTML = skills.map(sk => '<div class="skill-card'+(sk.enabled===false?' disabled':'')+'"><div class="skill-name">'+sk.name+renderSkillSourceTag(sk)+(sk.enabled===false?' <span class="tag" style="background:rgba(220,93,115,0.12);color:var(--red)">disabled</span>':'')+'</div><div class="skill-desc">'+(sk.description||'')+'</div><div class="skill-meta">'+(sk.userInvocable?'<span class="tag active">user</span>':'')+(sk.autoInvocable?'<span class="tag active">auto</span>':'')+(sk.maxTurns?'<span class="tag">max '+sk.maxTurns+' turns</span>':'')+'</div>'+renderSkillHubLocalMeta(sk)+renderSkillGrowth(sk.name)+(sk.files?'<div class="skill-files">'+sk.files.join(', ')+'</div>':'')+renderSkillActionButtons(sk)+'</div>').join('');
+      g.innerHTML = skills.map(sk => '<div class="skill-card'+(sk.enabled===false?' disabled':'')+'"><div class="skill-name">'+sk.name+renderSkillSourceTag(sk)+(sk.enabled===false?' <span class="tag" style="background:rgba(220,93,115,0.12);color:var(--red)">已停用</span>':'')+'</div><div class="skill-desc">'+(sk.description||'')+'</div>'+renderSkillHubLocalMeta(sk)+renderSkillGrowth(sk.name)+(sk.files?'<div class="skill-files">'+sk.files.join(', ')+'</div>':'')+renderSkillActionButtons(sk)+'</div>').join('');
     }
 
     async function shareLocalSkillToSkillHub(skillName) {
       if (!skillName) return;
-      if (!confirm('Share this local Skill to SkillHub?\n\n' + skillName)) return;
+      if (!confirm('分享这个本地 Skill 到 SkillHub？\n\n' + skillName)) return;
       try {
         await ensureSkillHubAuthenticated();
         let data = await parseSimpleResponse(await fetch(API + '/api/skillhub/share-local-skill', {
@@ -6356,8 +6359,8 @@
           body:JSON.stringify({ skillName }),
         }));
         if (data.requiresConfirmation) {
-          const latest = data.latestVersion ? ('\nLatest version: ' + data.latestVersion) : '';
-          if (!confirm('A SkillHub skill with the same name already exists, but the local content is different.' + latest + '\n\nPublish this as a new patch version?')) return;
+          const latest = data.latestVersion ? ('\n云端最新版本：' + data.latestVersion) : '';
+          if (!confirm('SkillHub 上已有同名 Skill，但本地内容不同。' + latest + '\n\n是否发布为新的 patch 版本？')) return;
           data = await parseSimpleResponse(await fetch(API + '/api/skillhub/share-local-skill', {
             method:'POST',
             headers:{'Content-Type':'application/json'},
@@ -6365,15 +6368,15 @@
           }));
         }
         if (data.existing) {
-          alert('SkillHub already has this exact Skill content: ' + (data.latestVersion || skillName));
+          alert('SkillHub 已有完全相同的内容：' + (data.latestVersion || skillName));
           await refreshSkillHubPage();
           return;
         }
         const submission = data.submission || {};
-        alert('SkillHub share submitted: ' + (submission.id || submission.submissionId || skillName));
+        alert('已分享到 SkillHub：' + (submission.id || submission.submissionId || skillName));
         await Promise.allSettled([fetchSkillHubDeveloper(), refreshSkillHubPage()]);
       } catch (e) {
-        alert('SkillHub share failed: ' + (e.message || String(e)));
+        alert('分享失败：' + (e.message || String(e)));
       }
     }
 
@@ -6600,16 +6603,19 @@
         const latestVersion = String(item.latestVersion || '');
         const key = skillId + '@' + latestVersion;
         const installed = installedIds.has(key);
-        const tags = [item.author?.name ? '<span class="tag">by '+escapeHtml(item.author.name)+'</span>' : '', ...(item.categories || []), ...(item.tags || [])].slice(0, 5).map(tag => String(tag).startsWith('<span') ? tag : '<span class="tag">'+escapeHtml(tag)+'</span>').join('');
+        const tags = [
+          item.author?.name ? '<span class="tag">作者：'+escapeHtml(item.author.name)+'</span>' : '',
+          latestVersion ? '<span class="tag">v'+escapeHtml(latestVersion)+'</span>' : '',
+        ].filter(Boolean).join('');
         const installAttrs = installed || !skillId
           ? 'disabled'
           : 'data-skillhub-install="true" data-skill-id="'+escapeHtml(skillId)+'" data-version="'+escapeHtml(latestVersion)+'"';
         return '<div class="skill-card">'+
           '<div class="skill-name">'+escapeHtml(item.displayName || item.name || skillId)+' <span class="tag green">SkillHub</span></div>'+
           '<div class="skill-desc">'+escapeHtml(item.description || '')+'</div>'+
-          '<div class="skill-meta">'+tags+'<span class="tag">v'+escapeHtml(latestVersion || '-')+'</span></div>'+
+          '<div class="skill-meta">'+tags+'</div>'+
           '<div class="skill-files">'+escapeHtml((item.triggerExamples || []).slice(0, 3).join(', '))+'</div>'+
-          '<div class="skill-actions"><button class="btn btn-primary" '+installAttrs+'>'+(installed?'Installed':'Install')+'</button><button class="btn" data-skillhub-versions="true" data-skill-id="'+escapeHtml(skillId)+'">Versions</button></div>'+
+          '<div class="skill-actions"><button class="btn btn-primary" '+installAttrs+'>'+(installed?'已安装':'安装')+'</button><button class="btn" data-skillhub-versions="true" data-skill-id="'+escapeHtml(skillId)+'">版本</button></div>'+
         '</div>';
       }).join('');
     }
@@ -6642,20 +6648,61 @@
       yankOwnSkillHubVersion(packageVersionId);
     }
 
+    function handleSkillHubRestoreVersionClick(event) {
+      const button = event.target?.closest?.('[data-skillhub-restore-version]');
+      if (!button || button.disabled) return;
+      event.preventDefault();
+      const packageVersionId = button.dataset.packageVersionId || '';
+      if (!packageVersionId) return;
+      restoreOwnSkillHubVersion(packageVersionId);
+    }
+
+    function handleSkillHubDeleteVersionClick(event) {
+      const button = event.target?.closest?.('[data-skillhub-delete-version]');
+      if (!button || button.disabled) return;
+      event.preventDefault();
+      const packageVersionId = button.dataset.packageVersionId || '';
+      if (!packageVersionId) return;
+      deleteOwnSkillHubVersion(packageVersionId);
+    }
+
     async function installSkillHubSkill(skillId, version) {
-      pulsePetState('thinking', 'Installing Skill...', 1600);
+      pulsePetState('thinking', '正在安装 Skill...', 1600);
       try {
         const data = await parseSimpleResponse(await fetch(API + '/api/skillhub/install', {
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body:JSON.stringify({ skillId, version }),
         }));
-        pulsePetState('success', 'Skill installed', 2200);
-        alert('Install complete: ' + (data.skill?.name || skillId));
+        pulsePetState('success', 'Skill 已安装', 2200);
+        alert('安装完成：' + (data.skill?.name || skillId));
         await refreshSkillHubPage();
       } catch (e) {
-        pulsePetState('error', 'Install failed', 2600);
-        alert('Install failed: ' + (e.message || String(e)));
+        pulsePetState('error', '安装失败', 2600);
+        alert('安装失败：' + (e.message || String(e)));
+      }
+    }
+
+    function skillHubStatusTag(status) {
+      const value = String(status || 'published');
+      if (value === 'published') return '<span class="tag green">已公开</span>';
+      if (value === 'yanked') return '<span class="tag warm">已下架</span>';
+      return '<span class="tag">'+escapeHtml(value)+'</span>';
+    }
+
+    function skillHubStatusText(status) {
+      const value = String(status || 'published');
+      if (value === 'published') return '已公开';
+      if (value === 'yanked') return '已下架';
+      return value || '-';
+    }
+
+    function skillHubFormatDate(value) {
+      if (!value) return '';
+      try {
+        return new Date(value).toLocaleString();
+      } catch (_e) {
+        return String(value);
       }
     }
 
@@ -6664,8 +6711,8 @@
       const modal = document.getElementById('skillhub-versions-modal');
       const title = document.getElementById('skillhub-versions-title');
       const body = document.getElementById('skillhub-versions-body');
-      if (title) title.textContent = 'SkillHub Versions: ' + skillId;
-      if (body) body.innerHTML = '<div class="loading">Loading versions...</div>';
+      if (title) title.textContent = 'SkillHub 版本：' + skillId;
+      if (body) body.innerHTML = '<div class="loading">正在加载版本...</div>';
       if (modal) modal.classList.add('show');
       try {
         const [data, ownerData] = await Promise.all([
@@ -6678,30 +6725,36 @@
         const ownerVersions = new Map((ownerData.packageVersions || []).map(item => [String(item.skillId || '') + '@' + String(item.latestVersion || item.version || ''), item]));
         if (!body) return;
         if (!versions.length) {
-          body.innerHTML = '<div class="loading">No versions found.</div>';
+          body.innerHTML = '<div class="loading">暂无版本</div>';
           return;
         }
         body.innerHTML = versions.map(item => {
           const version = String(item.latestVersion || item.version || '');
           const ownerVersion = ownerVersions.get(String(skillId) + '@' + version);
-          const published = item.publishedAt ? '<span class="tag">'+escapeHtml(item.publishedAt)+'</span>' : '';
-          const downloads = '<span class="tag">downloads '+Number(item.downloadCount || 0)+'</span>';
-          const status = item.status && item.status !== 'published' ? '<span class="tag warm">'+escapeHtml(item.status)+'</span>' : '<span class="tag green">published</span>';
+          const published = item.publishedAt ? '<span class="tag">'+escapeHtml(skillHubFormatDate(item.publishedAt))+'</span>' : '';
+          const downloads = '<span class="tag">下载 '+Number(item.downloadCount || 0)+'</span>';
+          const status = skillHubStatusTag(item.status);
           const installAttrs = version
             ? 'data-skillhub-install="true" data-skill-id="'+escapeHtml(skillId)+'" data-version="'+escapeHtml(version)+'"'
             : 'disabled';
           const packageVersionId = ownerVersion?.packageVersionId || ownerVersion?.id || '';
           const removeButton = packageVersionId && (ownerVersion?.status || 'published') === 'published'
-            ? '<button class="btn btn-danger" data-skillhub-yank-version="true" data-package-version-id="'+escapeHtml(packageVersionId)+'">Remove version</button>'
+            ? '<button class="btn btn-danger" data-skillhub-yank-version="true" data-package-version-id="'+escapeHtml(packageVersionId)+'">下架版本</button>'
+            : '';
+          const restoreButton = packageVersionId && (ownerVersion?.status || 'published') !== 'published'
+            ? '<button class="btn btn-success" data-skillhub-restore-version="true" data-package-version-id="'+escapeHtml(packageVersionId)+'">重新公开</button>'
+            : '';
+          const deleteButton = packageVersionId
+            ? '<button class="btn btn-danger" data-skillhub-delete-version="true" data-package-version-id="'+escapeHtml(packageVersionId)+'">删除版本</button>'
             : '';
           return '<div class="portal-row">'+
             '<strong>v'+escapeHtml(version || '-')+'</strong>'+
             '<div class="skill-meta">'+status+published+downloads+'</div>'+
-            '<div class="config-actions" style="margin-top:10px"><button class="btn btn-primary" '+installAttrs+'>Install this version</button>'+removeButton+'</div>'+
+            '<div class="config-actions" style="margin-top:10px"><button class="btn btn-primary" '+installAttrs+'>安装此版本</button>'+removeButton+restoreButton+deleteButton+'</div>'+
           '</div>';
         }).join('');
       } catch (e) {
-        if (body) body.innerHTML = '<div class="runtime-note danger">Load versions failed: '+escapeHtml(e.message || String(e))+'</div>';
+        if (body) body.innerHTML = '<div class="runtime-note danger">版本加载失败：'+escapeHtml(e.message || String(e))+'</div>';
       }
     }
 
@@ -6720,22 +6773,80 @@
       }
     }
 
+    function groupSkillHubOwnedVersions(versions) {
+      const groups = new Map();
+      for (const item of versions || []) {
+        const skillId = String(item.skillId || item.name || '-');
+        const group = groups.get(skillId) || {
+          skillId,
+          displayName: item.displayName || item.name || skillId.split('/').pop() || skillId,
+          author: item.author?.name || item.authorName || '',
+          versions: [],
+          downloads: 0,
+          latestVersion: '',
+          latestPublishedAt: '',
+        };
+        group.versions.push(item);
+        group.downloads += Number(item.downloadCount || 0);
+        const version = String(item.latestVersion || item.version || '');
+        if (!group.latestVersion || String(item.publishedAt || '') > String(group.latestPublishedAt || '')) {
+          group.latestVersion = version;
+          group.latestPublishedAt = item.publishedAt || '';
+        }
+        groups.set(skillId, group);
+      }
+      return Array.from(groups.values()).sort((a, b) => String(b.latestPublishedAt || '').localeCompare(String(a.latestPublishedAt || '')));
+    }
+
+    function renderOwnedSkillVersionRow(item) {
+      const packageVersionId = item.packageVersionId || item.id || '';
+      const version = item.latestVersion || item.version || '-';
+      const downloads = Number(item.downloadCount || 0);
+      const published = skillHubFormatDate(item.publishedAt);
+      const status = item.status || 'published';
+      const yankButton = packageVersionId && status === 'published'
+        ? '<button class="btn btn-danger" data-skillhub-yank-version="true" data-package-version-id="'+escapeHtml(packageVersionId)+'">下架</button>'
+        : '';
+      const restoreButton = packageVersionId && status !== 'published'
+        ? '<button class="btn btn-success" data-skillhub-restore-version="true" data-package-version-id="'+escapeHtml(packageVersionId)+'">重新公开</button>'
+        : '';
+      const deleteButton = packageVersionId
+        ? '<button class="btn btn-danger" data-skillhub-delete-version="true" data-package-version-id="'+escapeHtml(packageVersionId)+'">删除</button>'
+        : '';
+      return '<div class="portal-row" style="margin-top:8px">'+
+        '<strong>v'+escapeHtml(version)+'</strong>'+
+        '<div class="skill-meta">'+skillHubStatusTag(status)+'<span class="tag">下载 '+downloads+'</span>'+(published?'<span class="tag">'+escapeHtml(published)+'</span>':'')+'</div>'+
+        '<div class="config-actions" style="margin-top:8px">'+yankButton+restoreButton+deleteButton+'</div>'+
+      '</div>';
+    }
+
+    function renderOwnedSkillGroup(group) {
+      const versionCount = group.versions.length;
+      return '<div class="portal-row">'+
+        '<div class="settings-setup-head">'+
+          '<div><strong>'+escapeHtml(group.displayName || group.skillId)+'</strong><div class="settings-meta">'+escapeHtml(group.skillId)+'</div></div>'+
+          '<span class="tag green">我的发布</span>'+
+        '</div>'+
+        '<div class="skill-growth" style="margin-top:12px">'+
+          '<div class="skill-growth-stat"><div class="skill-growth-label">最新版本</div><div class="skill-growth-value">v'+escapeHtml(group.latestVersion || '-')+'</div></div>'+
+          '<div class="skill-growth-stat"><div class="skill-growth-label">版本数</div><div class="skill-growth-value">'+versionCount+'</div></div>'+
+          '<div class="skill-growth-stat"><div class="skill-growth-label">下载</div><div class="skill-growth-value">'+Number(group.downloads || 0)+'</div></div>'+
+        '</div>'+
+        '<div style="margin-top:12px">'+group.versions.map(renderOwnedSkillVersionRow).join('')+'</div>'+
+      '</div>';
+    }
+
     function renderSkillHubDeveloper(data) {
       const statusBox = document.getElementById('skillhub-developer-status');
       const applyBox = document.getElementById('skillhub-developer-apply');
       const consoleBox = document.getElementById('skillhub-developer-console');
       const list = document.getElementById('skillhub-submissions-list');
       const versionList = document.getElementById('skillhub-package-versions-list');
-      const roles = data.roles || [];
       const authenticated = Boolean(data.authenticated);
-      const developer = roles.includes('developer');
       if (statusBox) {
         statusBox.innerHTML = authenticated
-          ? '<div class="settings-setup-head"><div><div class="settings-setup-title">'+(developer?'开发者权限已启用':'当前账号还不是开发者')+'</div><div class="settings-setup-copy">'+escapeHtml(data.user?.displayName || data.user?.email || 'CatsCo 用户')+' · '+escapeHtml(roles.join(', ') || 'user')+'</div></div><span class="tag '+(developer?'green':'warm')+'">'+(developer?'developer':'user')+'</span></div>'
-          : '<div class="runtime-note warning">请先在本页登录 SkillHub，然后再申请开发者权限。</div>';
-      }
-      if (statusBox && authenticated) {
-        statusBox.innerHTML = '<div class="settings-setup-head"><div><div class="settings-setup-title">SkillHub publish enabled</div><div class="settings-setup-copy">'+escapeHtml(data.user?.displayName || data.user?.email || 'CatsCo user')+' can share local Skills and manage owned versions.</div></div><span class="tag green">connected</span></div>';
+          ? '<div class="settings-setup-head"><div><div class="settings-setup-title">已连接 SkillHub</div><div class="settings-setup-copy">'+escapeHtml(data.user?.displayName || data.user?.email || 'CatsCo 用户')+' 可以分享本地 Skill，并管理自己发布的版本。</div></div><span class="tag green">已登录</span></div>'
+          : '<div class="runtime-note warning">请先登录 CatsCo，再管理 SkillHub 发布。</div>';
       }
       if (applyBox) applyBox.style.display = 'none';
       if (consoleBox) consoleBox.style.display = 'none';
@@ -6744,36 +6855,60 @@
         list.innerHTML = submissions.length ? submissions.map(item => {
           const manifest = item.normalizedManifest || item.manifest || {};
           return '<div class="portal-row"><strong>'+escapeHtml(manifest.displayName || manifest.name || item.id)+'</strong><div class="settings-meta">'+escapeHtml(item.status || '-')+' · '+escapeHtml(manifest.version || '')+'</div></div>';
-          }).join('') : '<div class="loading">暂无提交记录</div>';
-        }
-        if (versionList) {
-          const versions = data.packageVersions || [];
-          versionList.innerHTML = versions.length ? versions.map(item => {
-            const author = item.author?.name ? 'by ' + item.author.name : '';
-            const published = item.publishedAt ? ' · ' + item.publishedAt : '';
-            const downloads = Number(item.downloadCount || 0);
-            const packageVersionId = item.packageVersionId || item.id || '';
-            const actions = item.status === 'published' && packageVersionId
-              ? '<div class="config-actions" style="margin-top:8px"><button class="btn btn-danger" data-skillhub-yank-version="true" data-package-version-id="'+escapeHtml(packageVersionId)+'">Remove version</button></div>'
-              : '';
-            return '<div class="portal-row"><strong>'+escapeHtml(item.skillId || item.name || '-')+'</strong><div class="settings-meta">v'+escapeHtml(item.latestVersion || item.version || '-')+' · '+escapeHtml(item.status || 'published')+' · downloads '+downloads+published+'</div><div class="settings-meta">'+escapeHtml(author)+' · owner managed</div>'+actions+'</div>';
-          }).join('') : '<div class="loading">No published versions</div>';
-        }
+        }).join('') : '<div class="loading">暂无提交记录</div>';
       }
+      if (versionList) {
+        const groups = groupSkillHubOwnedVersions(data.packageVersions || []);
+        versionList.innerHTML = groups.length
+          ? groups.map(renderOwnedSkillGroup).join('')
+          : '<div class="loading">暂无发布版本</div>';
+      }
+    }
 
     async function yankOwnSkillHubVersion(packageVersionId) {
       if (!packageVersionId) return;
-      if (!confirm('Remove this published SkillHub version from public search and downloads?')) return;
+      if (!confirm('下架这个 SkillHub 版本？下架后不会出现在公开搜索和安装列表中，但版本记录仍保留。')) return;
       try {
         await parseSimpleResponse(await fetch(API + '/api/skillhub/me/package-versions/' + encodeURIComponent(packageVersionId) + '/yank', {
           method:'POST',
           headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({ reason:'removed by owner from dashboard' }),
+          body:JSON.stringify({ reason:'owner removed from dashboard' }),
         }));
         await fetchSkillHubDeveloper();
         await refreshSkillHubPage();
       } catch (e) {
-        alert('Remove failed: ' + (e.message || String(e)));
+        alert('下架失败：' + (e.message || String(e)));
+      }
+    }
+
+    async function restoreOwnSkillHubVersion(packageVersionId) {
+      if (!packageVersionId) return;
+      if (!confirm('重新公开这个 SkillHub 版本？公开后其他用户可以搜索和安装它。')) return;
+      try {
+        await parseSimpleResponse(await fetch(API + '/api/skillhub/me/package-versions/' + encodeURIComponent(packageVersionId) + '/restore', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({}),
+        }));
+        await fetchSkillHubDeveloper();
+        await refreshSkillHubPage();
+      } catch (e) {
+        alert('重新公开失败：' + (e.message || String(e)));
+      }
+    }
+
+    async function deleteOwnSkillHubVersion(packageVersionId) {
+      if (!packageVersionId) return;
+      if (!confirm('永久删除这个 SkillHub 版本？删除后其他用户将无法安装该版本。')) return;
+      try {
+        await parseSimpleResponse(await fetch(API + '/api/skillhub/me/package-versions/' + encodeURIComponent(packageVersionId), {
+          method:'DELETE',
+          headers:{'Content-Type':'application/json'},
+        }));
+        await fetchSkillHubDeveloper();
+        await refreshSkillHubPage();
+      } catch (e) {
+        alert('删除失败：' + (e.message || String(e)));
       }
     }
 
@@ -9949,7 +10084,11 @@
     document.getElementById('skillhub-registry-grid')?.addEventListener('click', handleSkillHubVersionsClick);
     document.getElementById('skillhub-versions-body')?.addEventListener('click', handleSkillHubInstallClick);
     document.getElementById('skillhub-versions-body')?.addEventListener('click', handleSkillHubYankVersionClick);
+    document.getElementById('skillhub-versions-body')?.addEventListener('click', handleSkillHubRestoreVersionClick);
+    document.getElementById('skillhub-versions-body')?.addEventListener('click', handleSkillHubDeleteVersionClick);
     document.getElementById('skillhub-package-versions-list')?.addEventListener('click', handleSkillHubYankVersionClick);
+    document.getElementById('skillhub-package-versions-list')?.addEventListener('click', handleSkillHubRestoreVersionClick);
+    document.getElementById('skillhub-package-versions-list')?.addEventListener('click', handleSkillHubDeleteVersionClick);
     document.addEventListener('keydown',handleDashboardFontScaleShortcut);
     window.addEventListener('resize',()=>{refreshDashboardFontScaleForViewport(); autoResizeCatsMessageInput();});
     document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLogs();closeUpdateModal();closeCatsMediaPreview();closeSkillHubVersionsModal();}});
