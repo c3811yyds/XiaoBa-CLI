@@ -1028,6 +1028,12 @@ function requestedSecretAction(input: any): 'keep' | 'replace' | 'clear' {
   return 'keep';
 }
 
+function requestedCustomContextWindowTokens(input: any): number | undefined {
+  if (!input?.settings || typeof input.settings !== 'object') return undefined;
+  if (!Object.prototype.hasOwnProperty.call(input.settings, 'model.contextWindowTokens')) return undefined;
+  return parsePositiveInteger(input.settings['model.contextWindowTokens']);
+}
+
 function sanitizePublicUrl(value: unknown): string | undefined {
   const text = String(value || '').trim();
   if (!text) return undefined;
@@ -1055,7 +1061,9 @@ function mirrorCurrentModelAsCustomStartup(input: any, previous: ModelLaunchProf
   const custom: ModelLaunchProfile = {
     ...current,
     apiKey,
-    contextWindowTokens: storedCustom.contextWindowTokens ?? CUSTOM_MODEL_DEFAULT_CONTEXT_WINDOW_TOKENS,
+    contextWindowTokens: requestedCustomContextWindowTokens(input)
+      ?? storedCustom.contextWindowTokens
+      ?? CUSTOM_MODEL_DEFAULT_CONTEXT_WINDOW_TOKENS,
   };
 
   if (!isCompleteModelProfile(custom) && (previousSource === 'relay' || isCatsRelayApiBase(previous.apiBase))) {
@@ -1736,6 +1744,8 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
         provider: result.profile.provider,
         apiBase: sanitizePublicUrl(result.profile.apiBase),
         model: result.profile.model,
+        contextWindowTokens: result.profile.contextWindowTokens,
+        contextLabel: result.profile.contextWindowTokens ? formatContextWindowTokens(result.profile.contextWindowTokens) : undefined,
         updated: result.updated,
         cleared: result.cleared,
         restartRequired: activation.wasRunning && !activation.restartRequested,
