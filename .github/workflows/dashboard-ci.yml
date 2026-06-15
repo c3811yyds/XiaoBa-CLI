@@ -8,7 +8,10 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'scripts/build-dashboard.js'
-      - 'tests/dashboard-*.test.ts'
+      - 'scripts/inject-version.js'
+      - 'scripts/verify-release-version.js'
+      - 'tests/dashboard-*'
+      - 'tsconfig.dashboard.json'
   push:
     branches:
       - main
@@ -18,7 +21,10 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'scripts/build-dashboard.js'
-      - 'tests/dashboard-*.test.ts'
+      - 'scripts/inject-version.js'
+      - 'scripts/verify-release-version.js'
+      - 'tests/dashboard-*'
+      - 'tsconfig.dashboard.json'
 
 concurrency:
   group: dashboard-ci-${{ github.ref }}
@@ -55,6 +61,15 @@ jobs:
 
       - name: Typecheck
         run: npm run build -- --pretty false
+
+      - name: Typecheck dashboard React
+        run: npm run typecheck:dashboard
+
+      - name: Verify release dashboard version wiring
+        run: node scripts/verify-release-version.js v$(node -p "require('./package.json').version")
+
+      - name: Install Chromium for dashboard smoke test
+        run: npx playwright install --with-deps chromium
 
       - name: Run dashboard tests
         run: npm run test:dashboard

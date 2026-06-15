@@ -23767,6 +23767,13 @@
   }
   function DashboardApp({ activePage, uiZoom, version }) {
     const appClassName = `dashboard-app${activePage === "chat" ? " chat-active" : ""}${activePage === "companion" ? " companion-active" : ""}`;
+    (0, import_react6.useLayoutEffect)(() => {
+      document.body.classList.toggle("chat-active", activePage === "chat");
+      document.body.classList.toggle("companion-active", activePage === "companion");
+      return () => {
+        document.body.classList.remove("chat-active", "companion-active");
+      };
+    }, [activePage]);
     (0, import_react6.useEffect)(() => {
       const handleKeyDown = (event) => window.handleDashboardFontScaleShortcut?.(event);
       const handleResize = () => {

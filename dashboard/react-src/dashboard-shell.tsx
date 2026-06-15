@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useLayoutEffect } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { mountChatPage } from './chat-page';
@@ -122,6 +122,14 @@ function DashboardApp({ activePage, uiZoom, version }: { activePage: string; uiZ
   const appClassName = `dashboard-app${activePage === 'chat' ? ' chat-active' : ''}${
     activePage === 'companion' ? ' companion-active' : ''
   }`;
+
+  useLayoutEffect(() => {
+    document.body.classList.toggle('chat-active', activePage === 'chat');
+    document.body.classList.toggle('companion-active', activePage === 'companion');
+    return () => {
+      document.body.classList.remove('chat-active', 'companion-active');
+    };
+  }, [activePage]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => window.handleDashboardFontScaleShortcut?.(event);

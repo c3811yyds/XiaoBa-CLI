@@ -390,7 +390,7 @@ function enableCustomStartupModelFromButton(button, options={}){
 }
 
 function openCustomModelFromChat(){
-  switchPage('config');
+  switchPage('services');
   setTimeout(()=>openCustomModelSettings(), 80);
 }
 

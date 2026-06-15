@@ -39,7 +39,7 @@ const scriptSource = Object.values(scriptFiles).join('\n');
 const dashboardSource = [dashboardHtml, dashboardCss, reactSource, scriptSource].join('\n');
 
 test('dashboard index is a small React shell with split runtime scripts', () => {
-  assert.match(dashboardHtml, /<div id="dashboard-app-root"><\/div>/);
+  assert.match(dashboardHtml, /<div id="dashboard-app-root" data-dashboard-version="1\.2\.0"><\/div>/);
   assert.match(dashboardHtml, /<div id="global-modals-root"><\/div>/);
   assert.match(dashboardHtml, /build\/dashboard-shell\.js\?v=react-script-bridge-free/);
   assert.match(dashboardHtml, /styles\/dashboard\.css\?v=react-script-bridge-free/);
@@ -78,6 +78,8 @@ test('React shell owns navigation, page roots, and global modal mounting', () =>
   assert.match(reactFiles.shell, /id: 'companion-page-root'/);
   assert.match(reactFiles.shell, /id: 'store-page-root'/);
   assert.match(reactFiles.shell, /id: 'chat-page-root'/);
+  assert.match(reactFiles.shell, /document\.body\.classList\.toggle\('chat-active', activePage === 'chat'\)/);
+  assert.match(reactFiles.shell, /document\.body\.classList\.toggle\('companion-active', activePage === 'companion'\)/);
   assert.match(reactFiles.globalModals, /export function mountGlobalModals\(\)/);
   assert.doesNotMatch(reactSource, /legacyBody|dangerouslySetInnerHTML|data-action|onclick=|onchange=|oninput=/);
 });
@@ -93,6 +95,7 @@ test('Agent Hub and model settings are React-rendered while scripts provide API 
   assert.match(scriptFiles.status, /async function saveServiceConfig\(name\)/);
   assert.match(scriptFiles.status, /function cancelServiceConfig\(name\)/);
   assert.match(scriptFiles.modelSettings, /async function refreshSettingsPage\(\)/);
+  assert.match(scriptFiles.modelSettings, /function openCustomModelFromChat\(\)\{\s*switchPage\('services'\);/);
   assert.match(scriptFiles.modelSettings, /function enableCatsRelayModel\(modelId, options=\{\}\)/);
   assert.match(scriptFiles.modelSettings, /\/api\/cats\/relay\/model-config\/apply/);
   assert.match(scriptFiles.config, /if\(appStatusSnapshot && Array\.isArray\(appStatusSnapshot\.services\) && !shouldDeferServiceRender\(\)\)renderServices\(appStatusSnapshot\.services\);/);
@@ -184,6 +187,16 @@ test('dashboard font scaling and non-chat layout remain stylesheet-driven', () =
   assert.doesNotMatch(dashboardCss, /--dashboard-content-max/);
   assert.match(dashboardCss, /\.page-content \{\s*width: 100%;\s*max-width: none;\s*margin: 0;/);
   assert.match(dashboardCss, /body:not\(\.chat-active\) \.sidebar \{\s*position: static;\s*width: 100%;\s*min-height: auto;/);
+});
+
+test('release version scripts target the React shell mount version', () => {
+  const injectVersion = read('scripts/inject-version.js');
+  const verifyVersion = read('scripts/verify-release-version.js');
+  assert.match(injectVersion, /data-dashboard-version=/);
+  assert.match(injectVersion, /updateDashboardHtmlVersion/);
+  assert.match(verifyVersion, /data-dashboard-version="\$\{version\}"/);
+  assert.doesNotMatch(injectVersion, /sidebar-brand-ver">v/);
+  assert.doesNotMatch(verifyVersion, /sidebar-brand-ver">v/);
 });
 
 test('split dashboard scripts no longer mutate DOM directly', () => {
