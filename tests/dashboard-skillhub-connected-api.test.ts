@@ -129,6 +129,10 @@ describe('dashboard connected SkillHub API', () => {
       '# Quick Demo',
       '',
     ].join('\n'));
+    fs.writeFileSync(path.join(testRoot, 'skills', 'quick-demo', 'REVIEW.json'), '{}\n');
+    fs.writeFileSync(path.join(testRoot, 'skills', 'quick-demo', 'SBOM.json'), '{}\n');
+    fs.writeFileSync(path.join(testRoot, 'skills', 'quick-demo', '.xiaoba-bundled-skill.json'), '{}\n');
+    fs.writeFileSync(path.join(testRoot, 'skills', 'quick-demo', '.xiaoba-skillhub-install.json'), '{}\n');
 
     const fixture = createFixture();
     await startCloud(fixture);
@@ -147,7 +151,12 @@ describe('dashboard connected SkillHub API', () => {
     assert.equal(share.body.submission.normalizedManifest.id, 'lin/quick-demo');
     assert.equal(share.body.submission.request.manifest.minAgentVersion, '0.0.0');
     assert.deepEqual(share.body.submission.request.manifest.platforms, []);
-    assert.equal(share.body.submission.request.source.files.some((file: any) => file.path === 'SKILL.md'), true);
+    const uploadedPaths = share.body.submission.request.source.files.map((file: any) => file.path);
+    assert.equal(uploadedPaths.includes('SKILL.md'), true);
+    assert.equal(uploadedPaths.includes('REVIEW.json'), false);
+    assert.equal(uploadedPaths.includes('SBOM.json'), false);
+    assert.equal(uploadedPaths.includes('.xiaoba-bundled-skill.json'), false);
+    assert.equal(uploadedPaths.includes('.xiaoba-skillhub-install.json'), false);
     const skillText = fs.readFileSync(path.join(testRoot, 'skills', 'quick-demo', 'SKILL.md'), 'utf8');
     assert.match(skillText, /skillhub_author:\s+["']?lin["']?/);
     assert.match(skillText, /skillhub_version:\s+["']?1\.0\.0["']?/);

@@ -276,6 +276,10 @@ const SOURCE_SKIP_DIRS = new Set([
 ]);
 const SOURCE_SKIP_FILES = new Set([
   'skill.json',
+  'REVIEW.json',
+  'SBOM.json',
+  '.xiaoba-bundled-skill.json',
+  '.xiaoba-skillhub-install.json',
 ]);
 const MAX_SOURCE_FILES = 200;
 const MAX_SOURCE_TOTAL_BYTES = 20 * 1024 * 1024;
