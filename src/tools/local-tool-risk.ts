@@ -1,6 +1,7 @@
 import type { ToolExecutionContext, ToolExecutionResult, ToolRiskLevel } from '../types/tool';
-import { isCatsCoToolGatewayContext } from './tool-gateway';
+import { isCatsCoLocalOwnerSelfContext } from './tool-gateway';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 
 export interface LocalToolRiskDecision {
@@ -81,11 +82,12 @@ export function classifyLocalToolRisk(
   args: unknown,
   context: ToolExecutionContext,
 ): LocalToolRiskDecision {
-  if (isCatsCoToolGatewayContext(context)) {
-    return { requiresConfirmation: false, risk: 'low', reason: 'CatsCo 会话由服务端 device grant 控制。' };
-  }
   if (LOW_RISK_TOOLS.has(toolName)) {
     return { requiresConfirmation: false, risk: 'low', reason: '只读或状态类工具。' };
+  }
+
+  if (isCatsCoLocalOwnerSelfContext(context)) {
+    return { requiresConfirmation: false, risk: 'low', reason: 'CatsCo 本地 owner 自用场景允许直接执行本机工具。' };
   }
 
   if (toolName === 'read_file' || toolName === 'glob' || toolName === 'grep') {
@@ -199,6 +201,14 @@ function classifyWritePathRisk(toolName: string, value: string, context: ToolExe
   const workspaceRoot = context.workspaceRoot || workingDirectory;
   const resolved = path.resolve(workingDirectory, target);
   if (looksSensitivePath(resolved)) return 'high';
+  if (
+    isCatsCoLocalOwnerSelfContext(context)
+    && toolName === 'write_file'
+    && !fs.existsSync(resolved)
+    && isWithin(resolved, os.homedir())
+  ) {
+    return 'low';
+  }
   if (!isWithin(resolved, workspaceRoot)) return 'high';
   if (toolName === 'write_file' && !fs.existsSync(resolved)) return 'low';
   return 'medium';
