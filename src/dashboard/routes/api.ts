@@ -1942,6 +1942,16 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
     }
   });
 
+  router.get('/skills-root', async (_req, res) => {
+    try {
+      const skillsRoot = PathResolver.getSkillsPath();
+      PathResolver.ensureDir(skillsRoot);
+      res.json({ ok: true, path: skillsRoot });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   router.get('/skills/:name', async (req, res) => {
     try {
       const manager = new SkillManager();
@@ -2253,11 +2263,11 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
         username,
         password,
         code,
-      });
+      }, undefined, { timeoutMs: 10000 });
       const login = await catsRequest('POST', state.httpBaseUrl, '/api/auth/login', {
         account: email,
         password,
-      });
+      }, undefined, { timeoutMs: 10000 });
       persistCatsUserSession(state, login);
       res.json({
         ok: true,
@@ -2279,7 +2289,7 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
       const password = String(req.body?.password || '');
       if (!account || !password) return res.status(400).json({ error: 'account and password are required' });
 
-      const login = await catsRequest('POST', state.httpBaseUrl, '/api/auth/login', { account, password });
+      const login = await catsRequest('POST', state.httpBaseUrl, '/api/auth/login', { account, password }, undefined, { timeoutMs: 10000 });
       persistCatsUserSession(state, login);
       res.json({
         ok: true,
@@ -3034,15 +3044,32 @@ async function getSkillHubInstallInfo(skill: Skill): Promise<any> {
     version: metadata.version,
     uploadedAt: metadata.uploadedAt,
     modified: 'unknown',
+    syncStatus: 'check_failed',
+    syncLabel: '未校验',
   };
   try {
     const version = await new SkillHubService().getPublishedVersion(skillId, metadata.version);
     if (version?.contentHash) {
       const localHash = computeLocalSkillContentHash(path.dirname(skill.filePath));
-      info.modified = localHash === version.contentHash ? false : true;
+      const modified = localHash !== version.contentHash;
+      info.modified = modified;
+      info.syncStatus = modified ? 'local_changes' : 'synced';
+      info.syncLabel = modified ? '本地有改动' : '已同步';
+    } else {
+      info.modified = 'unknown';
+      info.syncStatus = 'check_failed';
+      info.syncLabel = '未校验';
     }
-  } catch {
+  } catch (error: any) {
     info.modified = 'unknown';
+    if (Number(error?.status) === 404) {
+      info.syncStatus = 'source_removed';
+      info.syncLabel = '云端版本不可用';
+    } else {
+      info.syncStatus = 'check_failed';
+      info.syncLabel = '校验失败';
+      info.syncError = error?.message || String(error);
+    }
   }
   return info;
 }
