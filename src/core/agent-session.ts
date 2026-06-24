@@ -189,6 +189,8 @@ export class AgentSession {
     this.lifecycleManager = new SessionLifecycleManager({
       sessionKey: key,
       legacySessionKey: sessionRoute?.legacySessionKey,
+      legacyRestoreKey: sessionRoute?.legacyRestoreKey,
+      legacyCleanupKey: sessionRoute?.legacyCleanupKey,
       allowLegacySessionFallback: this.shouldAllowLegacySessionFallback(sessionRoute),
       runtimeFeedbackInbox: this.runtimeFeedbackInbox,
     });
