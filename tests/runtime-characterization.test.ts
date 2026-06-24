@@ -7,6 +7,19 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
+async function removeTreeWithRetry(target: string): Promise<void> {
+  const retryableCodes = new Set(['ENOTEMPTY', 'EBUSY', 'EPERM']);
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      await fs.promises.rm(target, { recursive: true, force: true });
+      return;
+    } catch (error: any) {
+      if (!retryableCodes.has(error?.code) || attempt === 9) throw error;
+      await new Promise(resolve => setTimeout(resolve, 50 * (attempt + 1)));
+    }
+  }
+}
+
 describe('runtime characterization', () => {
   const originalEnv = { ...process.env };
   let testRoot: string;
@@ -19,13 +32,17 @@ describe('runtime characterization', () => {
     process.env.CURRENT_AGENT_DISPLAY_NAME = 'RuntimeTestAgent';
     process.env.CURRENT_PLATFORM = 'characterization';
     delete process.env.BOT_BRIDGE_NAME;
+    delete process.env.XIAOBA_PROMPT_MODE;
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    try {
+      require('../src/utils/logger').Logger.closeLogFile();
+    } catch {}
     process.env = { ...originalEnv };
     process.chdir(originalCwd);
     if (testRoot && fs.existsSync(testRoot)) {
-      fs.rmSync(testRoot, { recursive: true, force: true });
+      await removeTreeWithRetry(testRoot);
     }
   });
 
@@ -64,6 +81,7 @@ describe('runtime characterization', () => {
         'execute_shell',
         'glob',
         'grep',
+        'prompt_mode',
         'read_file',
         'record_decision',
         'resolve_common_directory',
