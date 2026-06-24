@@ -27,6 +27,7 @@ import { GrepTool } from '../tools/grep-tool';
 import { WriteTool } from '../tools/write-tool';
 import { EditTool } from '../tools/edit-tool';
 import { ShellTool } from '../tools/bash-tool';
+import { resolveCommonDirectoryToolArgs } from '../tools/common-directory-tool';
 import {
   isRemoteDeviceRpcTool,
   normalizeDeviceRpcToolResultForTransport,
@@ -77,6 +78,7 @@ const HIDDEN_CATS_TOOL_PROGRESS = new Set([
 const SUBAGENT_TERMINAL_EVENTS = new Set(['agent_completed', 'agent_failed', 'agent_stopped']);
 export const CATSCOMPANY_FULL_RUNTIME_DEVICE_CAPABILITIES: DeviceGrantOperation[] = [
   'read_file',
+  'resolve_common_directory',
   'glob',
   'grep',
   'write_file',
@@ -138,6 +140,7 @@ export class CatsCompanyBot {
   };
 
   constructor(config: CatsCompanyConfig) {
+    this.botUid = String(config.botUid || '').trim() || null;
     const localDeviceId = config.installationId || config.bodyId;
     const deviceRegistration = localDeviceId
       ? {
@@ -198,7 +201,7 @@ export class CatsCompanyBot {
 
     // 注册事件
     this.bot.on('ready', (info: { uid: string; name: string }) => {
-      this.botUid = info.uid;
+      this.botUid = String(info.uid || '').trim() || this.botUid;
       const botName = info.name.trim() || '(未设置)';
       this.runtimeProfile.displayName = botName;
       this.runtimeProfile.prompt.displayName = botName;
@@ -351,6 +354,8 @@ export class CatsCompanyBot {
     switch (operation) {
       case 'read_file':
         return new ReadTool().execute(args, context);
+      case 'resolve_common_directory':
+        return resolveCommonDirectoryToolArgs(args);
       case 'glob':
         return new GlobTool().execute(args, context);
       case 'grep':
@@ -451,7 +456,7 @@ export class CatsCompanyBot {
     const operation = this.normalizeDeviceRpcOperation(request.operation);
     const toolName = String(request.tool_name || operation || '').trim();
     if (!operation || !isRemoteDeviceRpcTool(toolName, operation)) {
-      return { code: 'unsupported_operation', message: 'Device RPC only allows read_file, glob, grep, write_file, edit_file, and execute_shell.' };
+      return { code: 'unsupported_operation', message: 'Device RPC only allows read_file, resolve_common_directory, glob, grep, write_file, edit_file, and execute_shell.' };
     }
 
     const requiredFields: Array<[keyof CatsDeviceRpcMessage, string]> = [
@@ -483,6 +488,7 @@ export class CatsCompanyBot {
     const operation = String(value || '').trim();
     if (
       operation === 'read_file'
+      || operation === 'resolve_common_directory'
       || operation === 'glob'
       || operation === 'grep'
       || operation === 'write_file'

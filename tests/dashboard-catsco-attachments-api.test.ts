@@ -31,7 +31,12 @@ async function removeTempRoot(root: string): Promise<void> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 12; attempt += 1) {
     try {
-      fs.rmSync(root, { recursive: true, force: true });
+      await fs.promises.rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 100,
+      });
       return;
     } catch (error) {
       lastError = error;
