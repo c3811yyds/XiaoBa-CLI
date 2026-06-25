@@ -41,6 +41,7 @@ import {
   TRANSIENT_RUNTIME_CONTEXT_PREFIX,
   buildRuntimeContextMessage,
 } from './runtime-context-builder';
+import { buildPendingUserInputBoundaryMessage } from './pending-user-input-boundary';
 import {
   TRANSIENT_CURRENT_DIRECTORY_PREFIX,
   buildTransientEnvironmentHint,
@@ -85,6 +86,26 @@ const MAX_EMPTY_MAX_TOKEN_RECOVERIES = 1;
 const EMPTY_MAX_TOKENS_MESSAGE = '模型这轮输出达到了 max_tokens 上限，但没有生成可见回复或工具调用。已保留当前上下文；请回复“继续”，我会从刚才的位置继续推进。';
 export const PROMPT_BUDGET_TRIM_MESSAGE = '当前上下文超过模型窗口，已裁剪较早的历史内容以继续处理。';
 export const PROMPT_TOOLS_DISABLED_MESSAGE = '当前模型上下文不足以加载全部工具，本轮已先按纯文本继续处理。';
+const MAX_VISIBLE_TOOL_PRELUDE_CHARS = 64;
+const MAX_VISIBLE_TOOL_PRELUDE_LINES = 2;
+
+const TOOL_PRELUDE_INTERNAL_PATTERNS = [
+  /\bmemory\b/i,
+  /\bobservation\b/i,
+  /\bsynthetic\b/i,
+  /\bdebug\b/i,
+  /\bdbg\b/i,
+  /\bFAIL\b/,
+  /\bfail(?:ed|ing|s)?\b/i,
+  /\bpass(?:ed|ing|es)?\b/i,
+  /\bactual=/i,
+  /\bexpected=/i,
+  /\b\d+\s*\/\s*\d+\b/,
+  /根因|原因|问题|诊断|bug|报错|错误|异常|失败|断言|调试|正则|期望|实际|可能是|应该|测试要求|代码块被切|硬切|贪心/,
+];
+
+const TOOL_PRELUDE_PROGRESS_PATTERN =
+  /^(?:先|我先|开始|准备|正在|继续|建|创建|写|生成|跑|执行|检查|验证|清理|上传|发送|重试|修复|已|完成|稍等|马上|接着)[^：:\n`]{0,48}(?:[。！？.!?]|$)/;
 
 /**
  * 对话运行回调
@@ -553,10 +574,13 @@ export class ConversationRunner {
 
       if (response.content) {
         Logger.info(`[${this.sessionLabel}Turn ${turns}] AI文本: ${ConversationRunner.truncateForLog(response.content, 300)}`);
-        if (callbacks?.onAssistantText) {
+        const shouldSurfacePrelude = this.shouldSurfaceToolPrelude(response.content);
+        if (callbacks?.onAssistantText && shouldSurfacePrelude) {
           await callbacks.onAssistantText(response.content);
-        } else if (callbacks?.onThinking) {
+        } else if (!callbacks?.onAssistantText && callbacks?.onThinking && shouldSurfacePrelude) {
           await callbacks.onThinking(response.content);
+        } else {
+          Logger.info(`[${this.sessionLabel}Turn ${turns}] 工具前文本已作为内部进度保留，未发送给用户`);
         }
       }
       const toolNames = response.toolCalls.map(tc => tc.function.name).join(', ');
@@ -721,6 +745,7 @@ export class ConversationRunner {
       this.refreshRuntimeContextForPendingInput(messages);
     }
 
+    messages.push(buildPendingUserInputBoundaryMessage());
     const userMessage: Message = {
       role: 'user',
       content,
@@ -1156,6 +1181,21 @@ export class ConversationRunner {
     }
 
     return null;
+  }
+
+  private shouldSurfaceToolPrelude(content: string): boolean {
+    const text = content.trim();
+    if (!text) return false;
+    if (text.length > MAX_VISIBLE_TOOL_PRELUDE_CHARS) return false;
+
+    const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (lines.length > MAX_VISIBLE_TOOL_PRELUDE_LINES) return false;
+    if (lines.some(line => line.length > MAX_VISIBLE_TOOL_PRELUDE_CHARS)) return false;
+    if (text.includes('```')) return false;
+    if (/^\s*#{1,6}\s/m.test(text) || /^\s*\|.+\|\s*$/m.test(text)) return false;
+    if (TOOL_PRELUDE_INTERNAL_PATTERNS.some(pattern => pattern.test(text))) return false;
+
+    return TOOL_PRELUDE_PROGRESS_PATTERN.test(text);
   }
 
   private buildDuplicateOutboundHint(content: string): Message {
