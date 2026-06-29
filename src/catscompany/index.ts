@@ -70,6 +70,11 @@ interface QueuedMessage {
   runtimeFeedback?: RuntimeFeedbackInput[];
 }
 
+interface SubAgentEventRoute {
+  topic: string;
+  channelSource?: string;
+}
+
 const PENDING_ANSWER_TIMEOUT_MS = 120_000;
 const TYPING_HEARTBEAT_INTERVAL_MS = 5_000;
 const DEVICE_REGISTRATION_REFRESH_MS = 120_000;
@@ -152,6 +157,8 @@ export class CatsCompanyBot {
   private pendingAttachments = new Map<string, PendingAttachment[]>();
   /** 主会话忙时的消息队列，key = sessionKey */
   private messageQueue = new Map<string, QueuedMessage[]>();
+  /** 子 Agent 事件应沿用 spawn 时的通道能力，不能被同 session 后续消息覆盖 */
+  private subAgentEventRoutes = new Map<string, SubAgentEventRoute>();
   /** Bot 自身的 uid，用于过滤自己发出的消息 */
   private botUid: string | null = null;
   private runtime: AdapterRuntimeBundle;
@@ -1156,7 +1163,19 @@ export class CatsCompanyBot {
     const subAgentId = String(event?.subAgentId || info?.id || '');
     if (!subAgentId) return;
 
-    if (shouldSuppressStructuredToolProgress(channelSource)) {
+    const eventType = String(event?.type || '');
+    if (eventType === 'agent_spawned') {
+      this.subAgentEventRoutes.set(subAgentId, { topic, channelSource });
+    }
+    const route = this.subAgentEventRoutes.get(subAgentId);
+    const eventTopic = route?.topic || topic;
+    const eventChannelSource = route ? route.channelSource : channelSource;
+    const isTerminalEvent = SUBAGENT_TERMINAL_EVENTS.has(eventType);
+
+    if (shouldSuppressStructuredToolProgress(eventChannelSource)) {
+      if (isTerminalEvent) {
+        this.subAgentEventRoutes.delete(subAgentId);
+      }
       return;
     }
 
@@ -1166,7 +1185,7 @@ export class CatsCompanyBot {
 
     try {
       if (event?.type === 'agent_spawned') {
-        await this.sender.sendToolUse(topic, toolUseId, displayName, {
+        await this.sender.sendToolUse(eventTopic, toolUseId, displayName, {
           kind: 'subagent',
           subagent_id: subAgentId,
           display_name: displayName,
@@ -1190,12 +1209,13 @@ export class CatsCompanyBot {
           info?.outputFiles?.length ? `产出文件:\n${info.outputFiles.map(file => `- ${file}`).join('\n')}` : '',
         ].filter(Boolean).join('\n');
         await this.sender.sendToolResult(
-          topic,
+          eventTopic,
           toolUseId,
           summary,
           event.type === 'agent_failed',
           this.subAgentEventMetadata(event, info, status),
         );
+        this.subAgentEventRoutes.delete(subAgentId);
         return;
       }
 
@@ -1205,7 +1225,7 @@ export class CatsCompanyBot {
 
       if (event?.summary) {
         await this.sender.sendThinking(
-          topic,
+          eventTopic,
           `[${displayName}] ${event.summary}`,
           this.subAgentEventMetadata(event, info, status),
         );
@@ -1454,6 +1474,7 @@ export class CatsCompanyBot {
     this.pendingAnswerBySession.clear();
     this.pendingAttachments.clear();
     this.messageQueue.clear();
+    this.subAgentEventRoutes.clear();
     Logger.info('CatsCo agent 已停止');
   }
 

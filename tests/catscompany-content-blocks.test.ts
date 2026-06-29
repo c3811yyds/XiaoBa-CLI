@@ -107,6 +107,7 @@ function createProcessHarness() {
   bot.pendingAnswerBySession = new Map();
   bot.pendingAttachments = new Map();
   bot.messageQueue = new Map();
+  bot.subAgentEventRoutes = new Map();
   bot.botUid = 'usr43';
   bot.buildMultimodalMessage = async (text: string, attachments: any[]) => {
     multimodalCalls.push({ text, attachments });
@@ -884,7 +885,7 @@ describe('CatsCo content blocks', () => {
       type: 'agent_progress',
       timestamp: now + 1,
       summary: '开始执行：扫描桌面文件',
-    }, info, 'weixin');
+    }, info);
 
     await bot.handleSubAgentRuntimeEvent('p2p_1_2', {
       subAgentId: 'sub-1',
@@ -896,7 +897,7 @@ describe('CatsCo content blocks', () => {
       ...info,
       status: 'completed',
       resultSummary: '桌面文件扫描完成',
-    }, 'weixin');
+    });
 
     assert.deepStrictEqual(toolUses, []);
     assert.deepStrictEqual(toolResults, []);
