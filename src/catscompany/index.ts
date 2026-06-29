@@ -615,9 +615,11 @@ export class CatsCompanyBot {
     opts?: {
       sessionKey?: string;
       senderId?: string;
+      channelSource?: string;
     },
   ): ChannelCallbacks & { hasOutbound: boolean } {
     let _hasOutbound = false;
+    const suppressStructuredProgress = shouldSuppressStructuredToolProgress(opts?.channelSource);
     const channel: ChannelCallbacks & { hasOutbound: boolean } = {
       chatId: topic,
       get hasOutbound() { return _hasOutbound; },
@@ -640,6 +642,9 @@ export class CatsCompanyBot {
         }
       },
       sendRuntimePlan: async (_targetTopic, snapshot) => {
+        if (suppressStructuredProgress) {
+          return;
+        }
         try {
           await this.sender.sendRuntimePlan(topic, snapshot);
         } catch (err: any) {
@@ -673,6 +678,9 @@ export class CatsCompanyBot {
         }
       },
       onThinking: async (thinking: string) => {
+        if (suppressToolProgress) {
+          return;
+        }
         try {
           await this.sender.sendThinking(topic, thinking);
         } catch (err: any) {
@@ -772,20 +780,25 @@ export class CatsCompanyBot {
     await this.processParsedMessage(msg, key);
   }
 
+  private registerSubAgentPlatformCallbacks(
+    sessionKey: string,
+    topic: string,
+    senderId: string,
+    executionScope?: ParsedCatsMessage['executionScope'],
+  ): void {
+    SubAgentManager.getInstance().registerPlatformCallbacks(sessionKey, {
+      injectMessage: async (text: string) => {
+        await this.handleSubAgentFeedback(sessionKey, topic, senderId, text, executionScope);
+      },
+      onSubAgentEvent: async (event: any, info?: SubAgentInfo) => {
+        await this.handleSubAgentRuntimeEvent(topic, event, info, executionScope?.channelSource);
+      },
+    } as any);
+  }
+
   private async processParsedMessage(msg: ParsedCatsMessage, key: string): Promise<void> {
     const sessionRoute = msg.envelope ? createCatsCoSessionRoute(msg.envelope) : undefined;
     const session = this.sessionManager.getOrCreate(sessionRoute && sessionRoute.sessionKey === key ? sessionRoute : key);
-
-    // 注册持久化回调到 SubAgentManager
-    const subAgentManager = SubAgentManager.getInstance();
-    subAgentManager.registerPlatformCallbacks(key, {
-      injectMessage: async (text: string) => {
-        await this.handleSubAgentFeedback(key, msg.topic, msg.senderId, text, msg.executionScope);
-      },
-      onSubAgentEvent: async (event: any, info?: SubAgentInfo) => {
-        await this.handleSubAgentRuntimeEvent(msg.topic, event, info, msg.executionScope?.channelSource);
-      },
-    } as any);
 
     // 处理斜杠命令
     if (typeof msg.text === 'string' && msg.text.startsWith('/')) {
@@ -883,10 +896,13 @@ export class CatsCompanyBot {
       return;
     }
 
+    this.registerSubAgentPlatformCallbacks(key, msg.topic, msg.senderId, msg.executionScope);
+
     // 构建通道回调，通过 context 传递给工具（替代 bind/unbind）
     const channel = this.buildChannel(msg.topic, {
       sessionKey: key,
       senderId: msg.senderId,
+      channelSource: msg.executionScope?.channelSource,
     });
 
     const stopTypingHeartbeat = this.startTypingHeartbeat(msg.topic);
@@ -1052,9 +1068,12 @@ export class CatsCompanyBot {
       return;
     }
 
+    this.registerSubAgentPlatformCallbacks(sessionKey, topic, senderId, executionScope);
+
     const channel = this.buildChannel(topic, {
       sessionKey,
       senderId,
+      channelSource: executionScope?.channelSource,
     });
 
     const stopTypingHeartbeat = this.startTypingHeartbeat(topic);
@@ -1271,9 +1290,11 @@ export class CatsCompanyBot {
     }
 
     const session = this.sessionManager.getOrCreate(sessionKey);
+    this.registerSubAgentPlatformCallbacks(sessionKey, msg.topic, msg.senderId, msg.executionScope);
     const channel = this.buildChannel(msg.topic, {
       sessionKey,
       senderId: msg.senderId,
+      channelSource: msg.executionScope?.channelSource,
     });
 
     const stopTypingHeartbeat = this.startTypingHeartbeat(msg.topic);

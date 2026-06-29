@@ -6,6 +6,7 @@ import * as path from 'node:path';
 import { CatsCompanyBot } from '../src/catscompany';
 import { extractContentBlocks } from '../src/catscompany/content-blocks';
 import { ConfigManager } from '../src/utils/config';
+import { SubAgentManager } from '../src/core/sub-agent-manager';
 
 const ONE_PIXEL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
 
@@ -56,6 +57,7 @@ function createProcessHarness() {
   const sentThinking: Array<{ topic: string; text: string; metadata?: any }> = [];
   const toolUses: Array<{ topic: string; toolUseId: string; name: string; input: any; metadata?: any }> = [];
   const toolResults: Array<{ topic: string; toolUseId: string; content: string; isError?: boolean; metadata?: any }> = [];
+  const runtimePlans: Array<{ topic: string; snapshot: any }> = [];
 
   const session = {
     isBusy: () => false,
@@ -97,6 +99,9 @@ function createProcessHarness() {
     sendToolResult: async (topic: string, toolUseId: string, content: string, isError?: boolean, metadata?: any) => {
       toolResults.push({ topic, toolUseId, content, isError, metadata });
     },
+    sendRuntimePlan: async (topic: string, snapshot: any) => {
+      runtimePlans.push({ topic, snapshot });
+    },
   };
   bot.pendingAnswers = new Map();
   bot.pendingAnswerBySession = new Map();
@@ -114,7 +119,7 @@ function createProcessHarness() {
     ];
   };
 
-  return { bot, downloads, multimodalCalls, handledTurns, runtimeObservations, sentTexts, replies, sentTyping, sentThinking, toolUses, toolResults, session };
+  return { bot, downloads, multimodalCalls, handledTurns, runtimeObservations, sentTexts, replies, sentTyping, sentThinking, toolUses, toolResults, runtimePlans, session };
 }
 
 describe('CatsCo content blocks', () => {
@@ -586,7 +591,7 @@ describe('CatsCo content blocks', () => {
   });
 
   test('sends structured tool progress on CatsCompany-native channels', async () => {
-    const { bot, handledTurns, toolUses, toolResults } = createProcessHarness();
+    const { bot, handledTurns, toolUses, toolResults, runtimePlans } = createProcessHarness();
 
     await (bot as any).onMessage({
       topic: 'p2p_1_2',
@@ -601,6 +606,11 @@ describe('CatsCo content blocks', () => {
     const callbacks = handledTurns[0].options.callbacks;
     await callbacks.onToolStart('glob', 'call_glob', { pattern: '*', path: 'C:\\Users\\me\\Desktop' });
     await callbacks.onToolEnd('glob', 'call_glob', '找到 1 个匹配文件:\n\n  1. desktop.ini');
+    await handledTurns[0].options.channel.sendRuntimePlan('p2p_1_2', {
+      revision: 1,
+      updatedAt: Date.now(),
+      steps: [{ text: '查看桌面文件', status: 'in_progress' }],
+    });
 
     assert.deepStrictEqual(
       toolUses.map(({ topic, toolUseId, name }) => ({ topic, toolUseId, name })),
@@ -610,10 +620,12 @@ describe('CatsCo content blocks', () => {
       toolResults.map(({ topic, toolUseId, content }) => ({ topic, toolUseId, content })),
       [{ topic: 'p2p_1_2', toolUseId: 'call_glob', content: '1. desktop.ini' }],
     );
+    assert.strictEqual(runtimePlans.length, 1);
+    assert.strictEqual(runtimePlans[0].topic, 'p2p_1_2');
   });
 
   test('suppresses structured tool progress for Weixin mobile bridge channels', async () => {
-    const { bot, handledTurns, replies, toolUses, toolResults } = createProcessHarness();
+    const { bot, handledTurns, replies, sentThinking, toolUses, toolResults, runtimePlans } = createProcessHarness();
 
     await (bot as any).onMessage({
       topic: 'p2p_1_2',
@@ -635,11 +647,57 @@ describe('CatsCo content blocks', () => {
     );
     await callbacks.onToolStart('glob', 'call_glob', { pattern: '*', path: 'C:\\Users\\me\\Desktop' });
     await callbacks.onToolEnd('glob', 'call_glob', '找到 12 个文件 (14ms):\n\n  1. desktop.ini');
+    await callbacks.onThinking('正在压缩上下文。');
+    await handledTurns[0].options.channel.sendRuntimePlan('p2p_1_2', {
+      revision: 1,
+      updatedAt: Date.now(),
+      steps: [{ text: '查看桌面文件', status: 'in_progress' }],
+    });
     await callbacks.onAssistantText('我先看一下桌面。');
 
     assert.deepStrictEqual(toolUses, []);
     assert.deepStrictEqual(toolResults, []);
+    assert.deepStrictEqual(sentThinking, []);
+    assert.deepStrictEqual(runtimePlans, []);
     assert.deepStrictEqual(replies, [{ topic: 'p2p_1_2', text: '我先看一下桌面。' }]);
+  });
+
+  test('busy queued native message does not overwrite active mobile subagent event suppression', async () => {
+    const { bot, handledTurns, sentThinking, session } = createProcessHarness();
+
+    await (bot as any).onMessage({
+      topic: 'p2p_1_2',
+      senderId: 'usr1',
+      text: '移动端发起一个需要子任务的请求',
+      content: '移动端发起一个需要子任务的请求',
+      metadata: canonicalMetadata('usr1', 'p2p_1_2', 'usr43', 'body-main', 'weixin'),
+      isGroup: false,
+      seq: 14,
+    });
+
+    const sessionKey = handledTurns[0].options.sessionRoute.sessionKey;
+    session.isBusy = () => true;
+
+    await (bot as any).onMessage({
+      topic: 'p2p_1_2',
+      senderId: 'usr1',
+      text: '网页端后来的同会话消息应该排队',
+      content: '网页端后来的同会话消息应该排队',
+      metadata: canonicalMetadata('usr1', 'p2p_1_2'),
+      isGroup: false,
+      seq: 15,
+    });
+
+    SubAgentManager.getInstance().recordEvent(
+      sessionKey,
+      'sub-mobile-active',
+      'agent_progress',
+      '开始执行：扫描桌面文件',
+    );
+    await new Promise(resolve => setTimeout(resolve, 0));
+    SubAgentManager.getInstance().unregisterPlatformCallbacks(sessionKey);
+
+    assert.deepStrictEqual(sentThinking, []);
   });
 
   test('queued CatsCompany turns keep working callbacks for compaction status', async () => {
