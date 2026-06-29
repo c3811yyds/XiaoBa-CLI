@@ -32,8 +32,9 @@ function createTempPng(name: string): { filePath: string; cleanup: () => void } 
   };
 }
 
-function canonicalMetadata(actorUserId: string, topicId: string, agentId = 'usr43', bodyId = 'body-main') {
+function canonicalMetadata(actorUserId: string, topicId: string, agentId = 'usr43', bodyId = 'body-main', channelSource?: string) {
   return {
+    ...(channelSource ? { source_channel: channelSource } : {}),
     catsco_identity: {
       actor: { user_id: actorUserId },
       agent: { agent_id: agentId, body_id: bodyId },
@@ -582,6 +583,63 @@ describe('CatsCo content blocks', () => {
       sentThinking.map(({ topic, text }) => ({ topic, text })),
       [{ topic: 'p2p_1_2', text: '纯文本压缩状态' }],
     );
+  });
+
+  test('sends structured tool progress on CatsCompany-native channels', async () => {
+    const { bot, handledTurns, toolUses, toolResults } = createProcessHarness();
+
+    await (bot as any).onMessage({
+      topic: 'p2p_1_2',
+      senderId: 'usr1',
+      text: '看一下桌面文件',
+      content: '看一下桌面文件',
+      metadata: canonicalMetadata('usr1', 'p2p_1_2'),
+      isGroup: false,
+      seq: 12,
+    });
+
+    const callbacks = handledTurns[0].options.callbacks;
+    await callbacks.onToolStart('glob', 'call_glob', { pattern: '*', path: 'C:\\Users\\me\\Desktop' });
+    await callbacks.onToolEnd('glob', 'call_glob', '找到 1 个匹配文件:\n\n  1. desktop.ini');
+
+    assert.deepStrictEqual(
+      toolUses.map(({ topic, toolUseId, name }) => ({ topic, toolUseId, name })),
+      [{ topic: 'p2p_1_2', toolUseId: 'call_glob', name: 'glob' }],
+    );
+    assert.deepStrictEqual(
+      toolResults.map(({ topic, toolUseId, content }) => ({ topic, toolUseId, content })),
+      [{ topic: 'p2p_1_2', toolUseId: 'call_glob', content: '1. desktop.ini' }],
+    );
+  });
+
+  test('suppresses structured tool progress for Weixin mobile bridge channels', async () => {
+    const { bot, handledTurns, replies, toolUses, toolResults } = createProcessHarness();
+
+    await (bot as any).onMessage({
+      topic: 'p2p_1_2',
+      senderId: 'usr1',
+      text: '你帮我看一下我的桌面有什么文件吧',
+      content: '你帮我看一下我的桌面有什么文件吧',
+      metadata: canonicalMetadata('usr1', 'p2p_1_2', 'usr43', 'body-main', 'weixin'),
+      isGroup: false,
+      seq: 13,
+    });
+
+    assert.strictEqual(handledTurns[0].options.executionScope.channelSource, 'weixin');
+    const callbacks = handledTurns[0].options.callbacks;
+    await callbacks.onToolStart('resolve_common_directory', 'call_resolve', { kind: 'desktop' });
+    await callbacks.onToolEnd(
+      'resolve_common_directory',
+      'call_resolve',
+      'Resolved common directory:\nkind: desktop\npath: C:\\Users\\me\\Desktop',
+    );
+    await callbacks.onToolStart('glob', 'call_glob', { pattern: '*', path: 'C:\\Users\\me\\Desktop' });
+    await callbacks.onToolEnd('glob', 'call_glob', '找到 12 个文件 (14ms):\n\n  1. desktop.ini');
+    await callbacks.onAssistantText('我先看一下桌面。');
+
+    assert.deepStrictEqual(toolUses, []);
+    assert.deepStrictEqual(toolResults, []);
+    assert.deepStrictEqual(replies, [{ topic: 'p2p_1_2', text: '我先看一下桌面。' }]);
   });
 
   test('queued CatsCompany turns keep working callbacks for compaction status', async () => {

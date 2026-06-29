@@ -79,6 +79,12 @@ const HIDDEN_CATS_TOOL_PROGRESS = new Set([
   'send_file',
   'spawn_subagent',
 ]);
+const STRUCTURED_TOOL_PROGRESS_UNSUPPORTED_CHANNELS = new Set([
+  'mobile',
+  'wechat',
+  'weixin',
+  'wx',
+]);
 const SUBAGENT_TERMINAL_EVENTS = new Set(['agent_completed', 'agent_failed', 'agent_stopped']);
 export const CATSCOMPANY_FULL_RUNTIME_DEVICE_CAPABILITIES: DeviceGrantOperation[] = [
   'read_file',
@@ -93,6 +99,12 @@ export const CATSCOMPANY_FULL_RUNTIME_DEVICE_CAPABILITIES: DeviceGrantOperation[
 
 function shouldHideCatsToolProgress(toolName: string): boolean {
   return HIDDEN_CATS_TOOL_PROGRESS.has(toolName);
+}
+
+function shouldSuppressStructuredToolProgress(channelSource?: string): boolean {
+  const normalized = String(channelSource || '').trim().toLowerCase();
+  if (!normalized) return false;
+  return STRUCTURED_TOOL_PROGRESS_UNSUPPORTED_CHANNELS.has(normalized);
 }
 
 export function isCatsCompanyPassiveAcknowledgement(text: string): boolean {
@@ -640,7 +652,11 @@ export class CatsCompanyBot {
     return channel;
   }
 
-  private buildSessionCallbacks(topic: string, opts?: { sessionKey?: string; senderId?: string }): SessionCallbacks {
+  private buildSessionCallbacks(
+    topic: string,
+    opts?: { sessionKey?: string; senderId?: string; channelSource?: string },
+  ): SessionCallbacks {
+    const suppressToolProgress = shouldSuppressStructuredToolProgress(opts?.channelSource);
     return {
       onRetry: async (attempt, maxRetries) => {
         try {
@@ -665,7 +681,7 @@ export class CatsCompanyBot {
       },
       onToolStart: async (toolName: string, toolUseId: string, input: any) => {
         // 跳过输出型工具的 WORKING 消息
-        if (shouldHideCatsToolProgress(toolName)) {
+        if (suppressToolProgress || shouldHideCatsToolProgress(toolName)) {
           return;
         }
         try {
@@ -676,7 +692,7 @@ export class CatsCompanyBot {
       },
       onToolEnd: async (toolName: string, toolUseId: string, result: string) => {
         // 跳过输出型工具的 WORKING 消息
-        if (shouldHideCatsToolProgress(toolName)) {
+        if (suppressToolProgress || shouldHideCatsToolProgress(toolName)) {
           return;
         }
         try {
@@ -887,7 +903,11 @@ export class CatsCompanyBot {
         localFileGrants,
         runtimeFeedback,
         pendingUserInputProvider: () => this.consumeQueuedUserInput(key, msg.executionScope),
-        callbacks: this.buildSessionCallbacks(msg.topic, { sessionKey: key, senderId: msg.senderId }),
+        callbacks: this.buildSessionCallbacks(msg.topic, {
+          sessionKey: key,
+          senderId: msg.senderId,
+          channelSource: msg.executionScope?.channelSource,
+        }),
       });
 
       // 最终文本回复
@@ -1048,7 +1068,11 @@ export class CatsCompanyBot {
     try {
       const result = await session.handleRuntimeObservation(text, {
         channel,
-        callbacks: this.buildSessionCallbacks(topic),
+        callbacks: this.buildSessionCallbacks(topic, {
+          sessionKey,
+          senderId,
+          channelSource: executionScope?.channelSource,
+        }),
         source: 'subagent_result',
         executionScope,
         localDeviceGrant: this.localDeviceGrant,
@@ -1253,7 +1277,11 @@ export class CatsCompanyBot {
       const result = msg.source === 'subagent_feedback'
         ? await session.handleRuntimeObservation(msg.userMessage as string, {
           channel,
-          callbacks: this.buildSessionCallbacks(msg.topic, { sessionKey, senderId: msg.senderId }),
+          callbacks: this.buildSessionCallbacks(msg.topic, {
+            sessionKey,
+            senderId: msg.senderId,
+            channelSource: msg.executionScope?.channelSource,
+          }),
           source: 'subagent_result',
           executionScope: msg.executionScope,
           localDeviceGrant: this.localDeviceGrant,
@@ -1270,7 +1298,11 @@ export class CatsCompanyBot {
           runtimeFeedback: msg.runtimeFeedback,
           localFileGrants: msg.localFileGrants,
           pendingUserInputProvider: () => this.consumeQueuedUserInput(sessionKey, msg.executionScope),
-          callbacks: this.buildSessionCallbacks(msg.topic, { sessionKey, senderId: msg.senderId }),
+          callbacks: this.buildSessionCallbacks(msg.topic, {
+            sessionKey,
+            senderId: msg.senderId,
+            channelSource: msg.executionScope?.channelSource,
+          }),
         });
       if (result.text.startsWith('处理消息时出错:')) {
         try {
