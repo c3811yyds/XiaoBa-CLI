@@ -663,6 +663,71 @@ describe('CatsCo content blocks', () => {
     assert.deepStrictEqual(replies, [{ topic: 'p2p_1_2', text: '我先看一下桌面。' }]);
   });
 
+  test('suppresses structured progress for Weixin ClawBot bridge channels', async () => {
+    const { bot, handledTurns, replies, sentThinking, toolUses, toolResults, runtimePlans } = createProcessHarness();
+
+    await (bot as any).onMessage({
+      topic: 'p2p_1_2',
+      senderId: 'usr1',
+      text: '你帮我看一下我的桌面有什么文件吧',
+      content: '你帮我看一下我的桌面有什么文件吧',
+      metadata: canonicalMetadata('usr1', 'p2p_1_2', 'usr43', 'body-main', 'weixin_clawbot'),
+      isGroup: false,
+      seq: 16,
+    });
+
+    assert.strictEqual(handledTurns[0].options.executionScope.channelSource, 'weixin_clawbot');
+    const callbacks = handledTurns[0].options.callbacks;
+    await callbacks.onToolStart('glob', 'call_glob', { pattern: '*', path: 'C:\\Users\\me\\Desktop' });
+    await callbacks.onToolEnd('glob', 'call_glob', '找到 12 个文件 (14ms):\n\n  1. desktop.ini');
+    await callbacks.onThinking('正在压缩上下文。');
+    await handledTurns[0].options.channel.sendRuntimePlan('p2p_1_2', {
+      revision: 1,
+      updatedAt: Date.now(),
+      steps: [{ text: '查看桌面文件', status: 'in_progress' }],
+    });
+    await callbacks.onAssistantText('我先看一下桌面。');
+
+    const now = Date.now();
+    await bot.handleSubAgentRuntimeEvent('p2p_1_2', {
+      subAgentId: 'sub-clawbot',
+      subAgentName: '子agent1',
+      type: 'agent_spawned',
+      timestamp: now,
+      summary: '派遣子agent1 扫描桌面文件',
+    }, {
+      id: 'sub-clawbot',
+      skillName: 'explorer',
+      taskDescription: '扫描桌面文件',
+      status: 'running',
+      createdAt: now,
+      progressLog: [],
+      outputFiles: [],
+    }, 'weixin_clawbot');
+    await bot.handleSubAgentRuntimeEvent('p2p_1_2', {
+      subAgentId: 'sub-clawbot',
+      subAgentName: '子agent1',
+      type: 'agent_completed',
+      timestamp: now + 1,
+      summary: '完成',
+    }, {
+      id: 'sub-clawbot',
+      skillName: 'explorer',
+      taskDescription: '扫描桌面文件',
+      status: 'completed',
+      createdAt: now,
+      progressLog: [],
+      outputFiles: [],
+      resultSummary: '桌面文件扫描完成',
+    });
+
+    assert.deepStrictEqual(toolUses, []);
+    assert.deepStrictEqual(toolResults, []);
+    assert.deepStrictEqual(sentThinking, []);
+    assert.deepStrictEqual(runtimePlans, []);
+    assert.deepStrictEqual(replies, [{ topic: 'p2p_1_2', text: '我先看一下桌面。' }]);
+  });
+
   test('busy queued native message does not overwrite active mobile subagent event suppression', async () => {
     const { bot, handledTurns, sentThinking, session } = createProcessHarness();
 

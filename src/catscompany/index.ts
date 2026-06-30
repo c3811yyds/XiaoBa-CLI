@@ -85,8 +85,11 @@ const HIDDEN_CATS_TOOL_PROGRESS = new Set([
   'spawn_subagent',
 ]);
 const STRUCTURED_TOOL_PROGRESS_UNSUPPORTED_CHANNELS = new Set([
+  'clawbot',
   'mobile',
+  'wechat_clawbot',
   'wechat',
+  'weixin_clawbot',
   'weixin',
   'wx',
 ]);
