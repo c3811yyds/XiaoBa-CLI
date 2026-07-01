@@ -65,6 +65,8 @@ type ModelSourcePayload = {
   apiBasePlaceholder?: string;
   credentialMeta?: string;
   customModelSettingsOpen?: boolean;
+  contextWindowOptions?: string[];
+  contextWindowValue?: string;
   fieldsAvailable?: boolean;
   hideInternalGateway?: boolean;
   keyPresent?: boolean;
@@ -79,6 +81,7 @@ type CustomModelTogglePayload = {
 type CustomModelDraft = {
   apiBase: string;
   clearSecret: boolean;
+  contextWindowTokens: string;
   model: string;
   provider: string;
   secret: string;
@@ -143,11 +146,26 @@ const SERVICE_COPY: Record<string, string> = {
 const EMPTY_CUSTOM_MODEL_DRAFT: CustomModelDraft = {
   apiBase: '',
   clearSecret: false,
+  contextWindowTokens: '128000',
   model: '',
   provider: 'anthropic',
   secret: '',
   secretPlaceholder: '',
 };
+
+const CUSTOM_MODEL_CONTEXT_WINDOW_LABELS: Record<string, string> = {
+  '128000': '128K · 安全默认',
+  '200000': '200K · 常见中长上下文',
+  '256000': '256K · 长文档',
+  '512000': '512K · 超长文档',
+  '1000000': '1M · 百万上下文',
+};
+
+const FALLBACK_CUSTOM_MODEL_CONTEXT_WINDOW_OPTIONS = ['128000', '200000', '256000', '512000', '1000000'];
+
+function customModelContextOptionLabel(value: string) {
+  return CUSTOM_MODEL_CONTEXT_WINDOW_LABELS[value] || `${value} tokens`;
+}
 
 function serviceCopy(name: string) {
   return SERVICE_COPY[name] || '启动本地机器人连接器。';
@@ -196,9 +214,12 @@ function syncedServiceConfigDrafts(
 }
 
 function customModelDraftFromPayload(payload: ModelSourcePayload | undefined): CustomModelDraft {
+  const options = payload?.contextWindowOptions?.length ? payload.contextWindowOptions : FALLBACK_CUSTOM_MODEL_CONTEXT_WINDOW_OPTIONS;
+  const value = String(payload?.contextWindowValue || '128000');
   return {
     ...EMPTY_CUSTOM_MODEL_DRAFT,
     apiBase: payload?.apiBaseDisplayValue || '',
+    contextWindowTokens: options.includes(value) ? value : '128000',
     model: payload?.modelValue || '',
     provider: payload?.providerValue || 'anthropic',
   };
@@ -401,6 +422,7 @@ function ModelSourcePanel({
   apiBasePlaceholder = 'https://example.com/v1/messages',
   credentialMeta = '未配置访问凭证',
   customModelSettingsOpen = false,
+  contextWindowOptions = FALLBACK_CUSTOM_MODEL_CONTEXT_WINDOW_OPTIONS,
   draft,
   fieldsAvailable = true,
   hideInternalGateway = false,
@@ -412,8 +434,9 @@ function ModelSourcePanel({
     return <div className="runtime-note warning">模型来源暂不可用，请稍后刷新。</div>;
   }
   const statusText =
-    status.message || '凭证仅保存到本地 .env；自定义模型默认 128K 安全上下文，新 session 或下一次启动 connector 后生效。';
+    status.message || '凭证仅保存到本地 .env；自定义模型上下文会写入本地配置，新 session 或下一次启动 connector 后生效。';
   const statusColor = status.tone === 'error' ? 'var(--red)' : status.tone === 'success' ? 'var(--green)' : 'var(--text2)';
+  const contextOptions = contextWindowOptions.length ? contextWindowOptions : FALLBACK_CUSTOM_MODEL_CONTEXT_WINDOW_OPTIONS;
   const updateDraft = (payload: CustomModelDraftPayload) => {
     setCustomModelDraft({ ...payload, dirty: true });
     window.scheduleCustomModelAutoSave?.();
@@ -423,8 +446,8 @@ function ModelSourcePanel({
   return (
       <div className="model-source-layout">
         <div className="runtime-note">
-        中转模型和自定义模型会分别保存。CatsCo 中转会按所选模型自动调整上下文；自定义模型默认按 128K
-        安全上下文运行，若模型实际窗口更小，请减少历史或在高级环境变量里降低 GAUZ_LLM_CONTEXT_WINDOW_TOKENS。
+        中转模型和自定义模型会分别保存。CatsCo 中转会按所选模型自动调整上下文；自定义模型按下方选择的上下文窗口运行。
+        若模型真实窗口更小，请选择更小档位避免超限。
       </div>
       <details
         className="model-source-card warning"
@@ -440,8 +463,7 @@ function ModelSourcePanel({
             <div>
               <div className="model-source-title">自定义模型（第三方）</div>
               <div className="model-source-copy">
-                只有手动接入第三方模型时需要填写。CatsCo 中转模型请在 CatsCo 页面选择；自定义模型默认使用 128K
-                安全上下文。
+                只有手动接入第三方模型时需要填写。CatsCo 中转模型请在 CatsCo 页面选择；自定义模型上下文窗口可在下方选择。
               </div>
             </div>
             <span className={`tag ${keyPresent ? 'green' : 'gray'}`}>{credentialMeta}</span>
@@ -483,6 +505,22 @@ function ModelSourcePanel({
               onChange={event => updateDraft({ model: event.currentTarget.value })}
               placeholder="model-name"
             />
+          </div>
+          <div className="config-row">
+            <label className="config-label">上下文窗口</label>
+            <select
+              className="config-select"
+              id="model-context-window-setting"
+              ref={setCustomModelFieldElement<HTMLSelectElement>('model-context-window-setting')}
+              value={draft.contextWindowTokens || '128000'}
+              onChange={event => updateDraft({ contextWindowTokens: event.currentTarget.value })}
+            >
+              {contextOptions.map(value => (
+                <option key={value} value={value}>
+                  {customModelContextOptionLabel(value)}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="config-row">
             <label className="config-label">访问凭证</label>
@@ -656,6 +694,7 @@ function setCustomModelDraft(payload: CustomModelDraftPayload) {
       ...baseline,
       ...(payload.apiBase === undefined ? {} : { apiBase: String(payload.apiBase ?? '') }),
       ...(payload.clearSecret === undefined ? {} : { clearSecret: Boolean(payload.clearSecret) }),
+      ...(payload.contextWindowTokens === undefined ? {} : { contextWindowTokens: String(payload.contextWindowTokens || '128000') }),
       ...(payload.model === undefined ? {} : { model: String(payload.model ?? '') }),
       ...(payload.provider === undefined ? {} : { provider: String(payload.provider || 'anthropic') }),
       ...(payload.secret === undefined ? {} : { secret: String(payload.secret ?? '') }),

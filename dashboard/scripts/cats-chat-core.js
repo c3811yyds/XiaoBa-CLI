@@ -320,7 +320,7 @@ function renderCatsChecklist(stage){
 
 function updateCatsChatGate(stage){
   const connected=isCatsLoggedIn();
-  const connectedCardOwnsAction=connected && stage.action==='refresh';
+  const connectedCardOwnsAction=connected && (stage.action==='setup' || stage.action==='refresh');
   catsNextAction=stage.action;
   window.__catscoRenderCatsGate?.({
     actionLabel:stage.actionLabel||'查看',

@@ -1,3 +1,11 @@
+const CUSTOM_MODEL_CONTEXT_WINDOW_OPTIONS=[
+  {value:'128000',label:'128K',hint:'安全默认'},
+  {value:'200000',label:'200K',hint:'常见中长上下文'},
+  {value:'256000',label:'256K',hint:'长文档'},
+  {value:'512000',label:'512K',hint:'超长文档'},
+  {value:'1000000',label:'1M',hint:'百万上下文'},
+];
+
 async function refreshSettingsPage(){
   await Promise.all([fetchDashboardSettings(), fetchReadiness(), fetchConfig()]);
 }
@@ -108,6 +116,22 @@ function formatModelContextLabel(tokens, fallback){
   return String(n);
 }
 
+function customModelContextWindowOptions(){
+  const field=settingField('model.contextWindowTokens');
+  const options=Array.isArray(field.options) ? field.options : [];
+  const normalized=options.map(value=>String(value||'').trim()).filter(Boolean);
+  return normalized.length?normalized:CUSTOM_MODEL_CONTEXT_WINDOW_OPTIONS.map(option=>option.value);
+}
+
+function customModelContextWindowValue(rawValue){
+  const raw=String(rawValue || customStartupProfile().contextWindowTokens || settingValue('model.contextWindowTokens') || '128000');
+  return customModelContextWindowOptions().includes(raw)?raw:'128000';
+}
+
+function customModelContextWindowLabel(){
+  return formatModelContextLabel(Number(customModelContextWindowValue()));
+}
+
 function modelStartupSnapshot(){
   return dashboardSettingsSnapshot?.modelStartup || {};
 }
@@ -181,8 +205,9 @@ function renderCatsRelayModelPanel(){
   const customConfigured=isCustomStartupConfigured();
   const customProvider=custom.provider || settingValue('model.provider') || 'anthropic';
   const customModel=custom.model || settingValue('model.model') || 'Not configured';
+  const customContextLabel=customModelContextWindowLabel();
   const customMeta=customConfigured
-    ? 'Custom config · safe context 128K · '+(customProvider==='openai'?'OpenAI SDK':'Anthropic SDK')
+    ? 'Custom config · context '+customContextLabel+' · '+(customProvider==='openai'?'OpenAI SDK':'Anthropic SDK')
     : 'Configure endpoint / key in settings';
   window.__catscoRenderCatsRelayModelPanel?.({
     activationCopy,
@@ -210,6 +235,7 @@ function captureCustomModelDraft(){
     provider: draft.provider,
     apiBase: draft.apiBase,
     model: draft.model,
+    contextWindowTokens: draft.contextWindowTokens,
     secret: draft.secret,
     clearSecret: draft.clearSecret,
   };
@@ -223,6 +249,7 @@ function restoreCustomModelDraft(draft){
       provider:draft.provider,
       apiBase:draft.apiBase,
       model:draft.model,
+      contextWindowTokens:draft.contextWindowTokens,
       secret:draft.secret,
       clearSecret:Boolean(draft.clearSecret),
       dirty:true,
@@ -250,6 +277,8 @@ function renderModelSource(snapshot){
   const hideInternalGateway=isInternalModelGateway(apiBaseValue);
   const apiBaseDisplayValue=hideInternalGateway?'':apiBaseValue;
   const apiBasePlaceholder=hideInternalGateway?'已配置 CatsCo 内部兼容网关（隐藏）':'https://example.com/v1/messages';
+  const contextWindowOptions=customModelContextWindowOptions();
+  const contextWindowValue=customModelContextWindowValue();
   const draft=captureCustomModelDraft();
 
   window.__catscoRenderModelSource?.({
@@ -261,6 +290,8 @@ function renderModelSource(snapshot){
     hideInternalGateway,
     providerValue:settingValue('model.provider')||'anthropic',
     modelValue:settingValue('model.model'),
+    contextWindowOptions,
+    contextWindowValue,
     customModelSettingsOpen,
   });
   restoreCustomModelDraft(draft);
@@ -333,6 +364,7 @@ function buildCustomModelSettingsPayload(){
       : {action:'keep'};
   const hiddenInternal=isInternalModelGateway(settingValue('model.apiBase'));
   const apiBaseValue=String(draft.apiBase||'').trim() || (hiddenInternal?settingValue('model.apiBase'):'');
+  const contextWindowTokens=customModelContextWindowValue(draft.contextWindowTokens);
   return {
     secretUpdate,
     payload:{
@@ -340,6 +372,7 @@ function buildCustomModelSettingsPayload(){
         'model.provider':String(draft.provider||'anthropic'),
         'model.apiBase':apiBaseValue,
         'model.model':String(draft.model||'').trim(),
+        'model.contextWindowTokens':contextWindowTokens,
         'model.apiKey':secretUpdate,
       }
     }
@@ -353,6 +386,7 @@ function customModelPayloadSignature(payload){
     provider:settings['model.provider'],
     apiBase:settings['model.apiBase'],
     model:settings['model.model'],
+    contextWindowTokens:settings['model.contextWindowTokens'],
     secretAction:secret.action,
   });
 }
@@ -442,6 +476,19 @@ function setCatsAutoStartBusy(busy){
   refreshRelayActionControls();
 }
 
+async function refreshCatsChatAfterMutation(options={}){
+  await fetchDashboardSettings();
+  await fetchStatus();
+  await fetchCatsStatus({priority:true});
+  await fetchReadiness();
+  renderCatsStatus();
+  const stage=buildCatsChatStage();
+  if(stage.key==='ready' && options.focusInput!==false){
+    setTimeout(()=>window.__catscoFocusCatsMessageInput?.(), 0);
+  }
+  return stage;
+}
+
 async function enableCatsRelayModel(modelId, options={}){
   const source=options.source||'settings';
   if(!isCatsLoggedIn()){
@@ -461,7 +508,11 @@ async function enableCatsRelayModel(modelId, options={}){
   const label=selectedModel.label||selectedModel.model||selectedModelId;
   let retrying=false;
   try{
+    pendingStartupSource='relay';
+    pendingRelayModelId=selectedModelId;
     setRelayModelApplyBusy(true);
+    setCatsStatusMutationBusy(true);
+    invalidateCatsStatusRequests();
     setRelayModelApplyStatus('正在启用 CatsCo 中转模型（'+label+'）...','muted',source);
     const r=await fetch(API+'/api/cats/relay/model-config/apply',{
       method:'POST',
@@ -478,6 +529,7 @@ async function enableCatsRelayModel(modelId, options={}){
       if(ok){
         retrying=true;
         setRelayModelApplyBusy(false);
+        setCatsStatusMutationBusy(false);
         return enableCatsRelayModel(selectedModelId,{...options,rotateExisting:true});
       }
       setRelayModelApplyStatus('已取消。你也可以在 CatsCompany 中转站页面复制现有配置后手动填写。','muted',source);
@@ -495,14 +547,17 @@ async function enableCatsRelayModel(modelId, options={}){
     }
     pendingStartupSource='';
     pendingRelayModelId='';
-    await Promise.all([fetchDashboardSettings(),fetchStatus(),fetchReadiness(),fetchCatsStatus()]);
+    await refreshCatsChatAfterMutation({focusInput:source==='chat'});
     const successMessage=data.message||('已启用 CatsCo 中转模型：'+(data.selectedModel?.label||label));
     setRelayModelApplyStatus(successMessage,'success',source);
     setModelSourceStatus(data.connectorRestarted||data.connectorStarted?'已写入并已请求 connector 使用新配置。':'已写入 CatsCo 中转模型配置。','success');
   }catch(e){
     setRelayModelApplyStatus('启用失败：'+formatDashboardApiError(e,'/api/cats/relay/model-config/apply'),'error',source);
   }finally{
-    if(!retrying)setRelayModelApplyBusy(false);
+    if(!retrying){
+      setCatsStatusMutationBusy(false);
+      setRelayModelApplyBusy(false);
+    }
   }
 }
 
@@ -523,7 +578,11 @@ async function enableCustomStartupModel(options={}){
     return;
   }
   try{
+    pendingStartupSource='custom';
+    pendingRelayModelId='';
     setRelayModelApplyBusy(true);
+    setCatsStatusMutationBusy(true);
+    invalidateCatsStatusRequests();
     setRelayModelApplyStatus('正在切换为自定义模型...','muted',source);
     const r=await fetch(API+'/api/model-source/custom/apply',{
       method:'POST',
@@ -536,13 +595,14 @@ async function enableCustomStartupModel(options={}){
     if(!r.ok||data.error)throw new Error(data.error||'切换自定义模型失败');
     pendingStartupSource='';
     pendingRelayModelId='';
-    await Promise.all([fetchDashboardSettings(),fetchStatus(),fetchReadiness(),fetchCatsStatus()]);
+    await refreshCatsChatAfterMutation({focusInput:source==='chat'});
     const message=data.message||('已切换为自定义模型：'+(data.model||''));
     setRelayModelApplyStatus(message,'success',source);
     setModelSourceStatus(data.connectorRestarted||data.connectorStarted?'已请求 connector 使用自定义模型。':'已切换为自定义模型启动。','success');
   }catch(e){
     setRelayModelApplyStatus('切换失败：'+formatDashboardApiError(e,'/api/model-source/custom/apply'),'error',source);
   }finally{
+    setCatsStatusMutationBusy(false);
     setRelayModelApplyBusy(false);
   }
 }

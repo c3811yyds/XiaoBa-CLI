@@ -21547,7 +21547,7 @@
         onClick: (event) => window.enableCustomStartupModelFromButton?.(event.currentTarget),
         type: "button"
       },
-      /* @__PURE__ */ import_react.default.createElement("span", { className: "relay-model-label" }, "Custom model"),
+      /* @__PURE__ */ import_react.default.createElement("span", { className: "relay-model-label" }, "\u81EA\u5B9A\u4E49\u6A21\u578B"),
       /* @__PURE__ */ import_react.default.createElement("span", { className: "relay-model-name" }, choice.modelName),
       /* @__PURE__ */ import_react.default.createElement("span", { className: "relay-model-meta" }, choice.meta)
     );
@@ -21820,13 +21820,13 @@
   }
   function CatsMessagesTimeline({ empty = false, emptyText = "No messages", groups = [], historyState = "" }) {
     if (empty) return /* @__PURE__ */ import_react.default.createElement("div", { className: "loading" }, emptyText);
-    return /* @__PURE__ */ import_react.default.createElement("div", { className: "chat-timeline-inner" }, historyState === "loading" ? /* @__PURE__ */ import_react.default.createElement("div", { className: "chat-history-note" }, "Loading earlier messages...") : null, historyState === "end" ? /* @__PURE__ */ import_react.default.createElement("div", { className: "chat-history-note" }, "Reached the earliest message") : null, groups.map((group) => /* @__PURE__ */ import_react.default.createElement(
+    return /* @__PURE__ */ import_react.default.createElement("div", { className: "chat-timeline-inner" }, historyState === "loading" ? /* @__PURE__ */ import_react.default.createElement("div", { className: "chat-history-note" }, "\u6B63\u5728\u52A0\u8F7D\u66F4\u65E9\u6D88\u606F...") : null, historyState === "end" ? /* @__PURE__ */ import_react.default.createElement("div", { className: "chat-history-note" }, "\u5DF2\u5230\u6700\u65E9\u6D88\u606F") : null, groups.map((group) => /* @__PURE__ */ import_react.default.createElement(
       "div",
       {
         className: `chat-message ${group.mine ? "mine" : "peer"}${group.working ? " has-working" : ""}${group.isConsecutive ? " grouped" : ""}`,
         key: group.key
       },
-      /* @__PURE__ */ import_react.default.createElement("div", { className: "chat-avatar", "aria-hidden": "true" }, group.mine ? "Me" : "C"),
+      /* @__PURE__ */ import_react.default.createElement("div", { className: "chat-avatar", "aria-hidden": "true" }, group.mine ? "\u6211" : "C"),
       /* @__PURE__ */ import_react.default.createElement("div", { className: "chat-message-body" }, /* @__PURE__ */ import_react.default.createElement("div", { className: "chat-message-meta" }, /* @__PURE__ */ import_react.default.createElement("span", null, group.who), group.time ? /* @__PURE__ */ import_react.default.createElement("span", null, group.time) : null), /* @__PURE__ */ import_react.default.createElement("div", { className: "chat-message-content" }, /* @__PURE__ */ import_react.default.createElement(MessageBody, { blocks: group.bodyBlocks })))
     )));
   }
@@ -22239,6 +22239,9 @@
   function focusCatsAccount() {
     catsAccountInputElement?.focus();
   }
+  function focusCatsMessageInput() {
+    catsMessageInputElement?.focus();
+  }
   function getCatsMessagesBox() {
     return catsMessagesElement;
   }
@@ -22246,8 +22249,12 @@
     const input = source || catsMessageInputElement;
     if (!input) return;
     const maxHeight = window.matchMedia("(max-width: 760px)").matches ? 180 : 220;
-    const nextHeight = Math.min(Math.max(input.scrollHeight, 40), maxHeight);
-    const inputOverflowY = input.scrollHeight > maxHeight ? "auto" : "hidden";
+    input.style.height = "auto";
+    const measuredScrollHeight = input.scrollHeight;
+    const nextHeight = Math.min(Math.max(measuredScrollHeight, 40), maxHeight);
+    const inputOverflowY = measuredScrollHeight > maxHeight ? "auto" : "hidden";
+    input.style.height = `${nextHeight}px`;
+    input.style.overflowY = inputOverflowY;
     if (chatPageState.composer.inputHeight === nextHeight && chatPageState.composer.inputOverflowY === inputOverflowY) return;
     chatPageState = {
       ...chatPageState,
@@ -22355,6 +22362,7 @@
     window.__catscoGetCatsComposerDraft = getCatsComposerDraft;
     window.__catscoSetCatsComposerDraft = setCatsComposerDraft;
     window.__catscoFocusCatsAccount = focusCatsAccount;
+    window.__catscoFocusCatsMessageInput = focusCatsMessageInput;
     window.__catscoRenderBotSelectorList = renderBotSelectorList;
     window.__catscoRenderCatsAttachments = renderCatsAttachments;
     window.__catscoRenderCatsMessages = renderCatsMessages;
@@ -23229,11 +23237,23 @@
   var EMPTY_CUSTOM_MODEL_DRAFT = {
     apiBase: "",
     clearSecret: false,
+    contextWindowTokens: "128000",
     model: "",
     provider: "anthropic",
     secret: "",
     secretPlaceholder: ""
   };
+  var CUSTOM_MODEL_CONTEXT_WINDOW_LABELS = {
+    "128000": "128K \xB7 \u5B89\u5168\u9ED8\u8BA4",
+    "200000": "200K \xB7 \u5E38\u89C1\u4E2D\u957F\u4E0A\u4E0B\u6587",
+    "256000": "256K \xB7 \u957F\u6587\u6863",
+    "512000": "512K \xB7 \u8D85\u957F\u6587\u6863",
+    "1000000": "1M \xB7 \u767E\u4E07\u4E0A\u4E0B\u6587"
+  };
+  var FALLBACK_CUSTOM_MODEL_CONTEXT_WINDOW_OPTIONS = ["128000", "200000", "256000", "512000", "1000000"];
+  function customModelContextOptionLabel(value) {
+    return CUSTOM_MODEL_CONTEXT_WINDOW_LABELS[value] || `${value} tokens`;
+  }
   function serviceCopy(name) {
     return SERVICE_COPY[name] || "\u542F\u52A8\u672C\u5730\u673A\u5668\u4EBA\u8FDE\u63A5\u5668\u3002";
   }
@@ -23272,9 +23292,12 @@
     return nextDrafts;
   }
   function customModelDraftFromPayload(payload) {
+    const options = payload?.contextWindowOptions?.length ? payload.contextWindowOptions : FALLBACK_CUSTOM_MODEL_CONTEXT_WINDOW_OPTIONS;
+    const value = String(payload?.contextWindowValue || "128000");
     return {
       ...EMPTY_CUSTOM_MODEL_DRAFT,
       apiBase: payload?.apiBaseDisplayValue || "",
+      contextWindowTokens: options.includes(value) ? value : "128000",
       model: payload?.modelValue || "",
       provider: payload?.providerValue || "anthropic"
     };
@@ -23387,6 +23410,7 @@
     apiBasePlaceholder = "https://example.com/v1/messages",
     credentialMeta = "\u672A\u914D\u7F6E\u8BBF\u95EE\u51ED\u8BC1",
     customModelSettingsOpen = false,
+    contextWindowOptions = FALLBACK_CUSTOM_MODEL_CONTEXT_WINDOW_OPTIONS,
     draft,
     fieldsAvailable = true,
     hideInternalGateway = false,
@@ -23397,14 +23421,15 @@
     if (!fieldsAvailable) {
       return /* @__PURE__ */ import_react5.default.createElement("div", { className: "runtime-note warning" }, "\u6A21\u578B\u6765\u6E90\u6682\u4E0D\u53EF\u7528\uFF0C\u8BF7\u7A0D\u540E\u5237\u65B0\u3002");
     }
-    const statusText = status.message || "\u51ED\u8BC1\u4EC5\u4FDD\u5B58\u5230\u672C\u5730 .env\uFF1B\u81EA\u5B9A\u4E49\u6A21\u578B\u9ED8\u8BA4 128K \u5B89\u5168\u4E0A\u4E0B\u6587\uFF0C\u65B0 session \u6216\u4E0B\u4E00\u6B21\u542F\u52A8 connector \u540E\u751F\u6548\u3002";
+    const statusText = status.message || "\u51ED\u8BC1\u4EC5\u4FDD\u5B58\u5230\u672C\u5730 .env\uFF1B\u81EA\u5B9A\u4E49\u6A21\u578B\u4E0A\u4E0B\u6587\u4F1A\u5199\u5165\u672C\u5730\u914D\u7F6E\uFF0C\u65B0 session \u6216\u4E0B\u4E00\u6B21\u542F\u52A8 connector \u540E\u751F\u6548\u3002";
     const statusColor = status.tone === "error" ? "var(--red)" : status.tone === "success" ? "var(--green)" : "var(--text2)";
+    const contextOptions = contextWindowOptions.length ? contextWindowOptions : FALLBACK_CUSTOM_MODEL_CONTEXT_WINDOW_OPTIONS;
     const updateDraft = (payload) => {
       setCustomModelDraft({ ...payload, dirty: true });
       window.scheduleCustomModelAutoSave?.();
     };
     const secretPlaceholder = draft.secretPlaceholder || (keyPresent ? "\u7559\u7A7A\u8868\u793A\u4FDD\u6301\u73B0\u6709\u51ED\u8BC1" : "\u8F93\u5165\u8BBF\u95EE\u51ED\u8BC1");
-    return /* @__PURE__ */ import_react5.default.createElement("div", { className: "model-source-layout" }, /* @__PURE__ */ import_react5.default.createElement("div", { className: "runtime-note" }, "\u4E2D\u8F6C\u6A21\u578B\u548C\u81EA\u5B9A\u4E49\u6A21\u578B\u4F1A\u5206\u522B\u4FDD\u5B58\u3002CatsCo \u4E2D\u8F6C\u4F1A\u6309\u6240\u9009\u6A21\u578B\u81EA\u52A8\u8C03\u6574\u4E0A\u4E0B\u6587\uFF1B\u81EA\u5B9A\u4E49\u6A21\u578B\u9ED8\u8BA4\u6309 128K \u5B89\u5168\u4E0A\u4E0B\u6587\u8FD0\u884C\uFF0C\u82E5\u6A21\u578B\u5B9E\u9645\u7A97\u53E3\u66F4\u5C0F\uFF0C\u8BF7\u51CF\u5C11\u5386\u53F2\u6216\u5728\u9AD8\u7EA7\u73AF\u5883\u53D8\u91CF\u91CC\u964D\u4F4E GAUZ_LLM_CONTEXT_WINDOW_TOKENS\u3002"), /* @__PURE__ */ import_react5.default.createElement(
+    return /* @__PURE__ */ import_react5.default.createElement("div", { className: "model-source-layout" }, /* @__PURE__ */ import_react5.default.createElement("div", { className: "runtime-note" }, "\u4E2D\u8F6C\u6A21\u578B\u548C\u81EA\u5B9A\u4E49\u6A21\u578B\u4F1A\u5206\u522B\u4FDD\u5B58\u3002CatsCo \u4E2D\u8F6C\u4F1A\u6309\u6240\u9009\u6A21\u578B\u81EA\u52A8\u8C03\u6574\u4E0A\u4E0B\u6587\uFF1B\u81EA\u5B9A\u4E49\u6A21\u578B\u6309\u4E0B\u65B9\u9009\u62E9\u7684\u4E0A\u4E0B\u6587\u7A97\u53E3\u8FD0\u884C\u3002 \u82E5\u6A21\u578B\u771F\u5B9E\u7A97\u53E3\u66F4\u5C0F\uFF0C\u8BF7\u9009\u62E9\u66F4\u5C0F\u6863\u4F4D\u907F\u514D\u8D85\u9650\u3002"), /* @__PURE__ */ import_react5.default.createElement(
       "details",
       {
         className: "model-source-card warning",
@@ -23415,7 +23440,7 @@
           customModelDetailsElement = element;
         }
       },
-      /* @__PURE__ */ import_react5.default.createElement("summary", null, /* @__PURE__ */ import_react5.default.createElement("div", { className: "model-source-head" }, /* @__PURE__ */ import_react5.default.createElement("div", null, /* @__PURE__ */ import_react5.default.createElement("div", { className: "model-source-title" }, "\u81EA\u5B9A\u4E49\u6A21\u578B\uFF08\u7B2C\u4E09\u65B9\uFF09"), /* @__PURE__ */ import_react5.default.createElement("div", { className: "model-source-copy" }, "\u53EA\u6709\u624B\u52A8\u63A5\u5165\u7B2C\u4E09\u65B9\u6A21\u578B\u65F6\u9700\u8981\u586B\u5199\u3002CatsCo \u4E2D\u8F6C\u6A21\u578B\u8BF7\u5728 CatsCo \u9875\u9762\u9009\u62E9\uFF1B\u81EA\u5B9A\u4E49\u6A21\u578B\u9ED8\u8BA4\u4F7F\u7528 128K \u5B89\u5168\u4E0A\u4E0B\u6587\u3002")), /* @__PURE__ */ import_react5.default.createElement("span", { className: `tag ${keyPresent ? "green" : "gray"}` }, credentialMeta))),
+      /* @__PURE__ */ import_react5.default.createElement("summary", null, /* @__PURE__ */ import_react5.default.createElement("div", { className: "model-source-head" }, /* @__PURE__ */ import_react5.default.createElement("div", null, /* @__PURE__ */ import_react5.default.createElement("div", { className: "model-source-title" }, "\u81EA\u5B9A\u4E49\u6A21\u578B\uFF08\u7B2C\u4E09\u65B9\uFF09"), /* @__PURE__ */ import_react5.default.createElement("div", { className: "model-source-copy" }, "\u53EA\u6709\u624B\u52A8\u63A5\u5165\u7B2C\u4E09\u65B9\u6A21\u578B\u65F6\u9700\u8981\u586B\u5199\u3002CatsCo \u4E2D\u8F6C\u6A21\u578B\u8BF7\u5728 CatsCo \u9875\u9762\u9009\u62E9\uFF1B\u81EA\u5B9A\u4E49\u6A21\u578B\u4E0A\u4E0B\u6587\u7A97\u53E3\u53EF\u5728\u4E0B\u65B9\u9009\u62E9\u3002")), /* @__PURE__ */ import_react5.default.createElement("span", { className: `tag ${keyPresent ? "green" : "gray"}` }, credentialMeta))),
       /* @__PURE__ */ import_react5.default.createElement("div", { className: "model-source-form" }, /* @__PURE__ */ import_react5.default.createElement("div", { className: "config-row" }, /* @__PURE__ */ import_react5.default.createElement("label", { className: "config-label" }, "\u517C\u5BB9\u7C7B\u578B"), /* @__PURE__ */ import_react5.default.createElement(
         "select",
         {
@@ -23448,6 +23473,16 @@
           onChange: (event) => updateDraft({ model: event.currentTarget.value }),
           placeholder: "model-name"
         }
+      )), /* @__PURE__ */ import_react5.default.createElement("div", { className: "config-row" }, /* @__PURE__ */ import_react5.default.createElement("label", { className: "config-label" }, "\u4E0A\u4E0B\u6587\u7A97\u53E3"), /* @__PURE__ */ import_react5.default.createElement(
+        "select",
+        {
+          className: "config-select",
+          id: "model-context-window-setting",
+          ref: setCustomModelFieldElement("model-context-window-setting"),
+          value: draft.contextWindowTokens || "128000",
+          onChange: (event) => updateDraft({ contextWindowTokens: event.currentTarget.value })
+        },
+        contextOptions.map((value) => /* @__PURE__ */ import_react5.default.createElement("option", { key: value, value }, customModelContextOptionLabel(value)))
       )), /* @__PURE__ */ import_react5.default.createElement("div", { className: "config-row" }, /* @__PURE__ */ import_react5.default.createElement("label", { className: "config-label" }, "\u8BBF\u95EE\u51ED\u8BC1"), /* @__PURE__ */ import_react5.default.createElement(
         "input",
         {
@@ -23553,6 +23588,7 @@
         ...baseline,
         ...payload.apiBase === void 0 ? {} : { apiBase: String(payload.apiBase ?? "") },
         ...payload.clearSecret === void 0 ? {} : { clearSecret: Boolean(payload.clearSecret) },
+        ...payload.contextWindowTokens === void 0 ? {} : { contextWindowTokens: String(payload.contextWindowTokens || "128000") },
         ...payload.model === void 0 ? {} : { model: String(payload.model ?? "") },
         ...payload.provider === void 0 ? {} : { provider: String(payload.provider || "anthropic") },
         ...payload.secret === void 0 ? {} : { secret: String(payload.secret ?? "") },

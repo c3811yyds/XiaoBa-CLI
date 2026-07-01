@@ -99,6 +99,9 @@ test('Agent Hub and model settings are React-rendered while scripts provide API 
   assert.match(reactFiles.services, /id="services-grid"/);
   assert.match(reactFiles.services, /id="custom-model-toggle-btn"/);
   assert.match(reactFiles.services, /id="model-source-panel"/);
+  assert.match(reactFiles.services, /id="model-context-window-setting"/);
+  assert.match(reactFiles.services, /contextWindowTokens: '128000'/);
+  assert.match(reactFiles.services, /128K · 安全默认/);
   assert.match(reactFiles.services, /留空表示保持现有凭证/);
   assert.match(reactFiles.services, /输入访问凭证/);
   assert.doesNotMatch(reactFiles.services, /鐣欑|杈撳/);
@@ -110,6 +113,13 @@ test('Agent Hub and model settings are React-rendered while scripts provide API 
   assert.match(scriptFiles.status, /function cancelServiceConfig\(name\)/);
   assert.match(scriptFiles.modelSettings, /async function refreshSettingsPage\(\)/);
   assert.match(scriptFiles.modelSettings, /function openCustomModelFromChat\(\)\{\s*switchPage\('services'\);/);
+  assert.match(scriptFiles.modelSettings, /CUSTOM_MODEL_CONTEXT_WINDOW_OPTIONS/);
+  assert.match(scriptFiles.modelSettings, /function customModelContextWindowValue\(rawValue\)/);
+  assert.match(scriptFiles.modelSettings, /'model\.contextWindowTokens':contextWindowTokens/);
+  assert.match(scriptFiles.modelSettings, /contextWindowTokens:settings\['model\.contextWindowTokens'\]/);
+  assert.match(scriptFiles.modelSettings, /async function refreshCatsChatAfterMutation\(options=\{\}\)/);
+  assert.match(scriptFiles.modelSettings, /setCatsStatusMutationBusy\(true\);[\s\S]*invalidateCatsStatusRequests\(\);/);
+  assert.match(scriptFiles.modelSettings, /fetchCatsStatus\(\{priority:true\}\)/);
   assert.match(scriptFiles.modelSettings, /function enableCatsRelayModel\(modelId, options=\{\}\)/);
   assert.match(scriptFiles.modelSettings, /function enableRelayFallbackForIncompleteCustom\(options=\{\}\)/);
   assert.match(scriptFiles.modelSettings, /自定义模型未填写，正在改用 CatsCo 中转模型/);
@@ -216,6 +226,13 @@ test('CatsCo Chat readiness, setup, and composer are split between React UI and 
   assert.match(reactFiles.chat, /id="cats-message-input"/);
   assert.match(reactFiles.chat, /id="cats-send-btn"/);
   assert.match(reactFiles.chat, /id="cats-attach-btn"/);
+  assert.match(reactFiles.chat, /<span className="relay-model-label">自定义模型<\/span>/);
+  assert.match(reactFiles.chat, /正在加载更早消息/);
+  assert.match(reactFiles.chat, /已到最早消息/);
+  assert.match(reactFiles.chat, /group\.mine \? '我' : 'C'/);
+  assert.doesNotMatch(reactFiles.chat, /Custom model|Loading earlier messages|Reached the earliest message|group\.mine \? 'Me'/);
+  assert.match(reactFiles.chat, /__catscoFocusCatsMessageInput/);
+  assert.match(reactFiles.chat, /input\.style\.height = 'auto'/);
   assert.match(scriptFiles.basePet, /let pendingStartupSource = ''/);
   assert.match(scriptFiles.catsChat, /function buildCatsChatStage\(\)/);
   assert.match(scriptFiles.catsChat, /function isCatsBodyReady\(bodyStatus\)/);
@@ -223,7 +240,7 @@ test('CatsCo Chat readiness, setup, and composer are split between React UI and 
   assert.match(scriptFiles.catsChat, /state==='active'\|\|state==='online'/);
   assert.doesNotMatch(scriptFiles.catsChat, /catsState\.bodyStatus\?\.state==='active'/);
   assert.match(scriptFiles.catsChat, /function renderCatsChecklist\(stage\)/);
-  assert.match(scriptFiles.catsChat, /const connectedCardOwnsAction=connected && stage\.action==='refresh'/);
+  assert.match(scriptFiles.catsChat, /const connectedCardOwnsAction=connected && \(stage\.action==='setup' \|\| stage\.action==='refresh'\)/);
   assert.match(scriptFiles.modelSettings, /function renderCatsRelayModelPanel\(\)/);
   assert.match(scriptFiles.catsChat, /function runCatsNextAction\(\)/);
   assert.match(scriptFiles.catsChat, /function unlockCatsAuthFields\(focusAccount=false\)/);

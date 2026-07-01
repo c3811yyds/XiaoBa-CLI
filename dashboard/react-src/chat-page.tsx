@@ -302,6 +302,7 @@ declare global {
     __catscoGetCatsComposerDraft?: () => string;
     __catscoSetCatsComposerDraft?: (value: string) => void;
     __catscoFocusCatsAccount?: () => void;
+    __catscoFocusCatsMessageInput?: () => void;
     __catscoResizeCatsComposerInput?: (source?: HTMLTextAreaElement | null) => void;
     bindCatsBot?: (botUid?: string, botName?: string, button?: HTMLElement, options?: { confirm?: boolean }) => void;
     chooseCatsFiles?: () => void;
@@ -418,7 +419,7 @@ function CustomModelButton({ choice }: { choice: CustomModelChoice }) {
       onClick={event => window.enableCustomStartupModelFromButton?.(event.currentTarget)}
       type="button"
     >
-      <span className="relay-model-label">Custom model</span>
+      <span className="relay-model-label">自定义模型</span>
       <span className="relay-model-name">{choice.modelName}</span>
       <span className="relay-model-meta">{choice.meta}</span>
     </button>
@@ -949,15 +950,15 @@ function CatsMessagesTimeline({ empty = false, emptyText = 'No messages', groups
   if (empty) return <div className="loading">{emptyText}</div>;
   return (
     <div className="chat-timeline-inner">
-      {historyState === 'loading' ? <div className="chat-history-note">Loading earlier messages...</div> : null}
-      {historyState === 'end' ? <div className="chat-history-note">Reached the earliest message</div> : null}
+      {historyState === 'loading' ? <div className="chat-history-note">正在加载更早消息...</div> : null}
+      {historyState === 'end' ? <div className="chat-history-note">已到最早消息</div> : null}
       {groups.map(group => (
         <div
           className={`chat-message ${group.mine ? 'mine' : 'peer'}${group.working ? ' has-working' : ''}${group.isConsecutive ? ' grouped' : ''}`}
           key={group.key}
         >
           <div className="chat-avatar" aria-hidden="true">
-            {group.mine ? 'Me' : 'C'}
+            {group.mine ? '我' : 'C'}
           </div>
           <div className="chat-message-body">
             <div className="chat-message-meta">
@@ -1507,6 +1508,10 @@ function focusCatsAccount() {
   catsAccountInputElement?.focus();
 }
 
+function focusCatsMessageInput() {
+  catsMessageInputElement?.focus();
+}
+
 function getCatsMessagesBox() {
   return catsMessagesElement;
 }
@@ -1515,8 +1520,12 @@ function resizeCatsComposerInput(source?: HTMLTextAreaElement | null) {
   const input = source || catsMessageInputElement;
   if (!input) return;
   const maxHeight = window.matchMedia('(max-width: 760px)').matches ? 180 : 220;
-  const nextHeight = Math.min(Math.max(input.scrollHeight, 40), maxHeight);
-  const inputOverflowY = input.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  input.style.height = 'auto';
+  const measuredScrollHeight = input.scrollHeight;
+  const nextHeight = Math.min(Math.max(measuredScrollHeight, 40), maxHeight);
+  const inputOverflowY = measuredScrollHeight > maxHeight ? 'auto' : 'hidden';
+  input.style.height = `${nextHeight}px`;
+  input.style.overflowY = inputOverflowY;
   if (chatPageState.composer.inputHeight === nextHeight && chatPageState.composer.inputOverflowY === inputOverflowY) return;
   chatPageState = {
     ...chatPageState,
@@ -1635,6 +1644,7 @@ export function mountChatPage() {
   window.__catscoGetCatsComposerDraft = getCatsComposerDraft;
   window.__catscoSetCatsComposerDraft = setCatsComposerDraft;
   window.__catscoFocusCatsAccount = focusCatsAccount;
+  window.__catscoFocusCatsMessageInput = focusCatsMessageInput;
   window.__catscoRenderBotSelectorList = renderBotSelectorList;
   window.__catscoRenderCatsAttachments = renderCatsAttachments;
   window.__catscoRenderCatsMessages = renderCatsMessages;
