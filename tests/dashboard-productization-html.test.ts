@@ -147,6 +147,11 @@ test('SkillHub store is separate from Companion Hub and owns publishing controls
   assert.match(reactFiles.store, /id="skillhub-section"/);
   assert.match(reactFiles.store, /id="skillhub-search-input"/);
   assert.match(reactFiles.store, /id="skillhub-package-versions-list"/);
+  assert.match(reactFiles.store, /公开 Skill 无需登录即可搜索和安装；登录后可分享本地 Skill 并管理已发布版本。/);
+  assert.match(reactFiles.store, /placeholder="搜索合同审查、PPT、工程量清单\.\.\."/);
+  assert.match(reactFiles.store, /<span>发现技能<\/span>/);
+  assert.match(reactFiles.store, /<span>已安装技能<\/span>/);
+  assert.match(reactFiles.store, /我的发布/);
   assert.match(reactFiles.store, /data-skillhub-install=\{canInstall \? 'true' : undefined\}/);
   assert.match(reactFiles.store, /data-skillhub-versions="true"/);
   assert.match(reactFiles.store, /data-skillhub-yank-version="true"/);
@@ -162,6 +167,8 @@ test('SkillHub store is separate from Companion Hub and owns publishing controls
     scriptFiles.skillhub,
     /applySkillHubDeveloper|createSkillHubManifestDraft|submitSkillHubReview|renderSkillHubManifestPreviewState/,
   );
+  assert.doesNotMatch(reactFiles.store, /\?\? Skill \?+/);
+  assert.doesNotMatch(reactFiles.store, /placeholder="\?+/);
 });
 
 test('CatsCo Chat readiness, setup, and composer are split between React UI and script state', () => {
@@ -229,6 +236,7 @@ test('dashboard font scaling and non-chat layout remain stylesheet-driven', () =
   assert.match(scriptFiles.bootstrap, /loadDashboardFontScale\(\);/);
   assert.match(reactFiles.shell, /document\.addEventListener\('keydown', handleKeyDown\)/);
   assert.match(reactFiles.shell, /window\.addEventListener\('resize', handleResize\)/);
+  assert.match(dashboardCss, /\.dashboard-app \{\s*display: flex;\s*min-height: 100vh;[\s\S]*?width: 100%;\s*\}/);
   assert.match(dashboardCss, /--dashboard-ui-zoom: 1/);
   assert.match(dashboardCss, /\.sidebar \{\s*zoom: var\(--dashboard-ui-zoom\);/);
   assert.match(dashboardCss, /\.main-wrapper \{\s*zoom: var\(--dashboard-ui-zoom\);/);

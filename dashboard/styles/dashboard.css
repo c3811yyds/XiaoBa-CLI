@@ -2,6 +2,13 @@
 
 #dashboard-app-root { display: contents; }
 
+.dashboard-app {
+  display: flex;
+  min-height: 100vh;
+  position: relative;
+  width: 100%;
+}
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
@@ -4830,6 +4837,10 @@
     }
 
     @media (max-width: 640px) {
+      body:not(.chat-active) .dashboard-app {
+        display: block;
+      }
+
       body:not(.chat-active) {
         display: block;
       }

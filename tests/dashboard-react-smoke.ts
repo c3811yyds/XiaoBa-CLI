@@ -32,6 +32,12 @@ test(
   assert.equal(await page.textContent('.sidebar-brand-ver'), 'v1.2.0');
   assert.equal(await page.evaluate(() => document.body.classList.contains('chat-active')), true);
   assert.equal(await page.evaluate(() => document.body.classList.contains('companion-active')), false);
+  const mainRect = await page.locator('.main-wrapper').boundingBox();
+  assert.ok(mainRect);
+  assert.ok(
+    mainRect.x + mainRect.width >= 1260,
+    `chat main wrapper should fill the viewport width, got right edge ${mainRect.x + mainRect.width}`,
+  );
 
   await page.click('a[href="#companion"]');
   await page.waitForFunction(() => document.body.classList.contains('companion-active'));

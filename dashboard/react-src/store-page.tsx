@@ -117,11 +117,11 @@ function StorePage({ state }: { state: StorePageState }) {
               Skills
             </div>
             <div className="settings-meta">
-              ?? Skill ???????????????????? Skill ?????????
+              公开 Skill 无需登录即可搜索和安装；登录后可分享本地 Skill 并管理已发布版本。
             </div>
           </div>
           <button className="btn" type="button" onClick={() => window.refreshSkillHubPage?.()}>
-            ??
+            刷新
           </button>
         </div>
 
@@ -130,13 +130,13 @@ function StorePage({ state }: { state: StorePageState }) {
             className="config-input"
             id="skillhub-search-input"
             {...storeDraftFieldProps('skillhub-search-input')}
-            placeholder="???????PPT??????..."
+            placeholder="搜索合同审查、PPT、工程量清单..."
             onKeyDown={event => {
               if (event.key === 'Enter') window.searchSkillHub?.();
             }}
           />
           <button className="btn btn-primary" type="button" onClick={() => window.searchSkillHub?.()}>
-            ??
+            搜索
           </button>
           <button
             className="btn"
@@ -146,13 +146,13 @@ function StorePage({ state }: { state: StorePageState }) {
               window.searchSkillHub?.('', true);
             }}
           >
-            ??
+            清空
           </button>
         </div>
 
         <details className="config-section" open>
           <summary className="settings-advanced-summary">
-            <span>????</span>
+            <span>发现技能</span>
             <span className="tag">cloud registry</span>
           </summary>
           <div className="settings-advanced-body">
@@ -160,7 +160,7 @@ function StorePage({ state }: { state: StorePageState }) {
               {state.registryPayload ? (
                 <SkillHubRegistryGrid {...state.registryPayload} />
               ) : (
-                <div className="loading">??????? Skill?</div>
+                <div className="loading">搜索云端已审核 Skill。</div>
               )}
             </div>
           </div>
@@ -168,7 +168,7 @@ function StorePage({ state }: { state: StorePageState }) {
 
         <details className="config-section" open>
           <summary className="settings-advanced-summary">
-            <span>?????</span>
+            <span>已安装技能</span>
             <span className="tag">local</span>
           </summary>
           <div className="settings-advanced-body">
@@ -176,7 +176,7 @@ function StorePage({ state }: { state: StorePageState }) {
               {state.localSkillStorePayload ? (
                 <LocalSkillGrid {...state.localSkillStorePayload} />
               ) : (
-                <div className="loading">???...</div>
+                <div className="loading">加载中...</div>
               )}
             </div>
           </div>
@@ -187,20 +187,20 @@ function StorePage({ state }: { state: StorePageState }) {
         {state.accountPayload ? (
           <SkillHubAccountCard {...state.accountPayload} />
         ) : (
-          <div className="loading">???? SkillHub ????...</div>
+          <div className="loading">正在检查 SkillHub 登录状态...</div>
         )}
       </div>
 
       <div className="config-section">
-        <div className="config-group-title-main">????</div>
+        <div className="config-group-title-main">我的发布</div>
         <div className="settings-meta" style={{ marginBottom: 14 }}>
-          ?????? SkillHub ? Skill ?????????????????????????????
+          管理你发布到 SkillHub 的 Skill 和版本。下架会隐藏公开安装；删除会移除服务器版本和包文件。
         </div>
         <div className="portal-list" data-react-skillhub-package-versions="mounted" id="skillhub-package-versions-list">
           {developerData ? (
             <SkillHubPackageVersionsList versions={developerData.packageVersions || []} />
           ) : (
-            <div className="loading">??????</div>
+            <div className="loading">暂无发布版本</div>
           )}
         </div>
       </div>
