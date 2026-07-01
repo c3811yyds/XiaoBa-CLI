@@ -375,6 +375,12 @@ function enableCatsRelayModelFromButton(button, options={}){
 
 function enableCustomStartupModelFromButton(button, options={}){
   const context=button?.dataset?.customStartupContext || 'chat';
+  if(!isCustomStartupConfigured()){
+    return enableRelayFallbackForIncompleteCustom({
+      source:context,
+      ...options,
+    });
+  }
   if(!isCatsLoggedIn() && isCustomStartupConfigured()){
     pendingStartupSource='custom';
     pendingRelayModelId='';
@@ -385,6 +391,24 @@ function enableCustomStartupModelFromButton(button, options={}){
   return enableCustomStartupModel({
     activateConnector:true,
     source:context,
+    ...options,
+  });
+}
+
+function enableRelayFallbackForIncompleteCustom(options={}){
+  const source=options.source||'chat';
+  const selectedModelId=selectedRelayModelId();
+  if(!isCatsLoggedIn()){
+    pendingStartupSource='relay';
+    pendingRelayModelId=selectedModelId;
+    renderCatsStatus();
+    setRelayModelApplyStatus('自定义模型未填写，已改用 CatsCo 中转模型；登录后会自动接入。','muted',source);
+    return;
+  }
+  setRelayModelApplyStatus('自定义模型未填写，正在改用 CatsCo 中转模型...','muted',source);
+  return enableCatsRelayModel(selectedModelId,{
+    activateConnector:options.activateConnector!==false,
+    source,
     ...options,
   });
 }
@@ -485,9 +509,7 @@ async function enableCatsRelayModel(modelId, options={}){
 async function enableCustomStartupModel(options={}){
   const source=options.source||'chat';
   if(!isCustomStartupConfigured()){
-    setRelayModelApplyStatus('请先在设置里填写自定义模型地址、模型名称和访问凭证。','error',source);
-    openCustomModelFromChat();
-    return;
+    return enableRelayFallbackForIncompleteCustom(options);
   }
   if(!isCatsLoggedIn()){
     pendingStartupSource='custom';

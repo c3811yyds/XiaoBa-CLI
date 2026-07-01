@@ -81,6 +81,7 @@ test('React shell owns navigation, page roots, and global modal mounting', () =>
   assert.match(reactFiles.shell, /import \{ mountGlobalModals \} from '\.\/global-modals'/);
   assert.match(reactFiles.shell, /href=\{`#\$\{item\.page\}`\}/);
   assert.match(reactFiles.shell, /page: 'prompts'/);
+  assert.ok(reactFiles.shell.indexOf("page: 'store'") < reactFiles.shell.indexOf("page: 'prompts'"));
   assert.match(reactFiles.shell, /id: 'services-page-root'/);
   assert.match(reactFiles.shell, /id: 'prompts-page-root'/);
   assert.match(reactFiles.shell, /id: 'companion-page-root'/);
@@ -110,6 +111,8 @@ test('Agent Hub and model settings are React-rendered while scripts provide API 
   assert.match(scriptFiles.modelSettings, /async function refreshSettingsPage\(\)/);
   assert.match(scriptFiles.modelSettings, /function openCustomModelFromChat\(\)\{\s*switchPage\('services'\);/);
   assert.match(scriptFiles.modelSettings, /function enableCatsRelayModel\(modelId, options=\{\}\)/);
+  assert.match(scriptFiles.modelSettings, /function enableRelayFallbackForIncompleteCustom\(options=\{\}\)/);
+  assert.match(scriptFiles.modelSettings, /自定义模型未填写，正在改用 CatsCo 中转模型/);
   assert.match(scriptFiles.modelSettings, /\/api\/cats\/relay\/model-config\/apply/);
   assert.match(scriptFiles.config, /if\(appStatusSnapshot && Array\.isArray\(appStatusSnapshot\.services\) && !shouldDeferServiceRender\(\)\)renderServices\(appStatusSnapshot\.services\);/);
   assert.doesNotMatch(reactFiles.services, /settings-setup-panel|env-config-details|save-config-btn|config-panel/);
@@ -219,6 +222,8 @@ test('CatsCo Chat readiness, setup, and composer are split between React UI and 
   assert.match(scriptFiles.modelSettings, /function renderCatsRelayModelPanel\(\)/);
   assert.match(scriptFiles.catsChat, /function runCatsNextAction\(\)/);
   assert.match(scriptFiles.catsChat, /function unlockCatsAuthFields\(focusAccount=false\)/);
+  assert.match(reactFiles.chat, /当前检查项已通过/);
+  assert.match(scriptFiles.catsChat, /step\.status==='fail'\|\|step\.status==='warning'/);
   assert.match(scriptFiles.basePet, /let catsStatusGeneration = 0/);
   assert.match(scriptFiles.basePet, /let catsStatusMutationInFlight = false/);
   assert.match(scriptFiles.settingsState, /let catsSetupInFlight=false/);
@@ -246,6 +251,11 @@ test('CatsCo Chat messages preserve history, runtime plans, tool metadata, and a
   assert.match(scriptFiles.basePet, /let catsScrollPinnedToBottom = true/);
   assert.match(scriptFiles.basePet, /const CATS_MESSAGES_PAGE_SIZE = 50/);
   assert.match(scriptFiles.messages, /function loadOlderCatsMessages\(\)/);
+  assert.match(scriptFiles.messages, /function afterCatsMessagesRender\(callback\)/);
+  assert.match(scriptFiles.messages, /requestAnimationFrame/);
+  assert.match(scriptFiles.messages, /fetchCatsMessagesPage\(0, CATS_MESSAGES_PAGE_SIZE, requestTopicId\)/);
+  assert.match(scriptFiles.messages, /fetchCatsMessagesPage\(catsMessagesCache\.length, CATS_MESSAGES_PAGE_SIZE, requestTopicId\)/);
+  assert.match(scriptFiles.messages, /box\.scrollTop<=CATS_SCROLL_TOP_THRESHOLD/);
   assert.match(scriptFiles.messages, /function parseCatsRuntimePlanValue\(value\)/);
   assert.match(scriptFiles.messages, /parsed\.revision!=null/);
   assert.match(scriptFiles.messages, /pendingRuntimePlan=\{type:'runtime_plan'/);
@@ -275,6 +285,10 @@ test('dashboard font scaling and non-chat layout remain stylesheet-driven', () =
   assert.match(dashboardCss, /\.main-wrapper \{\s*zoom: var\(--dashboard-ui-zoom\);/);
   assert.doesNotMatch(dashboardCss, /--dashboard-content-max/);
   assert.match(dashboardCss, /\.page-content \{\s*width: 100%;\s*max-width: none;\s*margin: 0;/);
+  assert.match(dashboardCss, /body\.chat-active \.main-wrapper \{[\s\S]*height: 100vh;[\s\S]*overflow: hidden;/);
+  assert.match(dashboardCss, /body\.chat-active \.chat-shell \{[\s\S]*height: 100%;[\s\S]*overflow: hidden;/);
+  assert.match(dashboardCss, /\.chat-connect \{[\s\S]*overflow-y: auto;[\s\S]*overscroll-behavior: contain;/);
+  assert.match(dashboardCss, /\.chat-messages \{[\s\S]*overflow-y: auto;[\s\S]*overscroll-behavior: contain;/);
   assert.match(dashboardCss, /body:not\(\.chat-active\) \.sidebar \{\s*position: static;\s*width: 100%;\s*min-height: auto;/);
 });
 

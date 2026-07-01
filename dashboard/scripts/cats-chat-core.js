@@ -8,7 +8,7 @@ function escapeHtml(value){
 
 function setCatsAction(text, isError){
   window.__catscoRenderCatsActionStatus?.({text:text||'',isError:Boolean(isError)});
-  if (text) pulsePetState(isError ? 'error' : 'thinking', isError ? '杩炴帴寮傚父' : text, isError ? 2600 : 1200);
+  if (text) pulsePetState(isError ? 'error' : 'thinking', isError ? '连接异常' : text, isError ? 2600 : 1200);
 }
 
 function unlockCatsAuthFields(focusAccount=false){
@@ -306,7 +306,7 @@ function renderCatsChecklist(stage){
     {label:'CatsCompany connector', status:running?'pass':(configured?'warning':'fail'), meta:running?'运行中':'未运行'},
     {label:'Chat 会话', status:topicReady?'pass':'fail', meta:topicReady?'已就绪':'等待 topic'},
   ];
-  const visibleSteps=steps.filter(step=>step.status==='fail');
+  const visibleSteps=steps.filter(step=>step.status==='fail'||step.status==='warning');
   window.__catscoRenderCatsChecklist?.({connected:true,steps:visibleSteps});
 }
 
@@ -412,7 +412,7 @@ async function fetchCatsStatus(options={}){
       showCatsMessagePlaceholder('登录 CatsCo 后查看当前账号消息');
     }else if(previousOwnerKey && previousOwnerKey!==nextOwnerKey){
       resetCatsMessageCache(nextOwnerKey);
-      showCatsMessagePlaceholder('姝ｅ湪鍔犺浇褰撳墠璐﹀彿娑堟伅...');
+      showCatsMessagePlaceholder('正在加载当前账号消息...');
     }else if(!previousOwnerKey){
       catsMessagesOwnerKey=nextOwnerKey;
     }
@@ -422,7 +422,7 @@ async function fetchCatsStatus(options={}){
     if(catsState.topicId) loadCatsMessages(false);
   }catch(e){
     if(requestGeneration!==catsStatusGeneration || (catsStatusMutationInFlight && !priority))return;
-    const statusError='鐘舵€佸姞杞藉け璐ワ細'+(e.message||String(e));
+    const statusError='状态加载失败：'+(e.message||String(e));
     window.__catscoRenderCatsStatusList?.({errorText:statusError});
   }
 }
@@ -680,7 +680,7 @@ async function sendCatsCode(){
 
 async function submitCatsAuth(){
   window.__catscoRenderCatsAuthButtons?.(catsAuthMode==='login'?{authDisabled:true}:{registerDisabled:true});
-  setCatsAction(catsAuthMode==='login'?'姝ｅ湪鐧诲綍...':'姝ｅ湪娉ㄥ唽...');
+  setCatsAction(catsAuthMode==='login'?'正在登录...':'正在注册...');
   try{
     const endpoint=getCatsEndpointFields();
     const authDraft=window.__catscoGetCatsAuthDraft?.()||{};
@@ -713,11 +713,11 @@ async function setupCatsBot(options={}){
     return handleCatsSetupAction();
   }
   if(catsSetupInFlight){
-    setCatsAction('姝ｅ湪閰嶇疆 CatsCo 杩炴帴锛岃绋嶅€?..');
+    setCatsAction('正在配置 CatsCo 连接，请稍候...');
     return;
   }
   if(relayModelApplyInFlight){
-    setCatsAction('妯″瀷鍒囨崲姝ｅ湪杩涜锛岃绋嶅€?..');
+    setCatsAction('模型切换正在进行，请稍候...');
     return;
   }
   setCatsSetupBusy(true);
@@ -729,7 +729,7 @@ async function setupCatsBot(options={}){
     await fetchDashboardSettings();
   }
   const setupRelayModel=shouldSetupRelayOnCatsSetup();
-  setCatsAction(setupRelayModel?'姝ｅ湪纭涓浆妯″瀷銆佺粦瀹?agent 骞跺惎鍔?connector...':'姝ｅ湪缁戝畾 agent 骞舵寜褰撳墠鑷畾涔夋ā鍨嬪惎鍔?connector...');
+  setCatsAction(setupRelayModel?'正在确认中转模型、绑定 agent 并启动 connector...':'正在绑定 agent 并按当前自定义模型启动 connector...');
   try{
     const data=await parseCatsResponse(await fetch(API+'/api/cats/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
       ...getCatsEndpointFields(),

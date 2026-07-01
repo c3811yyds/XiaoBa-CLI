@@ -39,9 +39,9 @@ type ShellRenderPayload = {
 
 const NAV_ITEMS: NavItem[] = [
   { icon: '@', label: 'CatsCo', page: 'chat' },
-  { icon: '#', label: '提示词', page: 'prompts' },
   { icon: '>', label: '智能体中心', page: 'services' },
   { icon: '+', label: 'Skills', page: 'store' },
+  { icon: '#', label: '提示词', page: 'prompts' },
   { icon: '*', label: '伙伴中心', page: 'companion' },
 ];
 

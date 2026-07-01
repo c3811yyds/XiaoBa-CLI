@@ -21885,7 +21885,7 @@
         id: "cats-state-card"
       },
       /* @__PURE__ */ import_react.default.createElement(CatsGateCard, { ...gate })
-    ), /* @__PURE__ */ import_react.default.createElement("div", { className: checklistClass, "data-react-cats-checklist": "mounted", id: "cats-checklist" }, state.checklist.steps?.length ? /* @__PURE__ */ import_react.default.createElement(CatsChecklist, { ...state.checklist }) : /* @__PURE__ */ import_react.default.createElement("div", { className: "loading" }, "\u68C0\u67E5\u4E2D...")), /* @__PURE__ */ import_react.default.createElement("div", { className: "chat-relay-model-panel", "data-react-cats-relay-model": "mounted", id: "cats-relay-model-panel" }, state.relayModelPanel ? /* @__PURE__ */ import_react.default.createElement(CatsRelayModelPanel, { ...state.relayModelPanel }) : null), /* @__PURE__ */ import_react.default.createElement("div", { className: "chat-connected-card", "data-react-cats-connected": "mounted", id: "cats-connected-card", style: { display: connectedVisible } }, /* @__PURE__ */ import_react.default.createElement(CatsConnectedCard, { ...state.connectedCard })), /* @__PURE__ */ import_react.default.createElement(
+    ), /* @__PURE__ */ import_react.default.createElement("div", { className: checklistClass, "data-react-cats-checklist": "mounted", id: "cats-checklist" }, state.checklist.steps?.length ? /* @__PURE__ */ import_react.default.createElement(CatsChecklist, { ...state.checklist }) : state.checklist.connected ? /* @__PURE__ */ import_react.default.createElement("div", { className: "chat-checklist-ok" }, "\u5F53\u524D\u68C0\u67E5\u9879\u5DF2\u901A\u8FC7") : /* @__PURE__ */ import_react.default.createElement("div", { className: "loading" }, "\u68C0\u67E5\u4E2D...")), /* @__PURE__ */ import_react.default.createElement("div", { className: "chat-relay-model-panel", "data-react-cats-relay-model": "mounted", id: "cats-relay-model-panel" }, state.relayModelPanel ? /* @__PURE__ */ import_react.default.createElement(CatsRelayModelPanel, { ...state.relayModelPanel }) : null), /* @__PURE__ */ import_react.default.createElement("div", { className: "chat-connected-card", "data-react-cats-connected": "mounted", id: "cats-connected-card", style: { display: connectedVisible } }, /* @__PURE__ */ import_react.default.createElement(CatsConnectedCard, { ...state.connectedCard })), /* @__PURE__ */ import_react.default.createElement(
       "div",
       {
         className: "chat-form",
@@ -23974,9 +23974,9 @@
   // dashboard/react-src/dashboard-shell.tsx
   var NAV_ITEMS = [
     { icon: "@", label: "CatsCo", page: "chat" },
-    { icon: "#", label: "\u63D0\u793A\u8BCD", page: "prompts" },
     { icon: ">", label: "\u667A\u80FD\u4F53\u4E2D\u5FC3", page: "services" },
     { icon: "+", label: "Skills", page: "store" },
+    { icon: "#", label: "\u63D0\u793A\u8BCD", page: "prompts" },
     { icon: "*", label: "\u4F19\u4F34\u4E2D\u5FC3", page: "companion" }
   ];
   var dashboardShellRoot;

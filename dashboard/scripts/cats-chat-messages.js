@@ -505,6 +505,18 @@ function scrollCatsMessagesToBottom(box){
   catsScrollPinnedToBottom=true;
 }
 
+function afterCatsMessagesRender(callback){
+  const run=()=>callback(catsMessagesBox());
+  if(typeof requestAnimationFrame==='function'){
+    requestAnimationFrame(()=>{
+      run();
+      setTimeout(run,0);
+    });
+    return;
+  }
+  setTimeout(run,0);
+}
+
 function groupCatsTimelineMessages(messages, uid){
   const groups=[];
   let currentWorking=null;
@@ -620,11 +632,14 @@ function renderCatsMessages(messages, options={}){
     : (!catsMessagesHasOlder?'end':'');
   window.__catscoRenderCatsMessages?.({groups:timelineGroups,historyState});
   if(preserveViewport){
-    const delta=options.prepended ? box.scrollHeight-oldScrollHeight : 0;
-    box.scrollTop=Math.max(0, oldScrollTop+delta);
-    catsScrollPinnedToBottom=isCatsMessageScrollNearBottom(box);
+    afterCatsMessagesRender(nextBox=>{
+      if(!nextBox)return;
+      const delta=options.prepended ? nextBox.scrollHeight-oldScrollHeight : 0;
+      nextBox.scrollTop=Math.max(0, oldScrollTop+delta);
+      catsScrollPinnedToBottom=isCatsMessageScrollNearBottom(nextBox);
+    });
   }else if(shouldStickToBottom){
-    scrollCatsMessagesToBottom(box);
+    afterCatsMessagesRender(scrollCatsMessagesToBottom);
   }
   updatePetFromCatsMessages(messages);
 }

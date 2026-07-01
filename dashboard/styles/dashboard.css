@@ -2942,6 +2942,8 @@
     }
 
     body.chat-active .main-wrapper {
+      height: 100vh;
+      overflow: hidden;
       padding: 24px 24px 16px;
     }
 
@@ -2951,6 +2953,7 @@
       height: calc(100vh - 40px);
       margin: 0;
       padding: 0;
+      overflow: hidden;
     }
 
     #page-chat.active {
@@ -2958,6 +2961,7 @@
       flex-direction: column;
       height: 100%;
       min-height: 0;
+      overflow: hidden;
     }
 
     #page-chat .section-title {
@@ -2966,8 +2970,9 @@
 
     body.chat-active .chat-shell {
       flex: 1;
-      height: auto;
+      height: 100%;
       min-height: 0;
+      overflow: hidden;
     }
 
     .chat-panel {
@@ -3159,6 +3164,17 @@
 
     .chat-step-list.compact {
       gap: 6px;
+    }
+
+    .chat-checklist-ok {
+      padding: 16px 14px;
+      border: 1px dashed rgba(30,169,113,0.28);
+      border-radius: 10px;
+      background: rgba(30,169,113,0.08);
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 800;
+      text-align: center;
     }
 
     .chat-step-row {
@@ -3376,9 +3392,11 @@
     .chat-window {
       display: flex;
       flex-direction: column;
+      height: 100%;
       min-height: 0;
       background: #181b20;
       color: #e8eaed;
+      font-family: 'Inter', 'Microsoft YaHei UI', 'PingFang SC', sans-serif;
     }
 
     .chat-panel.chat-window {
@@ -3408,8 +3426,10 @@
       min-height: 0;
       padding: 0;
       overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
       background: #181b20;
-      color: #d8dbe2;
+      color: #c7cfdd;
     }
 
     .chat-timeline-inner {
@@ -3428,7 +3448,7 @@
       font-size: 16px;
       line-height: 1.62;
       word-break: break-word;
-      color: #d8dbe2;
+      color: #c7cfdd;
       border: 0;
       background: transparent;
       border-radius: 0;
@@ -3445,7 +3465,7 @@
 
     .chat-message.mine {
       justify-content: flex-end;
-      color: #f8fafc;
+      color: #f8fbff;
     }
 
     .chat-avatar {
@@ -3476,7 +3496,7 @@
     }
 
     .chat-message.mine .chat-avatar {
-      background: var(--accent);
+      background: #2563eb;
       color: #fff;
       order: 2;
     }
@@ -3498,7 +3518,7 @@
       width: fit-content;
       max-width: 100%;
       min-width: 0;
-      color: #d8dbe2;
+      color: #c7cfdd;
       border-radius: 8px;
     }
 
@@ -3511,8 +3531,8 @@
 
     .chat-message.mine .chat-message-content {
       padding: 10px 12px;
-      background: var(--accent);
-      color: #fff;
+      background: #2563eb;
+      color: #f8fbff;
       border: 0;
       border-radius: 10px;
     }

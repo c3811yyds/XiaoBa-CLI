@@ -1070,7 +1070,13 @@ function ChatConnectPanel({
       </div>
 
       <div className={checklistClass} data-react-cats-checklist="mounted" id="cats-checklist">
-        {state.checklist.steps?.length ? <CatsChecklist {...state.checklist} /> : <div className="loading">检查中...</div>}
+        {state.checklist.steps?.length ? (
+          <CatsChecklist {...state.checklist} />
+        ) : state.checklist.connected ? (
+          <div className="chat-checklist-ok">当前检查项已通过</div>
+        ) : (
+          <div className="loading">检查中...</div>
+        )}
       </div>
 
       <div className="chat-relay-model-panel" data-react-cats-relay-model="mounted" id="cats-relay-model-panel">
