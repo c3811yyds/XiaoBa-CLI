@@ -420,8 +420,8 @@ function LogsBody(payload: LogsBodyPayload) {
     return <div style={{ color: 'var(--red)', padding: 20, textAlign: 'center' }}>二维码已过期，请重新获取</div>;
   }
 
-  const color = payload.tone === 'error' ? 'var(--red)' : payload.tone === 'success' ? 'var(--green)' : 'var(--text)';
-  return <pre style={{ color, margin: 0, whiteSpace: 'pre-wrap' }}>{payload.text}</pre>;
+  const color = payload.tone === 'error' ? 'var(--red)' : payload.tone === 'success' ? 'var(--green)' : undefined;
+  return <span style={color ? { color } : undefined}>{payload.text}</span>;
 }
 
 function MediaPreviewBody({ src = '', title = 'image' }: MediaPreviewPayload) {

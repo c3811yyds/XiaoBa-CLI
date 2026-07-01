@@ -89,9 +89,12 @@ test('React shell owns navigation, page roots, and global modal mounting', () =>
   assert.match(reactFiles.shell, /id: 'chat-page-root'/);
   assert.match(reactFiles.shell, /mountPromptsPage\(\);/);
   assert.match(dashboardCss, /\.sidebar-brand-logo\s*\{[\s\S]*width:\s*100%;[\s\S]*height:\s*100%;[\s\S]*object-fit:\s*contain;[\s\S]*border-radius:\s*inherit;/);
+  assert.match(dashboardCss, /\.modal-body\s*\{[\s\S]*font-family:\s*'SF Mono', 'Fira Code', 'Consolas', monospace;[\s\S]*font-size:\s*12px;[\s\S]*line-height:\s*1\.75;[\s\S]*white-space:\s*pre-wrap;/);
   assert.match(reactFiles.shell, /document\.body\.classList\.toggle\('chat-active', activePage === 'chat'\)/);
   assert.match(reactFiles.shell, /document\.body\.classList\.toggle\('companion-active', activePage === 'companion'\)/);
   assert.match(reactFiles.globalModals, /export function mountGlobalModals\(\)/);
+  assert.match(reactFiles.globalModals, /<span style=\{color \? \{ color \} : undefined\}>\{payload\.text\}<\/span>/);
+  assert.doesNotMatch(reactFiles.globalModals, /<pre[^>]*>\{payload\.text\}<\/pre>/);
   assert.doesNotMatch(reactSource, /legacyBody|dangerouslySetInnerHTML|data-action|onclick=|onchange=|oninput=/);
 });
 

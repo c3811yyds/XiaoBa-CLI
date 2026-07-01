@@ -22977,8 +22977,8 @@
     if (payload.kind === "weixin-expired") {
       return /* @__PURE__ */ import_react3.default.createElement("div", { style: { color: "var(--red)", padding: 20, textAlign: "center" } }, "\u4E8C\u7EF4\u7801\u5DF2\u8FC7\u671F\uFF0C\u8BF7\u91CD\u65B0\u83B7\u53D6");
     }
-    const color = payload.tone === "error" ? "var(--red)" : payload.tone === "success" ? "var(--green)" : "var(--text)";
-    return /* @__PURE__ */ import_react3.default.createElement("pre", { style: { color, margin: 0, whiteSpace: "pre-wrap" } }, payload.text);
+    const color = payload.tone === "error" ? "var(--red)" : payload.tone === "success" ? "var(--green)" : void 0;
+    return /* @__PURE__ */ import_react3.default.createElement("span", { style: color ? { color } : void 0 }, payload.text);
   }
   function MediaPreviewBody({ src = "", title = "image" }) {
     if (!src) return null;
