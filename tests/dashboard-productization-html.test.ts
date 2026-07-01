@@ -223,6 +223,7 @@ test('CatsCo Chat readiness, setup, and composer are split between React UI and 
   assert.match(scriptFiles.catsChat, /state==='active'\|\|state==='online'/);
   assert.doesNotMatch(scriptFiles.catsChat, /catsState\.bodyStatus\?\.state==='active'/);
   assert.match(scriptFiles.catsChat, /function renderCatsChecklist\(stage\)/);
+  assert.match(scriptFiles.catsChat, /const connectedCardOwnsAction=connected && stage\.action==='refresh'/);
   assert.match(scriptFiles.modelSettings, /function renderCatsRelayModelPanel\(\)/);
   assert.match(scriptFiles.catsChat, /function runCatsNextAction\(\)/);
   assert.match(scriptFiles.catsChat, /function unlockCatsAuthFields\(focusAccount=false\)/);

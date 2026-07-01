@@ -320,7 +320,7 @@ function renderCatsChecklist(stage){
 
 function updateCatsChatGate(stage){
   const connected=isCatsLoggedIn();
-  const connectedCardOwnsAction=connected && (stage.action==='setup' || stage.action==='refresh');
+  const connectedCardOwnsAction=connected && stage.action==='refresh';
   catsNextAction=stage.action;
   window.__catscoRenderCatsGate?.({
     actionLabel:stage.actionLabel||'查看',
@@ -440,6 +440,7 @@ function updateCatsLayoutState(stage){
   const configured=Boolean(catsState.configured);
   const chatStage=stage||buildCatsChatStage();
   const ready=chatStage.key==='ready';
+  const needsSetup=connected && (chatStage.action==='setup'||chatStage.action==='bot-selector');
   if(!ready){
     catsConnectCollapsed=false;
     catsConnectManualOverride=false;
@@ -449,8 +450,8 @@ function updateCatsLayoutState(stage){
   window.__catscoRenderCatsLayout?.({
     shellCollapsed:ready && catsConnectCollapsed,
     connectNeedsAuth:!connected,
-    connectNeedsSetup:connected && (!configured || !running),
-    connectExpanded:!connected || (connected && (!configured || !running)),
+    connectNeedsSetup:needsSetup || (connected && !configured),
+    connectExpanded:!connected || needsSetup || (connected && !configured),
   });
   window.__catscoRenderCatsConnectToggle?.({
     collapsed:catsConnectCollapsed,
