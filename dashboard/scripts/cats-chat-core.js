@@ -81,6 +81,13 @@ function isCatsLoggedIn(){
   return Boolean(catsState.connected && catsState.user && catsState.user.uid);
 }
 
+function isCatsBodyReady(bodyStatus){
+  const state=String(bodyStatus?.state||'').toLowerCase();
+  if(state==='conflict'||state==='auth_error')return false;
+  if(bodyStatus?.active===true)return true;
+  return state==='active'||state==='online';
+}
+
 function catsAuthHelpText(){
   if(catsState.authStatus==='invalid')return catsState.authError||'本地登录态已失效，请重新登录。';
   if(catsState.authStatus==='unchecked'&&catsState.authError)return catsState.authError;
@@ -90,7 +97,7 @@ function catsAuthHelpText(){
 function buildCatsChatStage(){
   const connected=isCatsLoggedIn();
   const configured=Boolean(catsState.configured && catsState.botUid);
-  const running=connected && configured && catsState.service?.status==='running' && catsState.bodyStatus?.state==='active';
+  const running=connected && configured && catsState.service?.status==='running' && isCatsBodyReady(catsState.bodyStatus||{});
   const topicReady=connected && configured && Boolean(catsState.topicId);
   const modelSection=getReadinessSection('model');
   const catscoSection=getReadinessSection('catsco');
@@ -290,7 +297,8 @@ function renderCatsChecklist(stage){
     return;
   }
   const configured=Boolean(catsState.configured);
-  const running=service.status==='running';
+  const bodyReady=isCatsBodyReady(catsState.bodyStatus||{});
+  const running=service.status==='running'&&bodyReady;
   const topicReady=connected && configured && Boolean(catsState.topicId);
   const accountMeta=connected
     ? (user.display_name||user.username||'已登录')
@@ -303,7 +311,7 @@ function renderCatsChecklist(stage){
     {label:'模型来源', status:modelStatus, meta:modelSection?firstReadinessProblem(modelSection)||modelSection.summary:'等待 readiness'},
     {label:'CatsCo 账号', status:connected?'pass':'fail', meta:accountMeta},
     {label:'Agent 绑定', status:configured?'pass':'fail', meta:configured&&catsState.botUid?((catsState.bot?.name||catsState.botName||'uid '+catsState.botUid)):'未绑定'},
-    {label:'CatsCompany connector', status:running?'pass':(configured?'warning':'fail'), meta:running?'运行中':'未运行'},
+    {label:'CatsCompany connector', status:running?'pass':(configured?'warning':'fail'), meta:running?'运行中':(service.status==='running'?'等待 body online':'未运行')},
     {label:'Chat 会话', status:topicReady?'pass':'fail', meta:topicReady?'已就绪':'等待 topic'},
   ];
   const visibleSteps=steps.filter(step=>step.status==='fail'||step.status==='warning');
@@ -428,13 +436,10 @@ async function fetchCatsStatus(options={}){
 }
 
 function updateCatsLayoutState(stage){
-  const service=catsState.service||{};
-  const user=catsState.user||{};
   const connected=isCatsLoggedIn();
   const configured=Boolean(catsState.configured);
-  const running=service.status==='running';
   const chatStage=stage||buildCatsChatStage();
-  const ready=chatStage.key==='ready' || (connected && configured && running && Boolean(catsState.topicId));
+  const ready=chatStage.key==='ready';
   if(!ready){
     catsConnectCollapsed=false;
     catsConnectManualOverride=false;
