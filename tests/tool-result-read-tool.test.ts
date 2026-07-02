@@ -6,7 +6,7 @@ import * as assert from 'node:assert';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
-import { DEFAULT_TEXT_READ_LIMIT, ReadTool } from '../src/tools/read-tool';
+import { DEFAULT_PDF_READ_PAGES, DEFAULT_TEXT_READ_LIMIT, ReadTool } from '../src/tools/read-tool';
 import { ToolExecutionContext } from '../src/types/tool';
 
 describe('ReadTool - ToolExecutionResult', () => {
@@ -118,15 +118,75 @@ describe('ReadTool - ToolExecutionResult', () => {
     assert.ok(result.message.includes('文件不存在'));
   });
 
-  test('PDF 文件返回 ok=true 并给出提示', async () => {
+  test('PDF 文件会提取正文文本', async () => {
+    const fixturePath = path.join(
+      path.dirname(require.resolve('pdf-parse')),
+      'test',
+      'data',
+      '01-valid.pdf',
+    );
+    const filePath = path.join(testRoot, 'fixture.pdf');
+    fs.copyFileSync(fixturePath, filePath);
+
+    const result = await tool.execute({ file_path: filePath, pages: '1' }, context);
+
+    assert.strictEqual(result.ok, true);
+    const content = result.content as string;
+    assert.ok(content.includes('类型: PDF'));
+    assert.ok(content.includes('总页数:'));
+    assert.ok(content.includes('已解析页: 1'));
+    assert.ok(content.includes('文本内容:'));
+    assert.ok(content.includes('Trace-based'));
+    assert.ok(!content.includes('不再做 PDF 全文解析'));
+  });
+
+  test('PDF 默认只读取前若干页并提示继续读取', async () => {
+    const fixturePath = path.join(
+      path.dirname(require.resolve('pdf-parse')),
+      'test',
+      'data',
+      '01-valid.pdf',
+    );
+    const filePath = path.join(testRoot, 'fixture-default.pdf');
+    fs.copyFileSync(fixturePath, filePath);
+
+    const result = await tool.execute({ file_path: filePath }, context);
+
+    assert.strictEqual(result.ok, true);
+    const content = result.content as string;
+    assert.ok(content.includes(`已解析页: 前 ${DEFAULT_PDF_READ_PAGES} 页`));
+    assert.ok(content.includes(`默认只解析前 ${DEFAULT_PDF_READ_PAGES} 页`));
+    assert.ok(content.includes('pages="11-14"'));
+  });
+
+  test('PDF pages 参数只返回指定页内容', async () => {
+    const fixturePath = path.join(
+      path.dirname(require.resolve('pdf-parse')),
+      'test',
+      'data',
+      '01-valid.pdf',
+    );
+    const filePath = path.join(testRoot, 'fixture-page-filter.pdf');
+    fs.copyFileSync(fixturePath, filePath);
+
+    const result = await tool.execute({ file_path: filePath, pages: '2' }, context);
+
+    assert.strictEqual(result.ok, true);
+    const content = result.content as string;
+    assert.ok(content.includes('已解析页: 2'));
+    assert.ok(content.includes('Every compiled trace'));
+    assert.ok(!content.includes('Trace-based Just-in-Time Type Specialization'));
+  });
+
+  test('损坏 PDF 返回解析失败提示', async () => {
     const filePath = path.join(testRoot, 'dummy.pdf');
     fs.writeFileSync(filePath, '%PDF-1.4 fake content');
     const result = await tool.execute({ file_path: filePath }, context);
     assert.strictEqual(result.ok, true);
     const content = result.content as string;
     assert.ok(content.includes('PDF'));
-    assert.ok(content.includes('不再做 PDF 全文解析'));
-    assert.ok(content.includes('文档解析工具'));
+    assert.ok(content.includes('PDF 解析失败'));
+    assert.ok(content.includes('未能提取正文'));
     assert.ok(!content.includes('paper-analysis'));
   });
 });

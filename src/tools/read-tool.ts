@@ -16,6 +16,26 @@ import { executeRouteIfRemote, resolveExecutionRoute, targetParameterDescription
 export const DEFAULT_TEXT_READ_LIMIT = 200;
 export const MAX_TEXT_READ_LIMIT = 2000;
 export const MAX_TEXT_READ_BYTES = 256 * 1024;
+export const DEFAULT_PDF_READ_PAGES = 10;
+export const MAX_PDF_READ_PAGES = 30;
+export const MAX_PDF_READ_BYTES = 20 * 1024 * 1024;
+export const MAX_PDF_OUTPUT_BYTES = 192 * 1024;
+
+interface PdfParseOptions {
+  max?: number;
+  version?: string;
+  pagerender?: (pageData: any) => Promise<string>;
+}
+
+interface PdfParseResult {
+  numpages?: number;
+  numrender?: number;
+  text?: string;
+  info?: Record<string, unknown>;
+}
+
+type PdfParse = (dataBuffer: Buffer, options?: PdfParseOptions) => Promise<PdfParseResult>;
+const pdfParse: PdfParse = require('pdf-parse');
 
 interface TextReadOptions {
   offset?: unknown;
@@ -45,6 +65,13 @@ interface TextReadResult {
   isUnlimitedRequest: boolean;
   requestedLimit?: number;
   nextOffset?: number;
+}
+
+interface PdfPageSelection {
+  label: string;
+  maxPageToRender: number;
+  selectedPages?: Set<number>;
+  warnings: string[];
 }
 
 /**
@@ -195,7 +222,7 @@ export class ReadTool implements Tool {
     const ext = path.extname(absolutePath).toLowerCase();
 
     if (ext === '.pdf') {
-      const content = this.readPDF(absolutePath, displayPath, visiblePath, pages);
+      const content = await this.readPDF(absolutePath, displayPath, visiblePath, pages);
       return { ok: true, content };
     }
 
@@ -395,25 +422,169 @@ export class ReadTool implements Tool {
     return this.formatTextReadResult(filePath, visiblePath, result);
   }
 
-  private readPDF(absolutePath: string, filePath: string, visiblePath: string, pages?: string): string {
+  private parsePdfPages(pages?: string): PdfPageSelection {
+    const warnings: string[] = [];
+    const raw = typeof pages === 'string' ? pages.trim() : '';
+
+    if (!raw) {
+      return {
+        label: `前 ${DEFAULT_PDF_READ_PAGES} 页`,
+        maxPageToRender: DEFAULT_PDF_READ_PAGES,
+        warnings,
+      };
+    }
+
+    const selected = new Set<number>();
+    for (const part of raw.split(',').map(item => item.trim()).filter(Boolean)) {
+      const range = part.match(/^(\d+)\s*-\s*(\d+)$/);
+      if (range) {
+        const start = Number(range[1]);
+        const end = Number(range[2]);
+        if (!Number.isInteger(start) || !Number.isInteger(end) || start <= 0 || end <= 0 || end < start) {
+          warnings.push(`已忽略无效页码范围: ${part}`);
+          continue;
+        }
+        for (let page = start; page <= end; page += 1) selected.add(page);
+        continue;
+      }
+
+      const page = Number(part);
+      if (Number.isInteger(page) && page > 0) {
+        selected.add(page);
+      } else {
+        warnings.push(`已忽略无效页码: ${part}`);
+      }
+    }
+
+    if (selected.size === 0) {
+      warnings.push(`pages="${raw}" 未匹配到有效页码，已改为默认读取前 ${DEFAULT_PDF_READ_PAGES} 页。`);
+      return {
+        label: `前 ${DEFAULT_PDF_READ_PAGES} 页`,
+        maxPageToRender: DEFAULT_PDF_READ_PAGES,
+        warnings,
+      };
+    }
+
+    const sorted = Array.from(selected).sort((a, b) => a - b);
+    const capped = sorted.slice(0, MAX_PDF_READ_PAGES);
+    if (sorted.length > capped.length) {
+      warnings.push(`请求页数 ${sorted.length} 页，已限制为前 ${MAX_PDF_READ_PAGES} 个页码。`);
+    }
+
+    return {
+      label: capped.join(', '),
+      maxPageToRender: Math.max(...capped),
+      selectedPages: new Set(capped),
+      warnings,
+    };
+  }
+
+  private async extractPdfText(absolutePath: string, selection: PdfPageSelection): Promise<PdfParseResult> {
+    const data = fs.readFileSync(absolutePath);
+    const selectedPages = selection.selectedPages;
+    const options: PdfParseOptions = {
+      max: selection.maxPageToRender,
+      pagerender: async (pageData: any) => {
+        const pageNumber = typeof pageData?.pageIndex === 'number' ? pageData.pageIndex + 1 : undefined;
+        if (selectedPages && pageNumber && !selectedPages.has(pageNumber)) return '';
+
+        const textContent = await pageData.getTextContent({
+          normalizeWhitespace: false,
+          disableCombineTextItems: false,
+        });
+
+        let lastY: number | undefined;
+        let text = '';
+        for (const item of textContent.items || []) {
+          const value = typeof item?.str === 'string' ? item.str : '';
+          const y = Array.isArray(item?.transform) ? item.transform[5] : undefined;
+          if (!value) continue;
+          if (lastY === undefined || y === lastY) {
+            text += value;
+          } else {
+            text += `\n${value}`;
+          }
+          lastY = y;
+        }
+        return text;
+      },
+    };
+
+    return pdfParse(data, options);
+  }
+
+  private async readPDF(absolutePath: string, filePath: string, visiblePath: string, pages?: string): Promise<string> {
     const stats = fs.statSync(absolutePath);
     const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
+    const selection = this.parsePdfPages(pages);
 
     const lines = [
       `文件: ${filePath}`,
       `Path: ${visiblePath}`,
       '类型: PDF',
       `大小: ${sizeMB} MB`,
-      '',
-      '当前 read_file 不再做 PDF 全文解析。',
-      '建议使用 shell 中可用的文档解析库、系统工具，或后续新增专门文档解析工具。',
     ];
 
-    if (pages) {
-      lines.push('', `已忽略 pages 参数: ${pages}`);
+    if (stats.size > MAX_PDF_READ_BYTES) {
+      lines.push(
+        '',
+        `PDF 文件超过 ${(MAX_PDF_READ_BYTES / 1024 / 1024).toFixed(0)} MB，read_file 不会自动解析，避免占满内存和上下文。`,
+        '请先指定更小文件，或使用 shell 中的文档解析工具做分段提取。',
+      );
+      return lines.join('\n');
     }
 
-    return lines.join('\n');
+    try {
+      const parsed = await this.extractPdfText(absolutePath, selection);
+      const rawText = String(parsed.text || '').trim();
+      const text = this.trimToUtf8ByteLimit(rawText, MAX_PDF_OUTPUT_BYTES);
+      const wasTruncated = Buffer.byteLength(rawText, 'utf-8') > Buffer.byteLength(text, 'utf-8');
+
+      lines.push(
+        `总页数: ${parsed.numpages ?? '未知'}`,
+        `已解析页: ${selection.label}`,
+      );
+
+      if (selection.warnings.length > 0) {
+        lines.push('', ...selection.warnings);
+      }
+
+      if (!rawText) {
+        lines.push(
+          '',
+          '未提取到可用文本。这个 PDF 可能是扫描件/图片型 PDF、加密文档，或文本层为空。',
+          '如果用户需要读内容，建议改用图片 OCR、截图读图，或 shell 中更专业的文档解析工具。',
+        );
+        return lines.join('\n');
+      }
+
+      lines.push('', '文本内容:', text);
+      if (wasTruncated) {
+        lines.push(
+          '',
+          `输出达到 ${(MAX_PDF_OUTPUT_BYTES / 1024).toFixed(0)} KB 上限，后续内容已省略。`,
+          '如需继续读取，请用 pages 参数指定更小页码范围，例如 pages="11-20"。',
+        );
+      } else if (!pages && parsed.numpages && parsed.numpages > DEFAULT_PDF_READ_PAGES) {
+        lines.push(
+          '',
+          `默认只解析前 ${DEFAULT_PDF_READ_PAGES} 页。`,
+          `如需继续读取，请调用 read_file 并指定 pages="${DEFAULT_PDF_READ_PAGES + 1}-${Math.min(parsed.numpages, DEFAULT_PDF_READ_PAGES * 2)}"。`,
+        );
+      }
+
+      return lines.join('\n');
+    } catch (error: any) {
+      const rawMessage = String(error?.message || error || 'unknown error').trim();
+      const message = rawMessage.length > 500 ? `${rawMessage.slice(0, 500)}...` : rawMessage;
+      lines.push(
+        '',
+        'PDF 解析失败，read_file 未能提取正文。',
+        `原因: ${message}`,
+        '可以尝试重新上传 PDF、改发截图，或使用 shell 中可用的文档解析库/系统工具处理。',
+      );
+      return lines.join('\n');
+    }
   }
 
   private isImageExt(ext: string): boolean {
