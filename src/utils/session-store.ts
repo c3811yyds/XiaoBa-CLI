@@ -257,11 +257,12 @@ export class SessionStore {
       .filter(entry => entry.isFile())
       .map(entry => entry.name);
 
-    const actorV2 = new RegExp(`^session_v2_catscompany_group_${escapedGroup}_3Aactor_3A[^_]+_agent_[^_]+${escapedExtension}$`);
+    const actorV2Encoded = new RegExp(`^session_v2_catscompany_group_${escapedGroup}_3Aactor_3A.+_agent_.+${escapedExtension}$`);
+    const actorV2Plain = new RegExp(`^session_v2_catscompany_group_${escapedGroup}_actor_.+_agent_.+${escapedExtension}$`);
     const topicV2 = new RegExp(`^session_v2_catscompany_group_${escapedGroup}_agent_[^_]+${escapedExtension}$`);
 
     const actorSource = newestExistingFile(entries
-      .filter(name => actorV2.test(name))
+      .filter(name => actorV2Encoded.test(name) || actorV2Plain.test(name))
       .map(name => path.join(dir, name)));
     if (actorSource) return actorSource;
 

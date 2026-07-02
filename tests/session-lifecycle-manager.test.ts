@@ -195,10 +195,12 @@ describe('AgentSession lifecycle', () => {
     fs.mkdirSync(sessionsDir, { recursive: true });
     fs.mkdirSync(stateDir, { recursive: true });
 
-    const actorV2File = path.join(sessionsDir, 'session_v2_catscompany_group_grp_80_3Aactor_3Ausr7_agent_usr43.jsonl');
+    const encodedActorV2File = path.join(sessionsDir, 'session_v2_catscompany_group_grp_80_3Aactor_3Ausr7_agent_usr43.jsonl');
+    const plainActorV2File = path.join(sessionsDir, 'session_v2_catscompany_group_grp_80_actor_usr8_agent_usr43.jsonl');
     const topicV2File = path.join(sessionsDir, 'session_v2_catscompany_group_grp_80_agent_usr43.jsonl');
     fs.writeFileSync(topicV2File, `${JSON.stringify({ role: 'user', content: 'topic v2 history' })}\n`, 'utf-8');
-    fs.writeFileSync(actorV2File, `${JSON.stringify({ role: 'user', content: 'actor v2 history' })}\n`, 'utf-8');
+    fs.writeFileSync(plainActorV2File, `${JSON.stringify({ role: 'user', content: 'plain actor v2 history' })}\n`, 'utf-8');
+    fs.writeFileSync(encodedActorV2File, `${JSON.stringify({ role: 'user', content: 'encoded actor v2 history' })}\n`, 'utf-8');
     fs.writeFileSync(
       path.join(stateDir, 'session_v2_catscompany_group_grp_80_3Aactor_3Ausr7_agent_usr43.json'),
       JSON.stringify({ currentDirectory: 'D:\\actor-v2' }),
@@ -209,7 +211,7 @@ describe('AgentSession lifecycle', () => {
     assert.equal(store.hasSession('cc_group:grp_80'), true);
     assert.deepEqual(
       store.loadContext('cc_group:grp_80').map((message: any) => message.content),
-      ['actor v2 history'],
+      ['encoded actor v2 history'],
     );
     assert.equal(
       fs.existsSync(path.join(sessionsDir, 'cc_group_grp_80.jsonl')),
@@ -243,6 +245,30 @@ describe('AgentSession lifecycle', () => {
       ['topic v2 history'],
     );
     assert.deepEqual(store.loadRuntimeState('cc_group:grp_80').currentDirectory, 'D:\\topic-v2');
+  });
+
+  test('CatsCo group migrates plain actor-v2 files before topic-v2 files', async () => {
+    const { SessionStore } = loadSessionModules();
+    const sessionsDir = path.join(testRoot, 'data', 'sessions');
+    fs.mkdirSync(sessionsDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(sessionsDir, 'session_v2_catscompany_group_grp_80_agent_usr43.jsonl'),
+      `${JSON.stringify({ role: 'user', content: 'topic v2 history' })}\n`,
+      'utf-8',
+    );
+    fs.writeFileSync(
+      path.join(sessionsDir, 'session_v2_catscompany_group_grp_80_actor_usr7_agent_usr43.jsonl'),
+      `${JSON.stringify({ role: 'user', content: 'plain actor v2 history' })}\n`,
+      'utf-8',
+    );
+
+    const store = SessionStore.getInstance();
+    assert.equal(store.hasSession('cc_group:grp_80'), true);
+    assert.deepEqual(
+      store.loadContext('cc_group:grp_80').map((message: any) => message.content),
+      ['plain actor v2 history'],
+    );
   });
 
   test('reset and clear discard pending runtime feedback', async () => {
