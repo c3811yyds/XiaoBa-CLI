@@ -5,6 +5,7 @@ import { AIProvider, AIRequestOptions, StreamCallbacks } from './provider';
 import { ContextDebugLogger } from '../utils/context-debug-logger';
 import { normalizeOpenAIChatCompletionsUrl } from './openai-url';
 import { resolveMaxTokens } from './output-limits';
+import { applyOpenAIReasoningOptions } from '../utils/reasoning-effort';
 
 /**
  * OpenAI Provider
@@ -18,6 +19,7 @@ export class OpenAIProvider implements AIProvider {
   private model: string;
   private temperature: number;
   private maxTokens: number;
+  private reasoningEffort: ChatConfig['reasoningEffort'];
 
   constructor(config: ChatConfig) {
     this.apiUrl = config.apiUrl!;
@@ -26,6 +28,7 @@ export class OpenAIProvider implements AIProvider {
     this.model = config.model || 'gpt-4o';
     this.temperature = config.temperature ?? 0.7;
     this.maxTokens = resolveMaxTokens(config);
+    this.reasoningEffort = config.reasoningEffort;
   }
 
   /**
@@ -45,6 +48,12 @@ export class OpenAIProvider implements AIProvider {
     if (stream) {
       body.stream_options = { include_usage: true };
     }
+
+    applyOpenAIReasoningOptions(body, {
+      apiUrl: this.apiUrl,
+      model: this.model,
+      reasoningEffort: this.reasoningEffort,
+    });
 
     if (tools && tools.length > 0) {
       body.tools = tools.map(tool => ({

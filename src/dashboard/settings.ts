@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
+import type { ReasoningEffort } from '../types';
+import { REASONING_EFFORT_OPTIONS, normalizeReasoningEffort, reasoningEffortOrDefault } from '../utils/reasoning-effort';
 
 export type DashboardSettingType = 'enum' | 'string' | 'url' | 'secret';
 export type SecretSettingAction = 'keep' | 'replace' | 'clear';
@@ -43,6 +45,7 @@ export interface DashboardModelProfileSnapshot {
   apiBase?: string;
   model?: string;
   contextWindowTokens?: number;
+  reasoningEffort?: ReasoningEffort;
   apiKeyPresent: boolean;
   configured: boolean;
 }
@@ -122,6 +125,16 @@ export const DASHBOARD_SETTING_DEFINITIONS: DashboardSettingDefinition[] = [
     options: CUSTOM_MODEL_CONTEXT_WINDOW_OPTIONS,
   },
   {
+    id: 'model.reasoningEffort',
+    group: 'model',
+    label: '推理强度',
+    description: 'DeepSeek 官方参数：high/max 写入 reasoning_effort，disabled 写入 thinking.disabled；旧 default 仅作为兼容值读取。',
+    envKey: 'GAUZ_LLM_REASONING_EFFORT',
+    type: 'enum',
+    required: false,
+    options: REASONING_EFFORT_OPTIONS,
+  },
+  {
     id: 'model.apiKey',
     group: 'model',
     label: 'API Key',
@@ -162,6 +175,7 @@ const CUSTOM_MODEL_ENV_KEYS: Record<string, string> = {
   'model.apiBase': 'CATSCO_CUSTOM_LLM_API_BASE',
   'model.model': 'CATSCO_CUSTOM_LLM_MODEL',
   'model.contextWindowTokens': 'CATSCO_CUSTOM_LLM_CONTEXT_WINDOW_TOKENS',
+  'model.reasoningEffort': 'CATSCO_CUSTOM_LLM_REASONING_EFFORT',
   'model.apiKey': 'CATSCO_CUSTOM_LLM_API_KEY',
 };
 
@@ -171,6 +185,7 @@ const EFFECTIVE_MODEL_ENV_KEYS = {
   model: 'GAUZ_LLM_MODEL',
   apiKey: 'GAUZ_LLM_API_KEY',
   contextWindowTokens: 'GAUZ_LLM_CONTEXT_WINDOW_TOKENS',
+  reasoningEffort: 'GAUZ_LLM_REASONING_EFFORT',
 } as const;
 
 const RELAY_MODEL_ENV_KEYS = {
@@ -179,6 +194,7 @@ const RELAY_MODEL_ENV_KEYS = {
   model: 'CATSCO_RELAY_LLM_MODEL',
   apiKey: 'CATSCO_RELAY_LLM_API_KEY',
   contextWindowTokens: 'CATSCO_RELAY_LLM_CONTEXT_WINDOW_TOKENS',
+  reasoningEffort: 'CATSCO_RELAY_LLM_REASONING_EFFORT',
 } as const;
 
 const MODEL_SOURCE_ENV_KEY = 'CATSCO_MODEL_SOURCE';
@@ -223,11 +239,13 @@ function readModelProfile(
   const model = firstNonEmpty(fileEnv[keys.model], env[keys.model]);
   const apiKey = firstNonEmpty(fileEnv[keys.apiKey], env[keys.apiKey]);
   const contextWindowTokens = parsePositiveInteger(firstNonEmpty(fileEnv[keys.contextWindowTokens], env[keys.contextWindowTokens]));
+  const reasoningEffort = normalizeReasoningEffort(firstNonEmpty(fileEnv[keys.reasoningEffort], env[keys.reasoningEffort]));
   return {
     provider,
     apiBase: sanitizeUrlSettingValue(apiBase ?? ''),
     model,
     contextWindowTokens,
+    reasoningEffort: reasoningEffort ?? 'default',
     apiKeyPresent: Boolean(apiKey),
     configured: Boolean(provider && apiBase && model && apiKey),
   };
@@ -245,11 +263,16 @@ function readCustomModelProfile(
     fileEnv.CATSCO_CUSTOM_LLM_CONTEXT_WINDOW_TOKENS,
     env.CATSCO_CUSTOM_LLM_CONTEXT_WINDOW_TOKENS,
   ));
+  const reasoningEffort = normalizeReasoningEffort(firstNonEmpty(
+    fileEnv.CATSCO_CUSTOM_LLM_REASONING_EFFORT,
+    env.CATSCO_CUSTOM_LLM_REASONING_EFFORT,
+  ));
   return {
     provider,
     apiBase: sanitizeUrlSettingValue(apiBase ?? ''),
     model,
     contextWindowTokens,
+    reasoningEffort: reasoningEffort ?? 'default',
     apiKeyPresent: Boolean(apiKey),
     configured: Boolean(provider && apiBase && model && apiKey),
   };
@@ -263,7 +286,7 @@ function buildModelStartupSnapshot(
   const custom = readCustomModelProfile(fileEnv, env);
   const storedRelay = readModelProfile(RELAY_MODEL_ENV_KEYS, fileEnv, env);
   const requestedSource = firstNonEmpty(fileEnv[MODEL_SOURCE_ENV_KEY], env[MODEL_SOURCE_ENV_KEY]);
-  const relay = storedRelay.configured
+  const relayBase = storedRelay.configured
     ? storedRelay
     : {
       ...storedRelay,
@@ -273,6 +296,12 @@ function buildModelStartupSnapshot(
       apiKeyPresent: storedRelay.apiKeyPresent || (isCatsRelayApiBase(effective.apiBase) && effective.apiKeyPresent),
       configured: isCatsRelayApiBase(effective.apiBase) && effective.configured,
     };
+  const relay = {
+    ...relayBase,
+    reasoningEffort: relayBase.reasoningEffort && relayBase.reasoningEffort !== 'default'
+      ? relayBase.reasoningEffort
+      : 'high' as const,
+  };
   const effectiveIsRelay = isCatsRelayApiBase(effective.apiBase);
   const source = requestedSource === 'custom' && custom.configured
     ? 'custom'
@@ -493,6 +522,16 @@ function normalizeSettingUpdate(
   const value = normalizeEnvValue(definition.id, rawValue.trim());
   if (definition.required && value.length === 0) {
     throw new Error(`${definition.id} is required`);
+  }
+  if (definition.id === 'model.reasoningEffort') {
+    const normalized = normalizeReasoningEffort(value);
+    if (!normalized) {
+      throw new Error(`${definition.id} must be one of: ${REASONING_EFFORT_OPTIONS.join(', ')}`);
+    }
+    return {
+      envKey: definition.envKey,
+      value: reasoningEffortOrDefault(normalized),
+    };
   }
   if (definition.options && !definition.options.includes(value)) {
     throw new Error(`${definition.id} must be one of: ${definition.options.join(', ')}`);

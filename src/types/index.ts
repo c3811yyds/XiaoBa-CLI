@@ -3,6 +3,7 @@ export type ContentBlock =
   | { type: 'image'; source: { type: 'base64'; media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'; data: string } };
 
 export type ProviderContentBlock = Record<string, unknown> & { type: string };
+export type ReasoningEffort = 'default' | 'high' | 'max' | 'disabled';
 
 export interface Message {
   role: 'user' | 'assistant' | 'system' | 'tool';
@@ -44,6 +45,7 @@ export interface ChatConfig {
   temperature?: number;
   maxTokens?: number;
   contextWindowTokens?: number;
+  reasoningEffort?: ReasoningEffort;
   provider?: 'openai' | 'anthropic';
   feishu?: {
     appId?: string;

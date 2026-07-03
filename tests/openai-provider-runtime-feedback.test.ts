@@ -58,6 +58,75 @@ describe('OpenAIProvider runtime feedback boundary', () => {
     assert.equal(JSON.stringify(body.messages).includes('must not leak'), false);
   });
 
+  test('adds explicit DeepSeek reasoning effort only when configured', () => {
+    const maxProvider = new OpenAIProvider({
+      apiKey: 'test-key',
+      apiUrl: 'https://relay.catsco.cc/v1',
+      model: 'deepseek-v4-flash',
+      reasoningEffort: 'max',
+    });
+    const defaultProvider = new OpenAIProvider({
+      apiKey: 'test-key',
+      apiUrl: 'https://relay.catsco.cc/v1',
+      model: 'deepseek-v4-flash',
+      reasoningEffort: 'default',
+    });
+    const minimaxProvider = new OpenAIProvider({
+      apiKey: 'test-key',
+      apiUrl: 'https://relay.catsco.cc/v1',
+      model: 'MiniMax-M3',
+      reasoningEffort: 'max',
+    });
+
+    const maxBody = (maxProvider as any).buildRequestBody([{ role: 'user', content: 'hello' }]);
+    const defaultBody = (defaultProvider as any).buildRequestBody([{ role: 'user', content: 'hello' }]);
+    const minimaxBody = (minimaxProvider as any).buildRequestBody([{ role: 'user', content: 'hello' }]);
+
+    assert.deepStrictEqual(maxBody.thinking, { type: 'enabled' });
+    assert.equal(maxBody.reasoning_effort, 'max');
+    assert.equal(defaultBody.thinking, undefined);
+    assert.equal(defaultBody.reasoning_effort, undefined);
+    assert.equal(minimaxBody.thinking, undefined);
+    assert.equal(minimaxBody.reasoning_effort, undefined);
+  });
+
+  test('sends explicit OpenAI-compatible reasoning disable', () => {
+    const provider = new OpenAIProvider({
+      apiKey: 'test-key',
+      apiUrl: 'https://relay.catsco.cc/v1',
+      model: 'deepseek-v4-flash',
+      reasoningEffort: 'disabled',
+    });
+
+    const body = (provider as any).buildRequestBody([{ role: 'user', content: 'hello' }]);
+
+    assert.deepStrictEqual(body.thinking, { type: 'disabled' });
+    assert.equal(body.reasoning_effort, undefined);
+  });
+
+  test('maps OpenAI-compatible GLM reasoning to thinking switch without effort field', () => {
+    const highProvider = new OpenAIProvider({
+      apiKey: 'test-key',
+      apiUrl: 'https://relay.catsco.cc/v1',
+      model: 'glm-5.1',
+      reasoningEffort: 'high',
+    });
+    const disabledProvider = new OpenAIProvider({
+      apiKey: 'test-key',
+      apiUrl: 'https://relay.catsco.cc/v1',
+      model: 'glm-5.1',
+      reasoningEffort: 'disabled',
+    });
+
+    const highBody = (highProvider as any).buildRequestBody([{ role: 'user', content: 'hello' }]);
+    const disabledBody = (disabledProvider as any).buildRequestBody([{ role: 'user', content: 'hello' }]);
+
+    assert.deepStrictEqual(highBody.thinking, { type: 'enabled' });
+    assert.equal(highBody.reasoning_effort, undefined);
+    assert.deepStrictEqual(disabledBody.thinking, { type: 'disabled' });
+    assert.equal(disabledBody.reasoning_effort, undefined);
+  });
+
   test('preserves finish reason for non-stream responses', async () => {
     const originalPost = axios.post;
     (axios as any).post = async () => ({

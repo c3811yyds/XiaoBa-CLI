@@ -181,6 +181,7 @@ describe('RuntimeProfile', () => {
           provider: 'openai',
           model: 'profile-model',
           temperature: 0.2,
+          reasoningEffort: 'high',
         },
         tools: {
           enabled: ['read_file', 'execute_shell'],
@@ -221,6 +222,7 @@ describe('RuntimeProfile', () => {
       provider: 'openai',
       model: 'profile-model',
       temperature: 0.2,
+      reasoningEffort: 'high',
     });
     assert.deepStrictEqual(resolved.profile.tools.enabled, ['read_file', 'execute_shell']);
     assert.equal(resolved.profile.skills.enabled, false);

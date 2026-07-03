@@ -9,6 +9,7 @@ import {
   RuntimeSurface,
   resolveDefaultRuntimeProfile,
 } from './runtime-profile';
+import { normalizeReasoningEffort } from '../utils/reasoning-effort';
 
 export const RUNTIME_PROFILE_SCHEMA_VERSION = 1;
 export const DEFAULT_RUNTIME_PROFILE_FILENAME = 'runtime-profile.json';
@@ -16,7 +17,7 @@ export const DEFAULT_RUNTIME_PROFILE_FILENAME = 'runtime-profile.json';
 const PROFILE_PATH_ENV_KEYS = ['XIAOBA_RUNTIME_PROFILE_PATH', 'XIAOBA_PROFILE_PATH'];
 
 export interface RuntimeProfileFileModelConfig extends Pick<RuntimeModelProfile,
-  'provider' | 'apiUrl' | 'model' | 'temperature' | 'maxTokens'
+  'provider' | 'apiUrl' | 'model' | 'temperature' | 'maxTokens' | 'reasoningEffort'
 > {}
 
 export interface RuntimeProfileFilePromptConfig {
@@ -332,6 +333,7 @@ function copyModel(
   copyString(source.model, model as Record<string, unknown>, 'model', 'profile.model.model', issues);
   copyNumber(source.model, model as Record<string, unknown>, 'temperature', 'profile.model.temperature', issues);
   copyNumber(source.model, model as Record<string, unknown>, 'maxTokens', 'profile.model.maxTokens', issues);
+  copyReasoningEffort(source.model, model, issues);
 
   if (source.model.apiKey !== undefined) {
     issues.push({
@@ -424,6 +426,24 @@ function copyLogging(
   target.logging = logging;
 }
 
+function copyReasoningEffort(
+  source: Record<string, unknown>,
+  target: RuntimeProfileFileModelConfig,
+  issues: RuntimeProfileConfigIssue[],
+): void {
+  if (source.reasoningEffort === undefined) return;
+  if (typeof source.reasoningEffort !== 'string') {
+    issues.push({ path: 'profile.model.reasoningEffort', message: 'Expected string' });
+    return;
+  }
+  const normalized = normalizeReasoningEffort(source.reasoningEffort);
+  if (!normalized) {
+    issues.push({ path: 'profile.model.reasoningEffort', message: 'Expected one of: default, high, max, disabled' });
+    return;
+  }
+  target.reasoningEffort = normalized;
+}
+
 function copyNumber(
   source: Record<string, unknown>,
   target: Record<string, unknown>,
@@ -461,6 +481,7 @@ function filterModelConfig(model: RuntimeProfileFileModelConfig): RuntimeProfile
     ...(model.model !== undefined ? { model: model.model } : {}),
     ...(model.temperature !== undefined ? { temperature: model.temperature } : {}),
     ...(model.maxTokens !== undefined ? { maxTokens: model.maxTokens } : {}),
+    ...(model.reasoningEffort !== undefined ? { reasoningEffort: model.reasoningEffort } : {}),
   };
 }
 

@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as dotenv from 'dotenv';
 import { ChatConfig } from '../types';
+import { normalizeReasoningEffort } from './reasoning-effort';
 
 // 加载环境变量（静默模式）
 dotenv.config({ path: process.env.DOTENV_CONFIG_PATH || '.env', quiet: true });
@@ -130,6 +131,7 @@ export class ConfigManager {
       process.env.GAUZ_LLM_CONTEXT_WINDOW_TOKENS,
       process.env.GAUZ_LLM_CONTEXT_TOKENS,
     );
+    const reasoningEffort = normalizeReasoningEffort(process.env.GAUZ_LLM_REASONING_EFFORT);
 
     if (provider === 'openai' || provider === 'anthropic') {
       override.provider = provider;
@@ -148,6 +150,9 @@ export class ConfigManager {
     }
     if (contextWindowTokens !== undefined) {
       override.contextWindowTokens = contextWindowTokens;
+    }
+    if (reasoningEffort !== undefined) {
+      override.reasoningEffort = reasoningEffort;
     }
 
     return override;

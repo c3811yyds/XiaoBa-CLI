@@ -10,7 +10,7 @@ import * as path from 'path';
 import * as dotenv from 'dotenv';
 import { PathResolver } from '../../utils/path-resolver';
 import { APP_VERSION } from '../../version';
-import type { ChatConfig } from '../../types';
+import type { ChatConfig, ReasoningEffort } from '../../types';
 import { createRuntimeConfigSnapshot } from '../../runtime/runtime-config-snapshot';
 import {
   CUSTOM_MODEL_DEFAULT_CONTEXT_WINDOW_TOKENS,
@@ -68,6 +68,7 @@ import {
   BRANCH_AGENTS_ENABLED_ENV,
   serializeBranchAgentsEnabled,
 } from '../../core/branch-agent-settings';
+import { normalizeReasoningEffort, reasoningEffortOrDefault } from '../../utils/reasoning-effort';
 import {
   BindWeixinChannelResult,
   WeixinChannelStatus,
@@ -198,6 +199,7 @@ const CUSTOM_MODEL_ENV_KEYS = {
   model: 'CATSCO_CUSTOM_LLM_MODEL',
   apiKey: 'CATSCO_CUSTOM_LLM_API_KEY',
   contextWindowTokens: 'CATSCO_CUSTOM_LLM_CONTEXT_WINDOW_TOKENS',
+  reasoningEffort: 'CATSCO_CUSTOM_LLM_REASONING_EFFORT',
 } as const;
 const RELAY_MODEL_ENV_KEYS = {
   provider: 'CATSCO_RELAY_LLM_PROVIDER',
@@ -205,6 +207,7 @@ const RELAY_MODEL_ENV_KEYS = {
   model: 'CATSCO_RELAY_LLM_MODEL',
   apiKey: 'CATSCO_RELAY_LLM_API_KEY',
   contextWindowTokens: 'CATSCO_RELAY_LLM_CONTEXT_WINDOW_TOKENS',
+  reasoningEffort: 'CATSCO_RELAY_LLM_REASONING_EFFORT',
 } as const;
 const EFFECTIVE_MODEL_ENV_KEYS = {
   provider: 'GAUZ_LLM_PROVIDER',
@@ -212,6 +215,7 @@ const EFFECTIVE_MODEL_ENV_KEYS = {
   model: 'GAUZ_LLM_MODEL',
   apiKey: 'GAUZ_LLM_API_KEY',
   contextWindowTokens: 'GAUZ_LLM_CONTEXT_WINDOW_TOKENS',
+  reasoningEffort: 'GAUZ_LLM_REASONING_EFFORT',
 } as const;
 
 interface ModelLaunchProfile {
@@ -220,6 +224,7 @@ interface ModelLaunchProfile {
   model?: string;
   apiKey?: string;
   contextWindowTokens?: number;
+  reasoningEffort?: ReasoningEffort;
 }
 
 function normalizeBaseUrl(value: unknown, fallback: string): string {
@@ -459,18 +464,24 @@ export function getCatsAuthState(overrides: Record<string, unknown> = {}): CatsA
   return createCatsCoLocalConfigService({ runtimeRoot: process.cwd() }).getAuthState(overrides);
 }
 
-function getModelConfigReadonly(): Pick<ChatConfig, 'apiKey' | 'apiUrl' | 'model' | 'provider'> {
+function getModelConfigReadonly(): Pick<ChatConfig, 'apiKey' | 'apiUrl' | 'model' | 'provider' | 'reasoningEffort'> {
   const config = ConfigManager.getConfigReadonly();
   const env = readEnvFile();
   const provider = firstNonEmpty(process.env.GAUZ_LLM_PROVIDER, env.GAUZ_LLM_PROVIDER, config.provider);
   const apiUrl = firstNonEmpty(process.env.GAUZ_LLM_API_BASE, env.GAUZ_LLM_API_BASE, config.apiUrl);
   const apiKey = firstNonEmpty(process.env.GAUZ_LLM_API_KEY, env.GAUZ_LLM_API_KEY, config.apiKey);
   const model = firstNonEmpty(process.env.GAUZ_LLM_MODEL, env.GAUZ_LLM_MODEL, config.model);
+  const reasoningEffort = normalizeReasoningEffort(firstNonEmpty(
+    process.env.GAUZ_LLM_REASONING_EFFORT,
+    env.GAUZ_LLM_REASONING_EFFORT,
+    config.reasoningEffort,
+  ));
 
   return {
     apiKey,
     apiUrl,
     model,
+    reasoningEffort,
     provider: provider === 'anthropic' || provider === 'openai' ? provider : config.provider,
   };
 }
@@ -890,7 +901,6 @@ function canonicalRelayModelName(value: unknown): string {
   const model = String(value || '').trim();
   const key = model.toLowerCase();
   if (key === 'deepseek-v4-flash') return 'deepseek-v4-flash';
-  if (key === 'glm-5.1') return 'glm-5.1';
   return model;
 }
 
@@ -980,12 +990,17 @@ function fallbackRelayModelCatalog(config: any): RelayModelConfig[] {
   }));
 }
 
+function isPublicRelayModel(model: RelayModelConfig): boolean {
+  const text = `${model.family || ''} ${model.id || ''} ${model.label || ''} ${model.model || ''}`.toLowerCase();
+  return !text.includes('glm');
+}
+
 function relayModelCatalog(config: any): RelayModelConfig[] {
   const hasModelCatalog = Array.isArray(config?.models);
   const rawModels = hasModelCatalog ? config.models : [];
   const models = rawModels
     .map((item: any, index: number) => normalizeRelayModelConfig(item, config, index))
-    .filter((item: RelayModelConfig | null): item is RelayModelConfig => Boolean(item && item.enabled));
+    .filter((item: RelayModelConfig | null): item is RelayModelConfig => Boolean(item && item.enabled && isPublicRelayModel(item)));
   if (models.length > 0) return markRelayDefaultModel(models, config);
   if (hasModelCatalog) return [];
   return markRelayDefaultModel(fallbackRelayModelCatalog(config), config);
@@ -1093,6 +1108,7 @@ function modelProfileFromCurrentConfig(): ModelLaunchProfile {
     model: config.model,
     apiKey: config.apiKey,
     contextWindowTokens: parsePositiveInteger(firstNonEmpty(process.env.GAUZ_LLM_CONTEXT_WINDOW_TOKENS, fileEnv.GAUZ_LLM_CONTEXT_WINDOW_TOKENS)),
+    reasoningEffort: normalizeReasoningEffort(firstNonEmpty(process.env.GAUZ_LLM_REASONING_EFFORT, fileEnv.GAUZ_LLM_REASONING_EFFORT, config.reasoningEffort)),
   };
 }
 
@@ -1107,13 +1123,19 @@ function modelProfileFromStoredEnv(
     model: firstNonEmpty(process.env[keys.model], fileEnv[keys.model]),
     apiKey: firstNonEmpty(process.env[keys.apiKey], fileEnv[keys.apiKey]),
     contextWindowTokens: parsePositiveInteger(firstNonEmpty(process.env[keys.contextWindowTokens], fileEnv[keys.contextWindowTokens])),
+    reasoningEffort: normalizeReasoningEffort(firstNonEmpty(process.env[keys.reasoningEffort], fileEnv[keys.reasoningEffort])),
   };
 }
 
-function storedModelSource(): 'relay' | 'custom' {
+function storedModelSourceRaw(): 'relay' | 'custom' | undefined {
   const fileEnv = readEnvFile();
   const source = firstNonEmpty(process.env[MODEL_SOURCE_ENV_KEY], fileEnv[MODEL_SOURCE_ENV_KEY]);
-  return source === 'relay' ? 'relay' : 'custom';
+  if (source === 'relay' || source === 'custom') return source;
+  return undefined;
+}
+
+function storedModelSource(): 'relay' | 'custom' {
+  return storedModelSourceRaw() ?? 'custom';
 }
 
 function isCompleteModelProfile(profile: ModelLaunchProfile): boolean {
@@ -1130,6 +1152,7 @@ function modelProfileUpdates(
     [keys.model]: profile.model,
     [keys.apiKey]: profile.apiKey,
     [keys.contextWindowTokens]: profile.contextWindowTokens ? String(profile.contextWindowTokens) : undefined,
+    [keys.reasoningEffort]: profile.reasoningEffort ? profile.reasoningEffort : undefined,
   };
 }
 
@@ -1157,6 +1180,25 @@ function requestedCustomContextWindowTokens(input: any): number | undefined {
   if (!input?.settings || typeof input.settings !== 'object') return undefined;
   if (!Object.prototype.hasOwnProperty.call(input.settings, 'model.contextWindowTokens')) return undefined;
   return parsePositiveInteger(input.settings['model.contextWindowTokens']);
+}
+
+function requestedCustomReasoningEffort(input: any): ReasoningEffort | undefined {
+  if (!input?.settings || typeof input.settings !== 'object') return undefined;
+  if (!Object.prototype.hasOwnProperty.call(input.settings, 'model.reasoningEffort')) return undefined;
+  return reasoningEffortOrDefault(input.settings['model.reasoningEffort']);
+}
+
+function requestedReasoningEffort(value: unknown): ReasoningEffort | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const normalized = normalizeReasoningEffort(value);
+  if (!normalized) {
+    throw httpError('推理强度必须是 default、high、max 或 disabled', 400);
+  }
+  return normalized;
+}
+
+function relayReasoningEffortOrHigh(value: ReasoningEffort | undefined): ReasoningEffort {
+  return value && value !== 'default' ? value : 'high';
 }
 
 function sanitizePublicUrl(value: unknown): string | undefined {
@@ -1189,6 +1231,9 @@ function mirrorCurrentModelAsCustomStartup(input: any, previous: ModelLaunchProf
     contextWindowTokens: requestedCustomContextWindowTokens(input)
       ?? storedCustom.contextWindowTokens
       ?? CUSTOM_MODEL_DEFAULT_CONTEXT_WINDOW_TOKENS,
+    reasoningEffort: requestedCustomReasoningEffort(input)
+      ?? storedCustom.reasoningEffort
+      ?? 'default',
   };
 
   if (!isCompleteModelProfile(custom) && (previousSource === 'relay' || isCatsRelayApiBase(previous.apiBase))) {
@@ -1218,6 +1263,7 @@ function writeCustomModelStartupConfig(): { profile: ModelLaunchProfile; updated
     throw error;
   }
   profile.contextWindowTokens = profile.contextWindowTokens ?? CUSTOM_MODEL_DEFAULT_CONTEXT_WINDOW_TOKENS;
+  profile.reasoningEffort = profile.reasoningEffort ?? 'default';
   const result = writeDashboardEnvAndProcess({
     ...modelProfileUpdates(CUSTOM_MODEL_ENV_KEYS, profile),
     ...modelProfileUpdates(EFFECTIVE_MODEL_ENV_KEYS, profile),
@@ -1228,7 +1274,45 @@ function writeCustomModelStartupConfig(): { profile: ModelLaunchProfile; updated
   return { profile, ...result };
 }
 
-function writeRelayModelStartupConfig(model: RelayModelConfig, apiKey: string): { updated: string[]; cleared: string[] } {
+function currentRelayReasoningEffort(): ReasoningEffort {
+  const storedRelay = modelProfileFromStoredEnv(RELAY_MODEL_ENV_KEYS);
+  if (storedRelay.reasoningEffort) return relayReasoningEffortOrHigh(storedRelay.reasoningEffort);
+  const current = modelProfileFromCurrentConfig();
+  if (isCatsRelayApiBase(current.apiBase) && current.reasoningEffort) {
+    return relayReasoningEffortOrHigh(current.reasoningEffort);
+  }
+  return 'high';
+}
+
+function currentStartupReasoningEffort(): ReasoningEffort {
+  if (storedModelSource() === 'relay') return currentRelayReasoningEffort();
+  const storedCustom = modelProfileFromStoredEnv(CUSTOM_MODEL_ENV_KEYS);
+  return storedCustom.reasoningEffort
+    ?? modelProfileFromCurrentConfig().reasoningEffort
+    ?? 'default';
+}
+
+function writeStartupReasoningEffort(reasoningEffort: ReasoningEffort): { source: 'relay' | 'custom'; updated: string[]; cleared: string[] } {
+  const explicitSource = storedModelSourceRaw();
+  const source = explicitSource ?? 'custom';
+  const current = modelProfileFromCurrentConfig();
+  const useRelay = explicitSource ? source === 'relay' : isCatsRelayApiBase(current.apiBase);
+  const keys = useRelay ? RELAY_MODEL_ENV_KEYS : CUSTOM_MODEL_ENV_KEYS;
+  const result = writeDashboardEnvAndProcess({
+    [keys.reasoningEffort]: reasoningEffort,
+    [EFFECTIVE_MODEL_ENV_KEYS.reasoningEffort]: reasoningEffort,
+  });
+  return {
+    source: useRelay ? 'relay' : 'custom',
+    ...result,
+  };
+}
+
+function writeRelayModelStartupConfig(
+  model: RelayModelConfig,
+  apiKey: string,
+  options: { reasoningEffort?: ReasoningEffort } = {},
+): { updated: string[]; cleared: string[] } {
   const preserved = preserveCurrentCustomModelBeforeRelay();
   const profile: ModelLaunchProfile = {
     provider: model.provider,
@@ -1236,6 +1320,7 @@ function writeRelayModelStartupConfig(model: RelayModelConfig, apiKey: string): 
     model: model.model,
     apiKey,
     contextWindowTokens: model.contextWindowTokens ?? resolveKnownModelContextWindowTokens(model.model),
+    reasoningEffort: relayReasoningEffortOrHigh(options.reasoningEffort ?? currentRelayReasoningEffort()),
   };
   const result = writeDashboardEnvAndProcess({
     ...modelProfileUpdates(RELAY_MODEL_ENV_KEYS, profile),
@@ -1411,7 +1496,7 @@ function matchesRelayKeyPrefix(apiKey: string, prefix: string): boolean {
 async function setupCatsRelayModelForDesktop(
   state: CatsAuthState,
   requestedModel: unknown,
-  options: { rotateExisting?: boolean } = {},
+  options: { rotateExisting?: boolean; reasoningEffort?: ReasoningEffort } = {},
 ): Promise<Record<string, unknown>> {
   const config = await fetchCatsRelayConfig(state);
   if (config?.self_service_enabled === false) {
@@ -1427,7 +1512,10 @@ async function setupCatsRelayModelForDesktop(
   const ensured = await ensureCatsRelayPlainKey(state, {
     rotateExisting: options.rotateExisting,
   });
-  const settingsResult = writeRelayModelStartupConfig(selectedModel, ensured.plainKey);
+  const reasoningEffort = relayReasoningEffortOrHigh(options.reasoningEffort ?? currentRelayReasoningEffort());
+  const settingsResult = writeRelayModelStartupConfig(selectedModel, ensured.plainKey, {
+    reasoningEffort,
+  });
 
   return {
     ok: true,
@@ -1435,6 +1523,7 @@ async function setupCatsRelayModelForDesktop(
     provider: selectedModel.provider,
     apiBase: selectedModel.baseUrl,
     model: selectedModel.model,
+    reasoningEffort,
     selectedModel: relayModelPayload(selectedModel),
     updated: settingsResult.updated,
     key: sanitizeRelayKeyInfo(ensured.response?.key),
@@ -1936,6 +2025,41 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
     }
   });
 
+  router.put('/model/reasoning-effort', (req, res) => {
+    try {
+      const requested = requestedReasoningEffort(req.body?.reasoningEffort);
+      const previousReasoningEffort = currentStartupReasoningEffort();
+      const explicitSource = storedModelSourceRaw();
+      const current = modelProfileFromCurrentConfig();
+      const writesRelay = explicitSource ? explicitSource === 'relay' : isCatsRelayApiBase(current.apiBase);
+      const reasoningEffort = writesRelay
+        ? relayReasoningEffortOrHigh(requested ?? previousReasoningEffort)
+        : requested ?? previousReasoningEffort;
+      const result = writeStartupReasoningEffort(reasoningEffort);
+      const restartInfo = req.body?.restartConnector === true || req.body?.activateConnector === true
+        ? activateCatsCompanyConnector(serviceManager, {
+          startIfStopped: req.body?.activateConnector === true || req.body?.startConnector === true,
+        })
+        : { wasRunning: false, restartRequested: false, startRequested: false, startBlocked: false };
+      res.json({
+        ok: true,
+        source: result.source,
+        reasoningEffort,
+        previousReasoningEffort,
+        updated: result.updated,
+        cleared: result.cleared,
+        restartRequired: restartInfo.wasRunning && !restartInfo.restartRequested,
+        connectorRestarted: restartInfo.restartRequested,
+        connectorStarted: restartInfo.startRequested,
+        connectorStartBlocked: restartInfo.startBlocked,
+        restartError: restartInfo.restartError ? sanitizeCatsErrorMessage(restartInfo.restartError) : undefined,
+        startError: restartInfo.startError ? sanitizeCatsErrorMessage(restartInfo.startError) : undefined,
+      });
+    } catch (e: any) {
+      res.status(e.status || 400).json({ error: sanitizeCatsErrorMessage(e.message) });
+    }
+  });
+
   router.post('/model-source/custom/apply', (req, res) => {
     try {
       const result = writeCustomModelStartupConfig();
@@ -1950,6 +2074,7 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
         model: result.profile.model,
         contextWindowTokens: result.profile.contextWindowTokens,
         contextLabel: result.profile.contextWindowTokens ? formatContextWindowTokens(result.profile.contextWindowTokens) : undefined,
+        reasoningEffort: result.profile.reasoningEffort ?? 'default',
         updated: result.updated,
         cleared: result.cleared,
         restartRequired: activation.wasRunning && !activation.restartRequested,
@@ -2539,6 +2664,7 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
             req.body?.relayModelId || req.body?.modelId || req.body?.model,
             {
               rotateExisting: req.body?.rotateRelayKey === true || req.body?.rotateExisting === true,
+              reasoningEffort: requestedReasoningEffort(req.body?.reasoningEffort),
             },
           );
         } catch (relayError: any) {
@@ -2700,6 +2826,7 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
             req.body?.relayModelId || req.body?.modelId || req.body?.model,
             {
               rotateExisting: req.body?.rotateRelayKey === true || req.body?.rotateExisting === true,
+              reasoningEffort: requestedReasoningEffort(req.body?.reasoningEffort),
             },
           );
         } catch (relayError: any) {
@@ -2854,6 +2981,7 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
       const provider = selectedModel.provider;
       const model = selectedModel.model;
       const currentApiBase = String(currentConfig.apiUrl || '').replace(/\/+$/, '');
+      const reasoningEffort = currentRelayReasoningEffort();
 
       res.json({
         ok: true,
@@ -2861,6 +2989,7 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
         provider,
         apiBase,
         model,
+        reasoningEffort,
         selectedModel: relayModelPayload(selectedModel),
         models: relayModelCatalog(config).map(relayModelPayload),
         configured: Boolean(
@@ -2890,6 +3019,9 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
       const config = await fetchCatsRelayConfig(state);
       const requestedModel = req.body?.modelId || req.body?.model;
       const selectedModel = selectRelayModel(config, requestedModel, { strict: Boolean(requestedModel) });
+      const reasoningEffort = relayReasoningEffortOrHigh(
+        requestedReasoningEffort(req.body?.reasoningEffort) ?? currentRelayReasoningEffort(),
+      );
       if (config?.self_service_enabled === false) {
         return res.status(503).json({ error: 'CatsCo 中转自助 Key 尚未启用' });
       }
@@ -2906,6 +3038,7 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
             action: 'rotate_required',
             protocol: normalizeRelayModelProtocol(selectedModel.provider),
             model: relayModelPayload(selectedModel),
+            reasoningEffort,
             key: sanitizeRelayKeyInfo((await fetchCatsRelayKey(state))?.key),
           });
         }
@@ -2916,7 +3049,7 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
       const apiBase = selectedModel.baseUrl;
       const provider = selectedModel.provider;
       const model = selectedModel.model;
-      const settingsResult = writeRelayModelStartupConfig(selectedModel, ensured.plainKey);
+      const settingsResult = writeRelayModelStartupConfig(selectedModel, ensured.plainKey, { reasoningEffort });
       const restartInfo = activateCatsCompanyConnector(serviceManager, {
         startIfStopped: req.body?.activateConnector === true || req.body?.startConnector === true,
       });
@@ -2927,6 +3060,7 @@ export function createApiRouter(serviceManager: ServiceManager, updateController
         provider,
         apiBase,
         model,
+        reasoningEffort,
         selectedModel: relayModelPayload(selectedModel),
         models: relayModelCatalog(config).map(relayModelPayload),
         updated: settingsResult.updated,
