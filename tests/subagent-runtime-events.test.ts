@@ -378,6 +378,102 @@ describe('subagent runtime events', () => {
     }
   });
 
+  test('ask_parent can be used again after a resume', async () => {
+    const originalRun = ConversationRunner.prototype.run;
+    const workingDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-subagent-ask-parent-twice-'));
+    const notifications: Array<{ id: string; task: string; question: string }> = [];
+    let session: SubAgentSession;
+
+    (ConversationRunner.prototype as any).run = async function runMock(messages: any[]) {
+      const requestParentInput = (this as any).toolExecutionContext?.requestParentInput;
+      assert.equal(typeof requestParentInput, 'function');
+      const first = await requestParentInput('第一次确认源码路径');
+      const second = await requestParentInput('第二次确认测试命令');
+      return {
+        response: `收到两次回复：${first} / ${second}`,
+        finalResponseVisible: true,
+        messages,
+        newMessages: [],
+      };
+    };
+
+    try {
+      session = new SubAgentSession('sub-ask-parent-twice', {} as any, { getSkill: () => undefined } as any, {
+        agentType: 'explorer',
+        taskDescription: 'ask parent twice',
+        userMessage: 'ask parent twice',
+        workingDirectory,
+        notifyParent: async (id, task, question) => {
+          notifications.push({ id, task, question });
+        },
+      });
+
+      const runPromise = session.run();
+      await waitFor(() => session.getInfo().status === 'waiting_for_input' && notifications.length === 1);
+      assert.equal(session.resume('E:\\work\\cats\\cats-company'), true);
+
+      await waitFor(() => session.getInfo().status === 'waiting_for_input' && notifications.length === 2);
+      assert.match(notifications[1].question, /测试命令/);
+      assert.equal(session.resume('npx tsx --test tests/subagent-runtime-events.test.ts'), true);
+
+      await runPromise;
+
+      assert.equal(session.getInfo().status, 'completed');
+      assert.match(session.getInfo().resultSummary || '', /收到两次回复/);
+    } finally {
+      ConversationRunner.prototype.run = originalRun;
+      fs.rmSync(workingDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test('subagent tool confirmation does not ask parent unless ask_parent is allowed', async () => {
+    const originalRun = ConversationRunner.prototype.run;
+    const workingDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-subagent-confirm-no-ask-'));
+    const notifications: Array<{ id: string; task: string; question: string }> = [];
+    let confirmationResult: any;
+
+    (ConversationRunner.prototype as any).run = async function runMock(messages: any[]) {
+      const confirmToolExecution = (this as any).toolExecutionContext?.confirmToolExecution;
+      assert.equal(typeof confirmToolExecution, 'function');
+      confirmationResult = await confirmToolExecution({
+        toolName: 'execute_shell',
+        args: { command: 'npm test' },
+        risk: 'medium',
+        reason: '命令会在本机执行，需要用户确认。',
+      });
+      return {
+        response: 'confirmation checked',
+        finalResponseVisible: true,
+        messages,
+        newMessages: [],
+      };
+    };
+
+    try {
+      const session = new SubAgentSession('sub-confirm-no-ask', {} as any, { getSkill: () => undefined } as any, {
+        taskDescription: 'confirm without ask_parent',
+        userMessage: 'confirm without ask_parent',
+        allowedTools: ['execute_shell'],
+        workingDirectory,
+        notifyParent: async (id, task, question) => {
+          notifications.push({ id, task, question });
+        },
+      });
+
+      await session.run();
+
+      assert.deepEqual(confirmationResult, {
+        approved: false,
+        reason: '当前子智能体未获得 ask_parent 权限，需要主会话确认的工具调用已取消。主 agent 如需允许此类确认，应显式把 ask_parent 加入 allowed_tools。',
+      });
+      assert.equal(notifications.length, 0);
+      assert.equal(session.getInfo().status, 'completed');
+    } finally {
+      ConversationRunner.prototype.run = originalRun;
+      fs.rmSync(workingDirectory, { recursive: true, force: true });
+    }
+  });
+
   test('spawn_subagent reuses runtime services and does not load skills for built-in agents', async () => {
     const originalGetInstance = SubAgentManager.getInstance;
     let loadSkillsCalled = false;

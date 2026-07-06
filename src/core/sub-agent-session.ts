@@ -409,18 +409,21 @@ export class SubAgentSession {
     });
     this.startParentInputReminder(normalizedQuestion);
 
-    this.pendingWaitPromise = new Promise<string>((resolve) => {
+    const waitPromise = new Promise<string>((resolve) => {
       this.pendingResolve = resolve;
     });
+    this.pendingWaitPromise = waitPromise;
 
     try {
       await this.options.notifyParent(this.id, this.taskDescription, normalizedQuestion);
-      const answer = await this.pendingWaitPromise;
+      const answer = await waitPromise;
       if (this.stopped) {
         throw new Error('任务已停止');
       }
       this.status = 'running';
+      this.pendingResolve = null;
       this.pendingQuestionSince = null;
+      this.pendingWaitPromise = null;
       this.clearParentInputReminder();
       return answer;
     } catch (error) {
@@ -439,6 +442,12 @@ export class SubAgentSession {
   private async confirmSubAgentToolExecution(
     request: ToolExecutionConfirmationRequest,
   ): Promise<ToolExecutionConfirmationResult> {
+    if (!this.allowedTools.includes('ask_parent')) {
+      return {
+        approved: false,
+        reason: '当前子智能体未获得 ask_parent 权限，需要主会话确认的工具调用已取消。主 agent 如需允许此类确认，应显式把 ask_parent 加入 allowed_tools。',
+      };
+    }
     if (!this.options.notifyParent) {
       return { approved: false, reason: '当前子智能体没有主会话确认通道，已取消该工具调用。' };
     }
