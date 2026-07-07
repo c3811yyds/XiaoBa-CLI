@@ -83,12 +83,14 @@ interface BackgroundSubAgentCompletionItem {
   task: string;
   summary: string;
   outputFiles: string[];
+  observation: string;
 }
 
 interface BackgroundSubAgentCompletionBatch {
   topic: string;
   senderId: string;
   channelSource?: string;
+  executionScope?: ParsedCatsMessage['executionScope'];
   firstAt: number;
   items: Map<string, BackgroundSubAgentCompletionItem>;
   timer?: ReturnType<typeof setTimeout>;
@@ -282,7 +284,7 @@ export class CatsCompanyBot {
   private messageQueue = new Map<string, QueuedMessage[]>();
   /** 子 Agent 事件应沿用 spawn 时的通道能力，不能被同 session 后续消息覆盖 */
   private subAgentEventRoutes = new Map<string, SubAgentEventRoute>();
-  /** no-wait 子 Agent 完成后的用户可见聚合通知，避免逐条唤醒主模型刷屏 */
+  /** no-wait 子 Agent 完成后的批量回流，避免逐条唤醒主模型刷屏 */
   private subAgentCompletionBatches = new Map<string, BackgroundSubAgentCompletionBatch>();
   /** Bot 自身的 uid，用于过滤自己发出的消息 */
   private botUid: string | null = null;
@@ -1428,8 +1430,7 @@ export class CatsCompanyBot {
     const suppressFinalResponse = resultObservationHandling !== 'notify'
       && shouldSuppressSubAgentObservationReply(text);
     if (suppressFinalResponse) {
-      this.scheduleSubAgentCompletionNotification(sessionKey, topic, senderId, text, executionScope);
-      subAgentManager.markResultObservationHandledForParent(sessionKey, text);
+      this.scheduleSubAgentCompletionBatch(sessionKey, topic, senderId, text, executionScope);
       await this.drainMessageQueue(sessionKey);
       return;
     }
@@ -1507,7 +1508,7 @@ export class CatsCompanyBot {
     this.messageQueue.set(sessionKey, queue);
   }
 
-  private scheduleSubAgentCompletionNotification(
+  private scheduleSubAgentCompletionBatch(
     sessionKey: string,
     topic: string,
     senderId: string,
@@ -1523,29 +1524,31 @@ export class CatsCompanyBot {
       topic,
       senderId,
       channelSource: executionScope?.channelSource,
+      executionScope,
       firstAt: now,
       items: new Map(),
     };
     batch.topic = topic;
     batch.senderId = senderId;
     batch.channelSource = executionScope?.channelSource ?? batch.channelSource;
+    batch.executionScope = executionScope ?? batch.executionScope;
     batch.items.set(item.id || `${item.displayName}:${item.task}:${batch.items.size}`, item);
 
     if (batch.timer) clearTimeout(batch.timer);
     batch.timer = setTimeout(() => {
-      void this.flushSubAgentCompletionNotification(sessionKey);
+      void this.flushSubAgentCompletionBatch(sessionKey);
     }, BACKGROUND_SUBAGENT_COMPLETION_DEBOUNCE_MS);
     batch.timer.unref?.();
     this.subAgentCompletionBatches.set(sessionKey, batch);
   }
 
-  private async flushSubAgentCompletionNotification(sessionKey: string, force = false): Promise<void> {
+  private async flushSubAgentCompletionBatch(sessionKey: string, force = false): Promise<void> {
     const batch = this.subAgentCompletionBatches.get(sessionKey);
     if (!batch || batch.items.size === 0) return;
 
     const session = this.sessionManager.get?.(sessionKey) || this.sessionManager.getOrCreate(sessionKey);
     if (!force && session?.isBusy?.()) {
-      this.rescheduleSubAgentCompletionNotification(sessionKey, batch);
+      this.rescheduleSubAgentCompletionBatch(sessionKey, batch);
       return;
     }
 
@@ -1555,30 +1558,82 @@ export class CatsCompanyBot {
       .filter(info => isActiveSubAgentStatusForUi(info.status));
     const elapsed = Date.now() - batch.firstAt;
     if (!force && activeSubAgents.length > 0 && elapsed < BACKGROUND_SUBAGENT_COMPLETION_MAX_DELAY_MS) {
-      this.rescheduleSubAgentCompletionNotification(sessionKey, batch);
+      this.rescheduleSubAgentCompletionBatch(sessionKey, batch);
       return;
     }
 
     this.subAgentCompletionBatches.delete(sessionKey);
     if (batch.timer) clearTimeout(batch.timer);
 
-    const notice = this.formatSubAgentCompletionNotice([...batch.items.values()], activeSubAgents.length);
-    if (!notice) return;
+    const items = [...batch.items.values()];
+    const observation = this.formatSubAgentCompletionBatchObservation(items, activeSubAgents.length);
+    if (!observation) return;
+
+    this.registerSubAgentPlatformCallbacks(sessionKey, batch.topic, batch.senderId, batch.executionScope);
+
+    const channel = this.buildChannel(batch.topic, {
+      sessionKey,
+      senderId: batch.senderId,
+      channelSource: batch.channelSource,
+    });
+    const stopTypingHeartbeat = this.startTypingHeartbeat(batch.topic);
 
     try {
-      await this.sender.reply(batch.topic, notice);
+      const result = await session.handleRuntimeObservation(observation, {
+        channel,
+        callbacks: this.buildSessionCallbacks(batch.topic, {
+          sessionKey,
+          senderId: batch.senderId,
+          channelSource: batch.channelSource,
+        }),
+        source: 'subagent_result_batch',
+        suppressFinalResponse: false,
+        executionScope: batch.executionScope,
+        localDeviceGrant: this.localDeviceGrant,
+        deviceRpc: this.buildDeviceRpcTransport(),
+        thinToolRpc: this.maybeBuildThinToolRpcTransport(),
+      });
+      if (result.text === BUSY_MESSAGE) {
+        this.subAgentCompletionBatches.set(sessionKey, batch);
+        this.rescheduleSubAgentCompletionBatch(sessionKey, batch);
+        return;
+      }
+
+      for (const item of items) {
+        manager.markResultObservationHandledForParent(sessionKey, item.observation);
+      }
+
+      if (result.text.startsWith('处理消息时出错:')) {
+        await this.sender.reply(batch.topic, result.text);
+      } else if (result.visibleToUser && result.text) {
+        await this.sender.reply(batch.topic, result.text);
+      }
+      await this.drainMessageQueue(sessionKey);
     } catch (err: any) {
-      Logger.warning(`后台子任务完成通知发送失败: ${err.message}`);
+      Logger.warning(`后台子任务批量回流失败: ${err.message}`);
+      const fallback = this.formatSubAgentCompletionNotice(items, activeSubAgents.length);
+      if (fallback) {
+        try {
+          await this.sender.reply(batch.topic, fallback);
+          for (const item of items) {
+            manager.markResultObservationHandledForParent(sessionKey, item.observation);
+          }
+        } catch (sendErr: any) {
+          Logger.warning(`后台子任务兜底通知发送失败: ${sendErr.message}`);
+        }
+      }
+    } finally {
+      stopTypingHeartbeat();
     }
   }
 
-  private rescheduleSubAgentCompletionNotification(
+  private rescheduleSubAgentCompletionBatch(
     sessionKey: string,
     batch: BackgroundSubAgentCompletionBatch,
   ): void {
     if (batch.timer) clearTimeout(batch.timer);
     batch.timer = setTimeout(() => {
-      void this.flushSubAgentCompletionNotification(sessionKey);
+      void this.flushSubAgentCompletionBatch(sessionKey);
     }, BACKGROUND_SUBAGENT_COMPLETION_DEBOUNCE_MS);
     batch.timer.unref?.();
   }
@@ -1606,7 +1661,32 @@ export class CatsCompanyBot {
       task: info?.taskDescription || this.extractSubAgentObservationField(text, '任务') || '后台子任务',
       summary: info?.resultSummary || this.extractSubAgentObservationField(text, '结果摘要') || statusLabel,
       outputFiles: info?.outputFiles?.length ? info.outputFiles : this.extractSubAgentOutputFiles(text),
+      observation: text,
     };
+  }
+
+  private formatSubAgentCompletionBatchObservation(
+    items: BackgroundSubAgentCompletionItem[],
+    activeCount: number,
+  ): string {
+    if (items.length === 0) return '';
+    const summary = this.formatSubAgentCompletionNotice(items, activeCount);
+    const rawResults = items.map((item, index) => [
+      `结果 ${index + 1}:`,
+      item.observation,
+    ].join('\n')).join('\n\n');
+
+    return [
+      '[后台子任务批量回流]',
+      '这些是后台子 agent 的完成结果。用户没有显式等待这些结果，但可能需要你基于结果做一条简短补充。',
+      '请判断是否需要回复用户：如果结果完成了用户关心的后台事项，简短说明；如果没有新增价值，可以不回复。不要逐条复述内部过程。',
+      '',
+      '批量摘要：',
+      summary,
+      '',
+      '原始结果：',
+      rawResults,
+    ].join('\n');
   }
 
   private formatSubAgentCompletionNotice(
@@ -1821,8 +1901,13 @@ export class CatsCompanyBot {
         return;
       }
 
-      // 子 agent 的细粒度进度仍写入本地事件流，避免把 read_file / shell 等内部工具细节刷到聊天里。
-      // 用户可见层保留派遣状态和完成后的聚合摘要即可。
+      if (event?.summary) {
+        await this.sender.sendThinking(
+          eventTopic,
+          `[${displayName}] ${event.summary}`,
+          this.subAgentEventMetadata(event, info, status),
+        );
+      }
     } catch (err: any) {
       Logger.warning(`子智能体状态通知发送失败: ${err.message}`);
     }
@@ -1924,14 +2009,13 @@ export class CatsCompanyBot {
       && queuedResultObservationHandling !== 'notify'
       && shouldSuppressSubAgentObservationReply(msg.userMessage as string);
     if (suppressSubAgentFinalResponse) {
-      this.scheduleSubAgentCompletionNotification(
+      this.scheduleSubAgentCompletionBatch(
         sessionKey,
         msg.topic,
         msg.senderId,
         msg.userMessage as string,
         msg.executionScope,
       );
-      subAgentManager.markResultObservationHandledForParent(sessionKey, msg.userMessage as string);
       await this.drainMessageQueue(sessionKey);
       return;
     }

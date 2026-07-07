@@ -929,7 +929,8 @@ describe('CatsCo content blocks', () => {
       summary: '开始执行：扫描登录链路',
     }, info);
 
-    assert.deepStrictEqual(sentThinking, []);
+    assert.deepStrictEqual(sentThinking.map(item => item.text), ['[子agent1] 开始执行：扫描登录链路']);
+    assert.strictEqual(sentThinking[0].metadata.kind, 'subagent_event');
 
     await bot.handleSubAgentRuntimeEvent('p2p_1_2', {
       subAgentId: 'sub-1',
@@ -939,7 +940,7 @@ describe('CatsCo content blocks', () => {
       summary: '等待主 agent 回复：需要确认范围',
     }, info);
 
-    assert.deepStrictEqual(sentThinking, []);
+    assert.deepStrictEqual(sentThinking.map(item => item.text), ['[子agent1] 开始执行：扫描登录链路']);
 
     await bot.handleSubAgentRuntimeEvent('p2p_1_2', {
       subAgentId: 'sub-1',
@@ -1137,13 +1138,11 @@ describe('CatsCo content blocks', () => {
     assert.deepStrictEqual(sentThinking, []);
   });
 
-  test('subagent completion feedback is aggregated without waking the model', async () => {
+  test('subagent completion feedback is batched back to the model once', async () => {
     const { bot, runtimeObservations, replies, sentThinking, session } = createProcessHarness();
     session.handleRuntimeObservation = async (text: string, options: any) => {
       runtimeObservations.push({ text, options });
-      return options.suppressFinalResponse
-        ? { visibleToUser: false, text: '' }
-        : { visibleToUser: true, text: '已根据子 agent 结果处理完。' };
+      return { visibleToUser: true, text: '后台结果我看到了，已经补充完成。' };
     };
 
     await (bot as any).handleSubAgentFeedback(
@@ -1157,19 +1156,27 @@ describe('CatsCo content blocks', () => {
     assert.deepStrictEqual(sentThinking, []);
     assert.deepStrictEqual(replies, []);
 
-    await (bot as any).flushSubAgentCompletionNotification(
+    await (bot as any).flushSubAgentCompletionBatch(
       'session:v2:catscompany:p2p:p2p_38_110:agent:usr43',
       true,
     );
 
+    assert.strictEqual(runtimeObservations.length, 1);
+    assert.strictEqual(runtimeObservations[0].options.source, 'subagent_result_batch');
+    assert.strictEqual(runtimeObservations[0].options.suppressFinalResponse, false);
+    assert.match(runtimeObservations[0].text, /后台子任务批量回流/);
+    assert.match(runtimeObservations[0].text, /审查完成/);
     assert.strictEqual(replies.length, 1);
-    assert.match(replies[0].text, /后台子任务已回传/);
-    assert.match(replies[0].text, /子agent1/);
+    assert.strictEqual(replies[0].text, '后台结果我看到了，已经补充完成。');
   });
 
-  test('multiple no-wait subagent completions are sent as one aggregate notice', async () => {
-    const { bot, runtimeObservations, replies } = createProcessHarness();
+  test('multiple no-wait subagent completions are batched as one runtime observation', async () => {
+    const { bot, runtimeObservations, replies, session } = createProcessHarness();
     const sessionKey = 'session:v2:catscompany:p2p:p2p_38_110:agent:usr43';
+    session.handleRuntimeObservation = async (text: string, options: any) => {
+      runtimeObservations.push({ text, options });
+      return { visibleToUser: false, text: '' };
+    };
 
     await (bot as any).handleSubAgentFeedback(
       sessionKey,
@@ -1193,16 +1200,17 @@ describe('CatsCo content blocks', () => {
     assert.deepStrictEqual(runtimeObservations, []);
     assert.deepStrictEqual(replies, []);
 
-    await (bot as any).flushSubAgentCompletionNotification(sessionKey, true);
+    await (bot as any).flushSubAgentCompletionBatch(sessionKey, true);
 
-    assert.strictEqual(replies.length, 1);
-    assert.match(replies[0].text, /3 条已完成/);
-    assert.match(replies[0].text, /涉及 2 个产出\/任务/);
-    assert.match(replies[0].text, /2 条回传/);
-    assert.match(replies[0].text, /创建首页/);
-    assert.match(replies[0].text, /创建详情页/);
-    assert.match(replies[0].text, /index\.html/);
-    assert.match(replies[0].text, /detail\.html/);
+    assert.strictEqual(runtimeObservations.length, 1);
+    assert.match(runtimeObservations[0].text, /3 条已完成/);
+    assert.match(runtimeObservations[0].text, /涉及 2 个产出\/任务/);
+    assert.match(runtimeObservations[0].text, /2 条回传/);
+    assert.match(runtimeObservations[0].text, /创建首页/);
+    assert.match(runtimeObservations[0].text, /创建详情页/);
+    assert.match(runtimeObservations[0].text, /index\.html/);
+    assert.match(runtimeObservations[0].text, /detail\.html/);
+    assert.deepStrictEqual(replies, []);
   });
 
   test('consumed subagent completion feedback is dropped before runtime observation', async () => {
@@ -1282,7 +1290,7 @@ describe('CatsCo content blocks', () => {
     }
   });
 
-  test('queued subagent completion feedback is aggregated without runtime observation', async () => {
+  test('queued subagent completion feedback is batched back to the model', async () => {
     const { bot, runtimeObservations, sentTexts, replies, sentThinking, session } = createProcessHarness();
     session.handleRuntimeObservation = async (text: string, options: any) => {
       runtimeObservations.push({ text, options });
@@ -1307,13 +1315,15 @@ describe('CatsCo content blocks', () => {
     assert.deepStrictEqual(sentTexts, []);
     assert.deepStrictEqual(replies, []);
 
-    await (bot as any).flushSubAgentCompletionNotification(
+    await (bot as any).flushSubAgentCompletionBatch(
       'session:v2:catscompany:p2p:p2p_38_110:agent:usr43',
       true,
     );
 
+    assert.strictEqual(runtimeObservations.length, 1);
+    assert.strictEqual(runtimeObservations[0].options.source, 'subagent_result_batch');
     assert.strictEqual(replies.length, 1);
-    assert.match(replies[0].text, /后台子任务已回传/);
+    assert.match(replies[0].text, /子 agent 结果处理失败/);
   });
 });
 
