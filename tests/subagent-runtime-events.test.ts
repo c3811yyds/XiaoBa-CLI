@@ -1222,6 +1222,39 @@ describe('subagent runtime events', () => {
       assert.equal(second.reusedExisting, true);
       assert.equal(manager.listByParent(parentSessionKey).filter(info => info.status === 'running').length, 1);
 
+      const differentDirectory = await manager.spawn(
+        parentSessionKey,
+        {
+          agentType: 'worker',
+          taskDescription: '制作待办清单HTML页面',
+          userMessage: 'write todo page',
+        },
+        path.join(process.cwd(), 'other-current-directory'),
+        {} as any,
+        { getSkill: () => undefined } as any,
+      );
+      assert.ok(!('error' in differentDirectory));
+      assert.notEqual(differentDirectory.id, first.id);
+      assert.equal(manager.listByParent(parentSessionKey).filter(info => info.status === 'running').length, 2);
+
+      const differentGrant = await manager.spawn(
+        parentSessionKey,
+        {
+          agentType: 'worker',
+          taskDescription: '制作待办清单HTML页面',
+          userMessage: 'write todo page',
+          delegatedToolContext: {
+            localFileGrants: [{ filePath: 'C:\\tmp\\different.txt' } as any],
+          },
+        },
+        process.cwd(),
+        {} as any,
+        { getSkill: () => undefined } as any,
+      );
+      assert.ok(!('error' in differentGrant));
+      assert.notEqual(differentGrant.id, first.id);
+      assert.equal(manager.listByParent(parentSessionKey).filter(info => info.status === 'running').length, 3);
+
       const third = await manager.spawn(
         parentSessionKey,
         {
@@ -1235,7 +1268,7 @@ describe('subagent runtime events', () => {
       );
       assert.ok(!('error' in third));
       assert.notEqual(third.id, first.id);
-      assert.equal(manager.listByParent(parentSessionKey).filter(info => info.status === 'running').length, 2);
+      assert.equal(manager.listByParent(parentSessionKey).filter(info => info.status === 'running').length, 4);
     } finally {
       for (const finishRun of finishRuns) finishRun();
       SubAgentSession.prototype.run = originalRun;

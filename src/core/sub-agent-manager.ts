@@ -175,7 +175,7 @@ export class SubAgentManager {
       return { error: `Skill "${skillName}" 不存在` };
     }
 
-    const dedupeKey = buildSubAgentDedupeKey(request);
+    const dedupeKey = buildSubAgentDedupeKey(request, workingDirectory);
     const duplicate = this.findActiveDuplicate(parentSessionKey, dedupeKey);
     if (duplicate) {
       const info = this.decorateInfo(parentSessionKey, duplicate.getInfo());
@@ -807,7 +807,7 @@ function compactForParentNotification(text: string, maxChars: number): string {
   return `${normalized.slice(0, maxChars)}... [已压缩，原始 ${normalized.length} 字符]`;
 }
 
-function buildSubAgentDedupeKey(request: SpawnSubAgentRequest): string {
+function buildSubAgentDedupeKey(request: SpawnSubAgentRequest, workingDirectory: string): string {
   return JSON.stringify({
     skillName: normalizeSubAgentTaskKey(request.skillName || ''),
     agentType: request.agentType || '',
@@ -818,7 +818,54 @@ function buildSubAgentDedupeKey(request: SpawnSubAgentRequest): string {
     maxTurns: request.maxTurns || 0,
     taskDescription: normalizeSubAgentTaskKey(request.taskDescription),
     userMessage: normalizeSubAgentTaskKey(request.userMessage),
+    context: buildSubAgentContextDedupeKey(request.delegatedToolContext, workingDirectory),
   });
+}
+
+function buildSubAgentContextDedupeKey(
+  context: SpawnSubAgentRequest['delegatedToolContext'],
+  workingDirectory: string,
+): Record<string, unknown> {
+  return {
+    workingDirectory: normalizeDedupePath(workingDirectory),
+    workspaceRoot: normalizeDedupePath(context?.workspaceRoot),
+    surface: context?.surface || '',
+    executionScope: normalizeDedupeValue(context?.executionScope),
+    localDeviceGrant: normalizeDedupeValue(context?.localDeviceGrant),
+    deviceSelection: normalizeDedupeValue(context?.deviceSelection),
+    targetRoutes: normalizeDedupeValue(context?.targetRoutes),
+    executionContext: normalizeDedupeValue(context?.executionContext),
+    localFileGrants: normalizeDedupeValue(context?.localFileGrants),
+    hasDeviceRpc: Boolean(context?.deviceRpc),
+    hasThinToolRpc: Boolean(context?.thinToolRpc),
+    hasDeviceRpcReceiver: Boolean(context?.deviceRpcReceiver),
+  };
+}
+
+function normalizeDedupePath(value: unknown): string {
+  return String(value || '').replace(/\\/g, '/').replace(/\/+/g, '/').trim().toLowerCase();
+}
+
+function normalizeDedupeValue(value: unknown): unknown {
+  if (value === undefined || value === null) return value;
+  if (typeof value === 'function') return '[function]';
+  if (typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map(item => normalizeDedupeValue(item));
+  if (value instanceof Map) {
+    return Array.from(value.entries())
+      .map(([key, item]) => [String(key), normalizeDedupeValue(item)])
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  }
+  if (value instanceof Set) {
+    return Array.from(value.values())
+      .map(item => normalizeDedupeValue(item))
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  }
+  const output: Record<string, unknown> = {};
+  for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+    output[key] = normalizeDedupeValue((value as Record<string, unknown>)[key]);
+  }
+  return output;
 }
 
 function normalizeDedupeTools(tools?: readonly string[]): string[] {
