@@ -3,7 +3,7 @@ import type { ScopedDeviceGrant, ScopedDeviceSelection, ScopedLocalFileGrant } f
 import type { TargetRoutes } from '../types/tool';
 import { AIService } from '../utils/ai-service';
 import { ToolCall, ToolDefinition, ToolExecutionContext, ToolExecutor, ToolResult, ToolTranscriptMode } from '../types/tool';
-import { StreamCallbacks } from '../providers/provider';
+import { StreamCallbacks, StreamRetryInfo } from '../providers/provider';
 import { Logger } from '../utils/logger';
 import { Metrics } from '../utils/metrics';
 import { ContextCompressor } from './context-compressor';
@@ -134,7 +134,7 @@ export interface RunnerCallbacks {
   /** 需要显示工具输出（如 task_planner） */
   onToolDisplay?: (name: string, content: string) => void;
   /** 重试通知 */
-  onRetry?: (attempt: number, maxRetries: number) => void;
+  onRetry?: (attempt: number, maxRetries: number, info?: StreamRetryInfo) => void | Promise<void>;
 }
 
 /**
@@ -1464,7 +1464,7 @@ export class ConversationRunner {
       if (this.stream) {
         const streamCallbacks: StreamCallbacks = {
           onText: (text) => callbacks?.onText?.(text),
-          onRetry: (attempt, maxRetries) => callbacks?.onRetry?.(attempt, maxRetries),
+          onRetry: (attempt, maxRetries, info) => callbacks?.onRetry?.(attempt, maxRetries, info),
         };
         return await this.aiService.chatStream(messages, activeTools, streamCallbacks, requestOptions);
       }
@@ -1484,6 +1484,7 @@ export class ConversationRunner {
       if (this.stream) {
         const streamCallbacks: StreamCallbacks = {
           onText: (text) => callbacks?.onText?.(text),
+          onRetry: (attempt, maxRetries, info) => callbacks?.onRetry?.(attempt, maxRetries, info),
         };
         return await this.aiService.chatStream(messages, activeTools, streamCallbacks, requestOptions);
       }

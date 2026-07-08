@@ -16,6 +16,7 @@ import {
   ToolExecutionConfirmationRequest,
   ToolExecutionConfirmationResult,
 } from '../types/tool';
+import type { StreamRetryInfo } from '../providers/provider';
 import { AIService } from '../utils/ai-service';
 import { ToolManager } from '../tools/tool-manager';
 import { SkillManager } from '../skills/skill-manager';
@@ -53,7 +54,7 @@ export interface AgentTurnCallbacks {
   onToolStart?: (name: string, toolUseId: string, input: any) => void;
   onToolEnd?: (name: string, toolUseId: string, result: string) => void;
   onToolDisplay?: (name: string, content: string) => void;
-  onRetry?: (attempt: number, maxRetries: number) => void;
+  onRetry?: (attempt: number, maxRetries: number, info?: StreamRetryInfo) => void | Promise<void>;
   confirmToolExecution?: (request: ToolExecutionConfirmationRequest) => Promise<ToolExecutionConfirmationResult>;
 }
 

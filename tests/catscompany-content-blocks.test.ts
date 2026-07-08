@@ -144,6 +144,28 @@ describe('CatsCo content blocks', () => {
     }]);
   });
 
+  test('model retry progress is sent as working thinking instead of a normal reply', async () => {
+    const { bot, sentThinking, replies } = createProcessHarness();
+    const callbacks = (bot as any).buildSessionCallbacks('p2p_retry');
+
+    await callbacks.onRetry(3, 14, {
+      attempt: 3,
+      maxRetries: 14,
+      delayMs: 8000,
+      elapsedMs: 12000,
+      maxElapsedMs: 5 * 60 * 1000,
+      status: 503,
+      message: 'temporary upstream error',
+    });
+
+    assert.equal(replies.length, 0);
+    assert.equal(sentThinking.length, 1);
+    assert.equal(sentThinking[0].topic, 'p2p_retry');
+    assert.equal(sentThinking[0].text, '模型连接异常（503），正在重试 3/14，约 8 秒后继续...');
+    assert.equal(sentThinking[0].metadata.model_retry, true);
+    assert.equal(sentThinking[0].metadata.delay_ms, 8000);
+  });
+
   test('parses text and multiple attachments from one CatsCompany message', () => {
     const bot = Object.create(CatsCompanyBot.prototype);
 

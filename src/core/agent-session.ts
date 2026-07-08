@@ -47,6 +47,7 @@ import { MODEL_IMAGE_SAFETY_MESSAGE, isModelImageSafetyError } from '../utils/mo
 import { stripAssistantArtifactsFromMessages } from '../utils/transcript-artifacts';
 import type { PromptTraceSnapshot } from '../utils/prompt-observability';
 import { toPromptTurnMetadata } from '../utils/prompt-observability';
+import type { StreamRetryInfo } from '../providers/provider';
 
 export type { RuntimeFeedbackInput, RuntimeFeedbackOptions } from './runtime-feedback-inbox';
 
@@ -78,7 +79,7 @@ export interface SessionCallbacks {
   onToolStart?: (name: string, toolUseId: string, input: any) => void;
   onToolEnd?: (name: string, toolUseId: string, result: string) => void;
   onToolDisplay?: (name: string, content: string) => void;
-  onRetry?: (attempt: number, maxRetries: number) => void;
+  onRetry?: (attempt: number, maxRetries: number, info?: StreamRetryInfo) => void | Promise<void>;
   confirmToolExecution?: (request: ToolExecutionConfirmationRequest) => Promise<ToolExecutionConfirmationResult>;
 }
 

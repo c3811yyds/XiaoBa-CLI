@@ -16,6 +16,7 @@ import type { SubAgentInfo } from '../core/sub-agent-session';
 import { ChannelCallbacks, DeviceRpcTransport, TargetRoutes, ThinToolRpcTransport, ToolErrorCode, ToolExecutionConfirmationRequest, ToolExecutionConfirmationResult, ToolExecutionContext, ToolExecutionResult } from '../types/tool';
 import { ContentBlock } from '../types';
 import type { PendingUserInput } from '../core/conversation-runner';
+import type { StreamRetryInfo } from '../providers/provider';
 import type { DeviceGrantOperation, ExecutionScope, ScopedDeviceGrant, ScopedDeviceSelection, ScopedLocalDeviceGrant, ScopedLocalFileGrant } from '../types/session-identity';
 import { AdapterRuntimeBundle, createAdapterRuntime } from '../runtime/adapter-runtime';
 import { randomUUID } from 'crypto';
@@ -200,6 +201,16 @@ function shouldSuppressStructuredToolProgress(channelSource?: string): boolean {
   const normalized = String(channelSource || '').trim().toLowerCase();
   if (!normalized) return false;
   return STRUCTURED_TOOL_PROGRESS_UNSUPPORTED_CHANNELS.has(normalized);
+}
+
+function formatModelRetryThinking(attempt: number, maxRetries: number, info?: StreamRetryInfo): string {
+  const retryIn = info && info.delayMs >= 1000
+    ? `，约 ${Math.ceil(info.delayMs / 1000)} 秒后继续`
+    : '';
+  const status = info?.status && info.status !== 'unknown'
+    ? `（${info.status}）`
+    : '';
+  return `模型连接异常${status}，正在重试 ${attempt}/${maxRetries}${retryIn}...`;
 }
 
 export function isCatsCompanyPassiveAcknowledgement(text: string): boolean {
@@ -957,9 +968,18 @@ export class CatsCompanyBot {
   ): SessionCallbacks {
     const suppressToolProgress = shouldSuppressStructuredToolProgress(opts?.channelSource);
     return {
-      onRetry: async (attempt, maxRetries) => {
+      onRetry: async (attempt, maxRetries, info) => {
+        if (suppressToolProgress) {
+          return;
+        }
         try {
-          await this.sender.reply(topic, `⚠️ 大模型请求失败，正在重试 (${attempt}/${maxRetries})...`);
+          await this.sender.sendThinking(topic, formatModelRetryThinking(attempt, maxRetries, info), {
+            model_retry: true,
+            attempt,
+            max_retries: maxRetries,
+            delay_ms: info?.delayMs,
+            status: info?.status,
+          });
         } catch (err: any) {
           Logger.warning(`重试提示发送失败: ${err.message}`);
         }
