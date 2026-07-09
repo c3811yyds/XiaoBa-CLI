@@ -146,7 +146,7 @@ function speakerNameFromMetadata(msg: Pick<ParsedCatsMessage, 'metadata' | 'send
 }
 
 function prefixCatsUserMessage(name: string, content: string | ContentBlock[]): string | ContentBlock[] {
-  const prefix = `${name}：\n`;
+  const prefix = `[发言人: ${name}]\n`;
   if (typeof content === 'string') return `${prefix}${content}`;
   const blocks = [...content];
   const firstTextIndex = blocks.findIndex(block => block.type === 'text');
@@ -160,6 +160,24 @@ function prefixCatsUserMessage(name: string, content: string | ContentBlock[]): 
     return blocks;
   }
   return [{ type: 'text', text: prefix.trimEnd() }, ...blocks];
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function isCatsCoAttachmentSummaryText(text: string, files: CatsFileInfo[]): boolean {
+  const trimmed = String(text || '').trim();
+  if (!trimmed || files.length === 0) return false;
+
+  let remainder = trimmed.replace(/\[(?:附件|图片|文件)\]/g, '');
+  for (const file of files) {
+    const fileName = String(file.fileName || '').trim();
+    if (!fileName) continue;
+    remainder = remainder.replace(new RegExp(escapeRegExp(fileName), 'g'), '');
+  }
+
+  return remainder.replace(/[\s,，、;；\r\n]+/g, '').length === 0;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -1288,11 +1306,9 @@ export class CatsCompanyBot {
     // 顶层 content 可能只是附件摘要，因此只作为没有 text block 时的 fallback。
     const blockText = blockTextParts.join('\n\n');
     const mergedText = blockText || text;
-    if (!mergedText && files.length === 0) return null;
-    const messageText = mergedText
-      || (files.length > 0
-        ? files.map(item => `[${item.type === 'image' ? '图片' : '文件'}] ${item.fileName}`).join('\n')
-        : '');
+    const userText = isCatsCoAttachmentSummaryText(mergedText, files) ? '' : mergedText;
+    if (!userText && files.length === 0) return null;
+    const messageText = userText;
     const envelope = createCatsCoMessageEnvelope({
       topic: ctx.topic,
       isGroup: ctx.isGroup,
