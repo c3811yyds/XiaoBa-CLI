@@ -25,15 +25,9 @@ import {
   buildRuntimeContextSnapshot,
 } from './runtime-context-builder';
 import { stripAssistantArtifactsFromMessages } from '../utils/transcript-artifacts';
-import { TRANSIENT_ACTIVE_PROMPT_MODE_PREFIX } from './prompt-mode-runtime';
 import {
-  TRANSIENT_FIXED_PROMPT_MODE_PREFIX,
-  TRANSIENT_PROMPT_MODES_LIST_PREFIX,
-  buildFixedPromptModeMessage,
-  buildPromptModesListMessage,
-  findFixedPromptModeState,
-  findPreviousPromptModeState,
-} from '../runtime/prompt-modes';
+  isLegacyPromptModeTransientContent,
+} from './legacy-prompt-mode-transients';
 import { resolveTurnContextTransientPolicy } from './transient-injection-policy';
 import { TRANSIENT_PENDING_USER_INPUT_PREFIX } from './pending-user-input-boundary';
 
@@ -56,7 +50,6 @@ export interface BuildTurnContextParams {
   runtimeFeedback: string[];
   skillRuntime: SessionSkillRuntime;
   planRuntime?: PlanRuntime;
-  promptModeRoutingEnabled?: boolean;
 }
 
 export interface BuildTurnContextResult {
@@ -78,9 +71,6 @@ export class TurnContextBuilder {
     this.injectRuntimeFeedback(contextMessages, params.runtimeFeedback);
     this.injectPlanStatus(contextMessages, params.planRuntime);
     this.injectSubAgentStatus(contextMessages, params.sessionKey);
-    this.injectPromptModesList(contextMessages, {
-      promptModeRoutingEnabled: params.promptModeRoutingEnabled,
-    });
     const transientPolicy = resolveTurnContextTransientPolicy(contextMessages);
     if (transientPolicy.injectSkillsList) {
       await params.skillRuntime.reloadSkills();
@@ -106,17 +96,7 @@ export class TurnContextBuilder {
       if (
         (msg.__injected || msg.role === 'system')
         && typeof msg.content === 'string'
-        && msg.content.startsWith(TRANSIENT_PROMPT_MODES_LIST_PREFIX)
-      ) return false;
-      if (
-        (msg.__injected || msg.role === 'system')
-        && typeof msg.content === 'string'
-        && msg.content.startsWith(TRANSIENT_FIXED_PROMPT_MODE_PREFIX)
-      ) return false;
-      if (
-        msg.role === 'system'
-        && typeof msg.content === 'string'
-        && msg.content.startsWith(TRANSIENT_ACTIVE_PROMPT_MODE_PREFIX)
+        && isLegacyPromptModeTransientContent(msg.content)
       ) return false;
       if (msg.role !== 'system' || typeof msg.content !== 'string') return true;
       if (msg.content.startsWith(TRANSIENT_SUBAGENT_STATUS_PREFIX)) return false;
@@ -188,25 +168,6 @@ export class TurnContextBuilder {
     const statusMessage = buildSubAgentStatusMessage(sessionKey);
     if (!statusMessage) return;
     this.insertBeforeLastUser(messages, statusMessage);
-  }
-
-  private injectPromptModesList(
-    messages: Message[],
-    options: { promptModeRoutingEnabled?: boolean } = {},
-  ): void {
-    const fixedMode = findFixedPromptModeState(messages);
-    if (fixedMode) {
-      this.insertBeforeLastUser(messages, buildFixedPromptModeMessage(fixedMode));
-      return;
-    }
-
-    if (options.promptModeRoutingEnabled) return;
-
-    const modeList = buildPromptModesListMessage({
-      previousMode: findPreviousPromptModeState(messages),
-    });
-    if (!modeList) return;
-    this.insertBeforeLastUser(messages, modeList);
   }
 
   private extractRuntimeFeedback(messages: Message[]): string[] {

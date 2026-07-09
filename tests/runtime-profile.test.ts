@@ -64,7 +64,7 @@ describe('RuntimeProfile', () => {
     assert.equal(profile.surface, 'feishu');
     assert.equal(profile.prompt.displayName, 'Desk Bot');
     assert.equal(profile.prompt.platform, '飞书');
-    assert.equal(profile.prompt.mode, 'classroom');
+    assert.equal((profile.prompt as any).mode, undefined);
   });
 
   test('resolves CatsCo env surface to legacy catscompany surface id', () => {
@@ -158,6 +158,15 @@ describe('RuntimeProfile', () => {
     ]);
   });
 
+  test('ignores legacy disabled prompt_mode runtime tool name', () => {
+    const profile = resolveDefaultRuntimeProfile({
+      tools: ['read_file', 'prompt_mode'],
+      env: {},
+    });
+
+    assert.deepStrictEqual(validateRuntimeProfile(profile), []);
+  });
+
   test('loads runtime profile file after env-backed defaults', () => {
     const profilePath = path.join(testRoot, 'profiles', 'runtime-profile.json');
     const workspace = path.join(testRoot, 'profiles', 'workspace');
@@ -207,7 +216,7 @@ describe('RuntimeProfile', () => {
     assert.equal(resolved.profile.workingDirectory, workspace);
     assert.equal(resolved.profile.prompt.displayName, 'Profile Bot');
     assert.equal(resolved.profile.prompt.platform, '飞书');
-    assert.equal(resolved.profile.prompt.mode, 'coding-agent');
+    assert.equal((resolved.profile.prompt as any).mode, undefined);
     assert.deepStrictEqual(resolved.profile.model, {
       provider: 'openai',
       model: 'profile-model',
@@ -269,17 +278,13 @@ describe('RuntimeProfile', () => {
     assert.equal(JSON.stringify(resolved.config).includes('secret-key'), false);
   });
 
-  test('reports unknown prompt modes in validation', () => {
+  test('ignores legacy prompt modes in validation', () => {
     const profile = resolveDefaultRuntimeProfile({
       env: {},
     });
     (profile.prompt as any).mode = 'mystery-mode';
 
-    assert.deepStrictEqual(validateRuntimeProfile(profile), [{
-      path: 'prompt.mode',
-      message: 'Unknown prompt mode: mystery-mode',
-      value: 'mystery-mode',
-    }]);
+    assert.deepStrictEqual(validateRuntimeProfile(profile), []);
   });
 
   test('resolves runtime profile config path from explicit path, env, or home default', () => {
