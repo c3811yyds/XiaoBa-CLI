@@ -106,6 +106,7 @@ test('ConfigManager merges env-backed LLM config with partial user config file',
       'GAUZ_LLM_API_KEY=test-key',
       'GAUZ_LLM_MODEL=deepseek-chat',
       'GAUZ_LLM_MAX_OUTPUT_TOKENS=32768',
+      'GAUZ_LLM_REASONING_EFFORT=max',
     ].join('\n'),
   );
   fs.writeFileSync(
@@ -125,6 +126,7 @@ test('ConfigManager merges env-backed LLM config with partial user config file',
   assert.equal(config.apiKey, 'test-key');
   assert.equal(config.model, 'deepseek-chat');
   assert.equal(config.maxTokens, 32768);
+  assert.equal(config.reasoningEffort, 'max');
   assert.equal(config.catscompany.serverUrl, 'ws://example.com/v0/channels');
   assert.equal(config.catscompany.apiKey, 'cc_test_key');
 });
