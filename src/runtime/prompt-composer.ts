@@ -53,13 +53,19 @@ export class PromptComposer {
     workspacePath?: string;
     now?: Date;
   }): string {
-    const basePrompt = this.getBaseSystemPrompt(options.promptsDir);
-    const modePrompt = loadPromptModePrompt(options.promptsDir, options.promptMode);
     const today = (options.now ?? new Date()).toISOString().slice(0, 10);
-    const runtimeInfo = this.getRuntimeContextPrompt(options.promptsDir, {
+    const templateValues = {
       displayName: options.displayName,
       platform: options.platform,
       date: today,
+    };
+    const basePrompt = renderPromptTemplate(
+      this.getBaseSystemPrompt(options.promptsDir),
+      templateValues,
+    );
+    const modePrompt = loadPromptModePrompt(options.promptsDir, options.promptMode);
+    const runtimeInfo = this.getRuntimeContextPrompt(options.promptsDir, {
+      ...templateValues,
     });
 
     return [basePrompt, modePrompt, runtimeInfo].filter(Boolean).join('\n\n');

@@ -93,8 +93,8 @@ describe('prompt modes', () => {
 
     const prompt = loadPromptModePrompt(path.join(process.cwd(), 'prompts'), 'plain-chat') || '';
     assert.match(prompt, /\[mode:plain-chat\]/);
-    assert.match(prompt, /普通对话模式/);
-    assert.match(prompt, /不反复强调“我是 AI”/);
+    assert.match(prompt, /先用 send_text 发一条/);
+    assert.match(prompt, /轻量建议整理/);
   });
 
   test('injects previously active prompt mode as facts, not an automatic decision', async () => {
