@@ -67,7 +67,6 @@ import {
   describeSyntheticObservationForLog,
   SyntheticObservation,
 } from './synthetic-observation';
-import { TRANSIENT_ACTIVE_PROMPT_MODE_PREFIX } from './prompt-mode-runtime';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -1075,7 +1074,6 @@ export class ConversationRunner {
         return true;
       }
       return !message.content.startsWith(TRANSIENT_RUNNER_HINT_PREFIX)
-        && !message.content.startsWith(TRANSIENT_ACTIVE_PROMPT_MODE_PREFIX)
         && !message.content.startsWith(TRANSIENT_CURRENT_DIRECTORY_PREFIX);
     });
 
