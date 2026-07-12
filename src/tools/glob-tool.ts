@@ -75,6 +75,11 @@ export class GlobTool implements Tool {
           enum: ['files', 'directories', 'all'],
           default: 'files',
         },
+        include_directories: {
+          type: 'boolean',
+          description: 'Legacy compatibility alias for kind=all. Include matching directories as well as files.',
+          default: false,
+        },
         max_depth: {
           type: 'number',
           description: 'Maximum search depth relative to path. Use 1-3 for shallow structure checks.',
@@ -107,7 +112,9 @@ export class GlobTool implements Tool {
     const searchPath = args?.path;
     const patterns = normalizePatterns(args);
     const limit = normalizeLimit(args?.limit);
-    const kind = normalizeKind(args?.kind);
+    const kind = args?.kind === undefined && args?.include_directories === true
+      ? 'all'
+      : normalizeKind(args?.kind);
     const maxDepth = normalizePositiveInteger(args?.max_depth);
     const modifiedAfter = parseDateFilter(args?.modified_after);
     const modifiedBefore = parseDateFilter(args?.modified_before);
