@@ -178,6 +178,25 @@ describe('CatsCompany client body identity', () => {
     client.disconnect();
   });
 
+  test('keeps the process alive while waiting to reconnect', () => {
+    const client = new CatsClient({
+      serverUrl: 'ws://127.0.0.1:1',
+      apiKey: 'cc-test-key',
+      bodyId: 'body-test',
+      reconnectBaseDelayMs: 1000,
+      reconnectMaxDelayMs: 1000,
+    });
+
+    const internal = client as any;
+    internal.scheduleReconnect();
+
+    try {
+      assert.equal(internal.reconnectTimer?.hasRef?.(), true);
+    } finally {
+      client.disconnect();
+    }
+  });
+
   test('includes local device registration in websocket hi', async () => {
     const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
     servers.push(server);

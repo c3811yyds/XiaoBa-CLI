@@ -896,7 +896,6 @@ export class CatsClient extends EventEmitter {
       this.reconnectTimer = null;
       if (!this.closed) this.connect();
     }, delay);
-    (this.reconnectTimer as any).unref?.();
   }
 
   private resubscribeTopics(): void {
