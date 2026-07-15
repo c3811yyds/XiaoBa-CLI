@@ -90,6 +90,7 @@ describe('runtime characterization', () => {
         'send_text',
         'share_skillhub_skill',
         'skill',
+        'skillhub',
         'spawn_subagent',
         'stop_subagent',
         'update_plan',
