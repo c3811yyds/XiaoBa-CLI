@@ -321,12 +321,15 @@ describe('CatsCompany Device RPC file tools', () => {
   test('executes shell Device RPC operations on the selected local device', async () => {
     const captured: { result?: any } = {};
     const bot = botWithDevice(captured);
+    const command = process.platform === 'win32'
+      ? `& "${process.execPath}" -e "console.log('rpc-shell-ok')"`
+      : `"${process.execPath}" -e "console.log('rpc-shell-ok')"`;
 
     await bot.handleDeviceRpcRequest(request({
       request_id: 'rpc-shell-1',
       operation: 'execute_shell',
       tool_name: 'execute_shell',
-      payload: { args: { command: 'node -e "console.log(\'rpc-shell-ok\')"' } },
+      payload: { args: { command } },
     }));
 
     assert.ok(captured.result);

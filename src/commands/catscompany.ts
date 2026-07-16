@@ -6,6 +6,8 @@ import { startRuntimeCommandSupport, stopRuntimeCommandSupport } from '../utils/
 import { ChatConfig } from '../types';
 import { resolveCatsCoRuntimeConfig } from '../catscompany/runtime-config';
 import { CatsCoConnectorLock, acquireCatsCoConnectorLock, isProcessAlive } from '../catscompany/connector-lock';
+import { PathResolver } from '../utils/path-resolver';
+import { prepareBoundBotDefinition } from '../bot-definition/activation';
 
 const CONNECTOR_OWNER_POLL_MS = 2000;
 
@@ -13,12 +15,11 @@ export interface CatsCoCommandConfigResolution {
   config?: CatsCompanyConfig;
   missing: Array<'serverUrl' | 'apiKey' | 'bodyId'>;
 }
-
 export function resolveCatsCoCommandConfig(
   config: ChatConfig,
   env: NodeJS.ProcessEnv = process.env,
 ): CatsCoCommandConfigResolution {
-  const resolved = resolveCatsCoRuntimeConfig({ runtimeRoot: process.cwd(), env, config });
+  const resolved = resolveCatsCoRuntimeConfig({ runtimeRoot: PathResolver.getRuntimeDataRoot(), env, config });
   return {
     missing: resolved.missing,
     config: resolved.connector,
@@ -30,6 +31,13 @@ export function resolveCatsCoCommandConfig(
  * 启动 CatsCompany WebSocket connector
  */
 export async function catscompanyCommand(): Promise<void> {
+  const runtimeRoot = PathResolver.getRuntimeDataRoot();
+  const preparedBot = await prepareBoundBotDefinition({ runtimeRoot });
+  if (preparedBot?.initializedDefault) {
+    Logger.info(`CatsCo bot ${preparedBot.botId} 已自动初始化默认模型 MiniMax M3。`);
+  } else if (preparedBot?.materializedCatalogRuntime) {
+    Logger.info(`CatsCo bot ${preparedBot.botId} 已在当前设备准备 ${preparedBot.definition.model.kind === 'catalog' ? preparedBot.definition.model.modelId : '模型'} 的运行材料。`);
+  }
   const config = ConfigManager.getConfig();
   const resolved = resolveCatsCoCommandConfig(config);
 
@@ -51,7 +59,7 @@ export async function catscompanyCommand(): Promise<void> {
     ? configuredOwnerPid
     : undefined;
   const connectorLock = acquireCatsCoConnectorLock({
-    runtimeRoot: process.cwd(),
+    runtimeRoot,
     bodyId,
     command: process.argv.join(' '),
     ownerPid,
