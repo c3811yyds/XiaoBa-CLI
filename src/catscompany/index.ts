@@ -53,6 +53,10 @@ import {
   isNativeFeishuGroupTrigger,
   selectNativeFeishuGroupContext,
 } from './agent-context-history';
+import {
+  CatsCompanyCloudSessionRestorer,
+  type CloudSessionRestoreResult,
+} from './cloud-session-restore';
 
 interface PendingAttachment {
   fileName: string;
@@ -259,6 +263,10 @@ export function isCatsCompanyPassiveAcknowledgement(text: string): boolean {
   return new RegExp(`^(?:${ack}|${thanks}|${ack}${thanks}|${thanks}${ack})$`, 'i').test(compact);
 }
 
+function isClearCommand(text: string): boolean {
+  return /^\/clear(?:\s|$)/i.test(String(text || ''));
+}
+
 function compactCatsSubAgentSummary(text: string, maxLength = 4000): string {
   const normalized = text.replace(/\s+\n/g, '\n').trim();
   if (normalized.length <= maxLength) return normalized;
@@ -284,6 +292,8 @@ export class CatsCompanyBot {
   private sender: MessageSender;
   private sessionManager: MessageSessionManager;
   private agentServices: AgentServices;
+  private cloudSessionRestorer: CatsCompanyCloudSessionRestorer;
+  private cloudSessionRestorePromises = new Map<string, Promise<CloudSessionRestoreResult>>();
   /** 等待用户后续指令的附件队列，key 为 sessionKey */
   private pendingAttachments = new Map<string, PendingAttachment[]>();
   /** 主会话忙时的消息队列，key = sessionKey */
@@ -348,6 +358,7 @@ export class CatsCompanyBot {
     this.runtime = runtime;
     this.runtimeProfile = runtime.profile;
     this.agentServices = runtime.services;
+    this.cloudSessionRestorer = new CatsCompanyCloudSessionRestorer(this.bot, this.agentServices.aiService);
     const { toolManager } = this.agentServices;
 
     Logger.info(`已注册 ${toolManager.getToolCount()} 个基础工具 (message mode)`);
@@ -1164,9 +1175,22 @@ export class CatsCompanyBot {
 
   private async processParsedMessage(msg: ParsedCatsMessage, key: string): Promise<void> {
     const sessionRoute = msg.envelope ? createCatsCoSessionRoute(msg.envelope) : undefined;
+    let cloudRestoreResult: CloudSessionRestoreResult | undefined;
+    if (sessionRoute && !isClearCommand(msg.text)) {
+      cloudRestoreResult = await this.ensureCloudSessionRestored(msg, sessionRoute);
+      if (cloudRestoreResult.status === 'failed' || cloudRestoreResult.status === 'skipped') {
+        await this.sender.reply(
+          msg.topic,
+          '这台设备暂时没能恢复这段会话，我没有新建空白上下文。请稍后再发一次。',
+        ).catch((error: any) => {
+          Logger.warning(`云端会话恢复失败提示发送失败: ${error?.message || error}`);
+        });
+        return;
+      }
+    }
     const session = this.sessionManager.getOrCreate(sessionRoute && sessionRoute.sessionKey === key ? sessionRoute : key);
 
-    await this.hydrateNativeFeishuGroupContext(session, msg, key);
+    await this.hydrateNativeFeishuGroupContext(session, msg, key, cloudRestoreResult?.status);
 
     // 处理斜杠命令
     if (typeof msg.text === 'string' && msg.text.startsWith('/')) {
@@ -1184,6 +1208,9 @@ export class CatsCompanyBot {
       }
       if (result.handled && command.toLowerCase() === 'clear') {
         this.pendingAttachments.delete(key);
+        if (!args.includes('--all')) {
+          this.cloudSessionRestorer.markLocalSessionCleared(sessionRoute?.sessionKey || key);
+        }
       }
       if (result.handled) return;
     }
@@ -1334,12 +1361,21 @@ export class CatsCompanyBot {
     },
     msg: ParsedCatsMessage,
     sessionKey: string,
+    cloudRestoreStatus?: CloudSessionRestoreResult['status'],
   ): Promise<void> {
     if (!isNativeFeishuGroupTrigger(msg)) return;
+    const cursorKey = 'catscompany.agent_context';
+    if (cloudRestoreStatus === 'restored' || cloudRestoreStatus === 'empty') {
+      session.saveRemoteContextCursor(cursorKey, msg.seq);
+      return;
+    }
     try {
-      const cursorKey = 'catscompany.agent_context';
       const previousCursor = session.getRemoteContextCursor(cursorKey);
-      const history = await this.bot.fetchAgentContextHistory(msg.topic, msg.seq);
+      const history = await this.bot.getAgentContextHistory(msg.topic, {
+        beforeId: msg.seq,
+        limit: 100,
+        signal: AbortSignal.timeout(10_000),
+      });
       const contextMessages = selectNativeFeishuGroupContext(history.messages || [], previousCursor);
       for (const message of contextMessages) {
         session.injectContext(message);
@@ -1350,6 +1386,64 @@ export class CatsCompanyBot {
       }
     } catch (err: any) {
       Logger.warning(`[${sessionKey}] 飞书群历史上下文恢复失败，继续处理当前消息: ${err?.message || err}`);
+    }
+  }
+
+  private async ensureCloudSessionRestored(
+    msg: ParsedCatsMessage,
+    sessionRoute: ReturnType<typeof createCatsCoSessionRoute>,
+  ): Promise<CloudSessionRestoreResult> {
+    if (this.sessionManager.get(sessionRoute)) {
+      return {
+        status: 'local_present',
+        restoredMessages: 0,
+        fetchedMessages: 0,
+        compressed: false,
+      };
+    }
+    if (sessionRoute.topicType !== 'p2p' && sessionRoute.topicType !== 'group') {
+      return {
+        status: 'skipped',
+        restoredMessages: 0,
+        fetchedMessages: 0,
+        compressed: false,
+      };
+    }
+
+    const key = sessionRoute.sessionKey;
+    const existing = this.cloudSessionRestorePromises.get(key);
+    if (existing) {
+      return existing;
+    }
+
+    const restore = this.restoreCloudSessionWithStatus(msg, sessionRoute)
+      .finally(() => this.cloudSessionRestorePromises.delete(key));
+    this.cloudSessionRestorePromises.set(key, restore);
+    return restore;
+  }
+
+  private async restoreCloudSessionWithStatus(
+    msg: ParsedCatsMessage,
+    sessionRoute: ReturnType<typeof createCatsCoSessionRoute>,
+  ): Promise<CloudSessionRestoreResult> {
+    let statusTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      statusTimer = setTimeout(() => {
+        void this.sender.sendThinking(msg.topic, '正在恢复并整理这段对话的云端上下文...').catch((error: any) => {
+          Logger.warning(`云端会话恢复提示发送失败: ${error?.message || error}`);
+        });
+      }, 800);
+
+      return await this.cloudSessionRestorer.restoreIfMissing({
+        sessionKey: sessionRoute.sessionKey,
+        topicId: sessionRoute.topicId,
+        topicType: sessionRoute.topicType === 'group' ? 'group' : 'p2p',
+        agentId: sessionRoute.agentId || this.botUid || '',
+        currentSeq: Number(msg.seq || sessionRoute.channelSeq || 0),
+        signal: AbortSignal.timeout(30_000),
+      });
+    } finally {
+      if (statusTimer) clearTimeout(statusTimer);
     }
   }
 

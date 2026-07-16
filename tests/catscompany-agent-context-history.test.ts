@@ -1,12 +1,9 @@
-import { afterEach, describe, test } from 'node:test';
+import { describe, test } from 'node:test';
 import * as assert from 'node:assert';
-import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import {
   isNativeFeishuGroupTrigger,
   selectNativeFeishuGroupContext,
 } from '../src/catscompany/agent-context-history';
-import { CatsClient } from '../src/catscompany/client';
 import { CatsCompanyBot } from '../src/catscompany';
 
 function nativeMetadata(options: {
@@ -29,12 +26,6 @@ function nativeMetadata(options: {
 }
 
 describe('CatsCompany native Feishu group context', () => {
-  const servers: Server[] = [];
-
-  afterEach(() => {
-    for (const server of servers.splice(0)) server.close();
-  });
-
   test('recognizes only a triggered native Feishu group message', () => {
     assert.equal(isNativeFeishuGroupTrigger({
       chatType: 'group',
@@ -112,33 +103,19 @@ describe('CatsCompany native Feishu group context', () => {
     ]);
   });
 
-  test('requests stable history before the current trigger with bot credentials', async () => {
-    let requestUrl = '';
-    let authorization = '';
-    const server = createServer((request, response) => {
-      requestUrl = request.url || '';
-      authorization = String(request.headers.authorization || '');
-      response.setHeader('Content-Type', 'application/json');
-      response.end(JSON.stringify({ messages: [], topic_id: 'grp_9', agent_uid: 42 }));
-    });
-    servers.push(server);
-    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
-    const address = server.address() as AddressInfo;
-    const client = new CatsClient({
-      serverUrl: 'ws://127.0.0.1:1/v0/channels',
-      httpBaseUrl: `http://127.0.0.1:${address.port}`,
-      apiKey: 'cc_bot_secret',
-    });
+  test('does not replay an earlier message that already triggered the agent', () => {
+    const context = selectNativeFeishuGroupContext([{
+      id: 7,
+      seq_id: 7,
+      content: '@机器人 总结上面的讨论',
+      context_eligible: true,
+      context_role: 'user',
+      agent_uid: 42,
+      agent_id: 'usr42',
+      metadata: nativeMetadata({ triggered: true }),
+    }], 0);
 
-    await client.fetchAgentContextHistory('grp_9', 88, 50);
-
-    assert.equal(authorization, 'ApiKey cc_bot_secret');
-    const parsed = new URL(requestUrl, 'http://localhost');
-    assert.equal(parsed.pathname, '/api/messages');
-    assert.equal(parsed.searchParams.get('topic_id'), 'grp_9');
-    assert.equal(parsed.searchParams.get('agent_context'), '1');
-    assert.equal(parsed.searchParams.get('before_id'), '88');
-    assert.equal(parsed.searchParams.get('limit'), '50');
+    assert.deepEqual(context, []);
   });
 
   test('injects restored ordinary messages before processing the trigger turn', async () => {
@@ -146,17 +123,24 @@ describe('CatsCompany native Feishu group context', () => {
     const injected: string[] = [];
     const savedCursors: Array<[string, number]> = [];
     bot.bot = {
-      fetchAgentContextHistory: async (topic: string, beforeId: number) => {
+      getAgentContextHistory: async (topic: string, options: { beforeId?: number }) => {
         assert.equal(topic, 'grp_9');
-        assert.equal(beforeId, 88);
+        assert.equal(options.beforeId, 88);
         return {
           messages: [{
+            id: 87,
             seq_id: 87,
             content: '回答我上面的问题',
             context_eligible: true,
             context_role: 'user',
+            agent_uid: 42,
+            agent_id: 'usr42',
             metadata: { catsco_identity: nativeMetadata({ speaker: '林益' }).catsco_identity },
           }],
+          topic_id: 'grp_9',
+          agent_uid: 42,
+          has_more: false,
+          next_before_id: 0,
         };
       },
     };
@@ -173,6 +157,32 @@ describe('CatsCompany native Feishu group context', () => {
     }, 'cc_group:grp_9');
 
     assert.deepEqual(injected, ['[发言人: 林益]\n回答我上面的问题']);
+    assert.deepEqual(savedCursors, [['catscompany.agent_context', 88]]);
+  });
+
+  test('does not inject history twice after a complete cloud restore', async () => {
+    const bot = Object.create(CatsCompanyBot.prototype) as any;
+    let fetchCount = 0;
+    const savedCursors: Array<[string, number]> = [];
+    bot.bot = {
+      getAgentContextHistory: async () => {
+        fetchCount++;
+        throw new Error('should not fetch after cloud restore');
+      },
+    };
+
+    await bot.hydrateNativeFeishuGroupContext({
+      injectContext: () => assert.fail('restored history must not be injected twice'),
+      getRemoteContextCursor: () => 0,
+      saveRemoteContextCursor: (source: string, cursor: number) => savedCursors.push([source, cursor]),
+    }, {
+      topic: 'grp_9',
+      chatType: 'group',
+      seq: 88,
+      metadata: nativeMetadata({ triggered: true }),
+    }, 'cc_group:grp_9', 'restored');
+
+    assert.equal(fetchCount, 0);
     assert.deepEqual(savedCursors, [['catscompany.agent_context', 88]]);
   });
 });

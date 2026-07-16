@@ -1,26 +1,7 @@
 import type { ParsedCatsMessage } from './types';
+import type { CatsAgentContextMessage } from './client';
 
 type UnknownRecord = Record<string, unknown>;
-
-export interface CatsAgentContextHistoryMessage {
-  id?: number;
-  seq_id?: number;
-  from_uid?: number | string;
-  content?: unknown;
-  content_blocks?: unknown[];
-  metadata?: UnknownRecord;
-  context_role?: string;
-  context_eligible?: boolean;
-  context_reason?: string;
-}
-
-export interface CatsAgentContextHistoryResponse {
-  messages: CatsAgentContextHistoryMessage[];
-  topic_id?: string;
-  agent_uid?: number | string;
-  has_more?: boolean;
-  next_before_id?: number;
-}
 
 export function isNativeFeishuGroupTrigger(
   msg: Pick<ParsedCatsMessage, 'chatType' | 'metadata' | 'seq'>,
@@ -38,7 +19,7 @@ export function isNativeFeishuGroupTrigger(
  * another participant; this client-side pass keeps replay bounded and idempotent.
  */
 export function selectNativeFeishuGroupContext(
-  history: CatsAgentContextHistoryMessage[],
+  history: CatsAgentContextMessage[],
   afterSeq = 0,
 ): string[] {
   const ordered = [...history].sort((a, b) => messageSeq(a) - messageSeq(b));
@@ -49,11 +30,14 @@ export function selectNativeFeishuGroupContext(
     .filter((message): message is string => Boolean(message));
 }
 
-function isEligibleParticipantMessage(message: CatsAgentContextHistoryMessage): boolean {
-  return message.context_eligible === true && message.context_role === 'user';
+function isEligibleParticipantMessage(message: CatsAgentContextMessage): boolean {
+  const metadata = asRecord(message.metadata);
+  return message.context_eligible === true
+    && message.context_role === 'user'
+    && !booleanField(metadata, 'channel_native_group_triggered');
 }
 
-function formatParticipantMessage(message: CatsAgentContextHistoryMessage): string {
+function formatParticipantMessage(message: CatsAgentContextMessage): string {
   const text = extractMessageText(message);
   if (!text) return '';
   const metadata = asRecord(message.metadata);
@@ -67,7 +51,7 @@ function formatParticipantMessage(message: CatsAgentContextHistoryMessage): stri
   return `[发言人: ${speaker}]\n${text}`;
 }
 
-function extractMessageText(message: CatsAgentContextHistoryMessage): string {
+function extractMessageText(message: CatsAgentContextMessage): string {
   if (Array.isArray(message.content_blocks)) {
     const blockText = message.content_blocks
       .map(block => asRecord(block))
@@ -91,7 +75,7 @@ function extractMessageText(message: CatsAgentContextHistoryMessage): string {
   return '';
 }
 
-function messageSeq(message: CatsAgentContextHistoryMessage): number {
+function messageSeq(message: CatsAgentContextMessage): number {
   return Number(message.seq_id || message.id || 0);
 }
 
