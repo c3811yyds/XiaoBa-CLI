@@ -75,7 +75,11 @@ assertLine('macOS x64 ZIP release upload', releaseWorkflow, 'release-mac/x64/*.z
 assertLine('macOS arm64 ZIP release upload', releaseWorkflow, 'release-mac/arm64/*.zip');
 assertIncludes('CDN credential fail-fast check', releaseWorkflow, 'VOLC_TOS_ACCESS_KEY_ID is required');
 assertIncludes('draft GitHub release', releaseWorkflow, 'draft: true');
-assertIncludes('GitHub release publication after verification', releaseWorkflow, 'gh release edit "$GITHUB_REF_NAME" --draft=false');
+assertIncludes(
+  'GitHub release publication after verification',
+  releaseWorkflow,
+  'gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false',
+);
 assertIncludes('Windows install shortcut', readText('install.ps1'), 'CatsCo Dashboard');
 assertIncludes('Unix install launcher', readText('install.sh'), 'CatsCo Dashboard');
 assertIncludes(
