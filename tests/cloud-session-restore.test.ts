@@ -14,12 +14,14 @@ import { estimateMessagesTokens } from '../src/core/token-estimator';
 class MemorySessionStore {
   readonly sessions = new Map<string, Message[]>();
   saveCalls = 0;
+  loadCalls = 0;
 
   hasSession(sessionKey: string): boolean {
     return this.sessions.has(sessionKey);
   }
 
   loadContext(sessionKey: string): Message[] {
+    this.loadCalls++;
     return this.sessions.get(sessionKey) || [];
   }
 
@@ -27,6 +29,7 @@ class MemorySessionStore {
     this.saveCalls++;
     this.sessions.set(sessionKey, messages);
   }
+
 }
 
 class FakeHistoryClient {
@@ -104,8 +107,29 @@ test('existing non-empty local session bypasses cloud history without changing i
 
   assert.equal(result.status, 'local_present');
   assert.equal(client.calls.length, 0);
+  assert.equal(store.loadCalls, 0);
   assert.equal(store.saveCalls, 0);
   assert.deepEqual(store.sessions.get('session-key'), existing);
+});
+
+test('an existing empty session file still wins over cloud history', async () => {
+  const store = new MemorySessionStore();
+  store.sessions.set('empty-session-file', []);
+  const client = new FakeHistoryClient(new Error('must not fetch'));
+  const restorer = new CatsCompanyCloudSessionRestorer(client, fakeAIService, store);
+
+  const result = await restorer.restoreIfMissing({
+    sessionKey: 'empty-session-file',
+    topicId: 'p2p_7_42',
+    topicType: 'p2p',
+    agentId: 'usr42',
+    currentSeq: 10,
+  });
+
+  assert.equal(result.status, 'local_present');
+  assert.equal(client.calls.length, 0);
+  assert.equal(store.loadCalls, 0);
+  assert.equal(store.saveCalls, 0);
 });
 
 test('missing session restores eligible visible history and paginates oldest-first', async () => {
@@ -166,6 +190,77 @@ test('group normalization keeps the speaker and rejects another agent scope', ()
   assert.equal(normalized[0].content, '[群聊成员 Alice]\nhello');
 });
 
+test('the latest clear command cuts off older cloud history on every device', async () => {
+  const store = new MemorySessionStore();
+  const client = new FakeHistoryClient([
+    page([
+      contextMessage({ id: 4, seq_id: 4, content: 'new question' }),
+      contextMessage({ id: 5, seq_id: 5, from_uid: 42, content: 'new answer', context_role: 'assistant' }),
+    ], { has_more: true, next_before_id: 4 }),
+    page([
+      contextMessage({ id: 1, seq_id: 1, content: 'old question' }),
+      contextMessage({ id: 2, seq_id: 2, from_uid: 42, content: 'old answer', context_role: 'assistant' }),
+      contextMessage({ id: 3, seq_id: 3, content: '/clear' }),
+    ], { has_more: true, next_before_id: 1 }),
+  ]);
+  const restorer = new CatsCompanyCloudSessionRestorer(client, fakeAIService, store);
+
+  const result = await restorer.restoreIfMissing({
+    sessionKey: 'cleared-session',
+    topicId: 'p2p_7_42',
+    topicType: 'p2p',
+    agentId: 'usr42',
+    currentSeq: 6,
+  });
+
+  assert.equal(result.status, 'restored');
+  assert.deepEqual(client.calls.map(call => call.beforeId), [6, 4]);
+  assert.deepEqual(store.sessions.get('cleared-session')?.map(message => message.content), [
+    'new question',
+    'new answer',
+  ]);
+});
+
+test('cloud assistant history strips internal replay artifacts before summarization', () => {
+  const normalized = normalizeAgentContextMessages([
+    contextMessage({
+      from_uid: 42,
+      context_role: 'assistant',
+      content: '[历史工具调用已完成；provider replay 隐藏内容未写入本地会话。]',
+    }),
+  ], { topicType: 'p2p', agentId: 'usr42' });
+
+  assert.deepEqual(normalized, []);
+});
+
+test('content-block-only attachments retain safe historical placeholders', () => {
+  const normalized = normalizeAgentContextMessages([
+    contextMessage({
+      content: undefined,
+      content_blocks: [{ type: 'image', source: { data: 'must-not-leak' } }],
+    }),
+  ], { topicType: 'p2p', agentId: 'usr42' });
+
+  assert.equal(normalized[0]?.content, '[历史图片]');
+  assert.doesNotMatch(JSON.stringify(normalized), /must-not-leak/);
+});
+
+test('markLocalSessionCleared persists an empty sentinel after a regular clear', () => {
+  const store = new MemorySessionStore();
+  store.sessions.set('session-key', [{ role: 'user', content: 'old history' }]);
+  const restorer = new CatsCompanyCloudSessionRestorer(
+    new FakeHistoryClient([]),
+    fakeAIService,
+    store,
+  );
+
+  restorer.markLocalSessionCleared('session-key');
+
+  assert.equal(store.hasSession('session-key'), true);
+  assert.deepEqual(store.sessions.get('session-key'), []);
+  assert.equal(store.saveCalls, 1);
+});
+
 test('large cloud transcript is summarized before it is persisted', async () => {
   const store = new MemorySessionStore();
   const large = 'x'.repeat(260_000);
@@ -220,7 +315,7 @@ test('summary failure still bounds a single oversized history message', async ()
   assert.match(String(restored[1]?.content), /已截断/);
 });
 
-test('history failure leaves the local session untouched and allows a normal empty start', async () => {
+test('history failure leaves the local session untouched for a later retry', async () => {
   const store = new MemorySessionStore();
   const client = new FakeHistoryClient(new Error('offline'));
   const restorer = new CatsCompanyCloudSessionRestorer(client, fakeAIService, store);

@@ -2,6 +2,7 @@ import type { Message } from '../types';
 import type { AIService } from '../utils/ai-service';
 import { Logger } from '../utils/logger';
 import { SessionStore } from '../utils/session-store';
+import { stripAssistantTranscriptArtifacts } from '../utils/transcript-artifacts';
 import { ContextCompressor } from '../core/context-compressor';
 import { estimateMessagesTokens } from '../core/token-estimator';
 import type {
@@ -27,7 +28,6 @@ interface AgentContextHistoryClient {
 
 interface SessionContextStore {
   hasSession(sessionKey: string): boolean;
-  loadContext(sessionKey: string): Message[];
   saveContext(sessionKey: string, messages: Message[]): void;
 }
 
@@ -56,7 +56,7 @@ export class CatsCompanyCloudSessionRestorer {
   ) {}
 
   async restoreIfMissing(request: CloudSessionRestoreRequest): Promise<CloudSessionRestoreResult> {
-    if (this.hasLocalContext(request.sessionKey)) {
+    if (this.hasLocalSession(request.sessionKey)) {
       return this.result('local_present');
     }
     if (!Number.isFinite(request.currentSeq) || request.currentSeq <= 0) {
@@ -70,7 +70,7 @@ export class CatsCompanyCloudSessionRestorer {
       }
 
       const prepared = await this.prepareForPersistence(fetched.messages, request.signal);
-      if (this.hasLocalContext(request.sessionKey)) {
+      if (this.hasLocalSession(request.sessionKey)) {
         return this.result('local_present', { fetchedMessages: fetched.fetchedMessages });
       }
 
@@ -85,14 +85,17 @@ export class CatsCompanyCloudSessionRestorer {
         compressed: prepared.compressed,
       });
     } catch (error) {
-      Logger.warning(`[${request.sessionKey}] 云端主会话恢复失败，继续使用本地空白会话: ${describeError(error)}`);
+      Logger.warning(`[${request.sessionKey}] 云端主会话恢复失败，未创建本地空白会话，等待后续重试: ${describeError(error)}`);
       return this.result('failed', { error });
     }
   }
 
-  private hasLocalContext(sessionKey: string): boolean {
-    if (!this.sessionStore.hasSession(sessionKey)) return false;
-    return this.sessionStore.loadContext(sessionKey).length > 0;
+  markLocalSessionCleared(sessionKey: string): void {
+    this.sessionStore.saveContext(sessionKey, []);
+  }
+
+  private hasLocalSession(sessionKey: string): boolean {
+    return this.sessionStore.hasSession(sessionKey);
   }
 
   private async fetchHistory(request: CloudSessionRestoreRequest): Promise<{
@@ -112,11 +115,16 @@ export class CatsCompanyCloudSessionRestorer {
       this.assertPageScope(page, request);
       fetchedMessages += page.messages.length;
 
-      const pageMessages = normalizeAgentContextMessages(page.messages, request);
+      const clearBoundaryIndex = findLastClearBoundaryIndex(page.messages, request);
+      const pageMessages = normalizeAgentContextMessages(
+        clearBoundaryIndex >= 0 ? page.messages.slice(clearBoundaryIndex + 1) : page.messages,
+        request,
+      );
       messages = coalesceAssistantSegments([...pageMessages, ...messages]);
 
       if (
-        !page.has_more
+        clearBoundaryIndex >= 0
+        || !page.has_more
         || page.next_before_id <= 0
         || page.next_before_id >= beforeId
         || estimateMessagesTokens(messages) >= CLOUD_RESTORE_FETCH_TOKEN_BUDGET
@@ -207,6 +215,9 @@ export function normalizeAgentContextMessages(
     }
 
     let text = cloudMessageText(message);
+    if (message.context_role === 'assistant') {
+      text = stripAssistantTranscriptArtifacts(text);
+    }
     if (!text || isNonAnswerPlaceholder(text)) continue;
     if (request.topicType === 'group' && message.context_role === 'user') {
       const speaker = cloudSpeakerLabel(message);
@@ -227,9 +238,29 @@ export function normalizeAgentContextMessages(
   return normalized;
 }
 
+function findLastClearBoundaryIndex(
+  messages: CatsAgentContextMessage[],
+  request: Pick<CloudSessionRestoreRequest, 'agentId'>,
+): number {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index];
+    if (
+      message.context_eligible === true
+      && message.context_role === 'user'
+      && normalizeUID(message.agent_id || message.agent_uid) === normalizeUID(request.agentId)
+      && /^\/clear(?:\s|$)/i.test(cloudMessageText(message))
+    ) {
+      return index;
+    }
+  }
+  return -1;
+}
+
 function cloudMessageText(message: CatsAgentContextMessage): string {
-  if (typeof message.content === 'string') return message.content.trim();
-  if (!message.content || typeof message.content !== 'object') return '';
+  if (typeof message.content === 'string' && message.content.trim()) return message.content.trim();
+  if (!message.content || typeof message.content !== 'object') {
+    return cloudContentBlocksText(message.content_blocks);
+  }
 
   const rich = message.content as Record<string, unknown>;
   const type = String(rich.type || message.type || message.msg_type || '').trim();
@@ -241,7 +272,26 @@ function cloudMessageText(message: CatsAgentContextMessage): string {
   if (type === 'file') return `[历史文件${name ? `：${name}` : ''}]${description ? ` ${description}` : ''}`;
   if (type === 'image') return `[历史图片${name ? `：${name}` : ''}]${description ? ` ${description}` : ''}`;
   if (type === 'voice') return `[历史语音]${description ? ` ${description}` : ''}`;
-  return description;
+  return description || cloudContentBlocksText(message.content_blocks);
+}
+
+function cloudContentBlocksText(blocks: unknown[] | undefined): string {
+  if (!Array.isArray(blocks)) return '';
+  const parts: string[] = [];
+  for (const block of blocks) {
+    if (!block || typeof block !== 'object') continue;
+    const values = block as Record<string, unknown>;
+    const type = String(values.type || '').trim();
+    if (type === 'text' && typeof values.text === 'string' && values.text.trim()) {
+      parts.push(values.text.trim());
+    } else if (type === 'image') {
+      parts.push('[历史图片]');
+    } else if (type === 'file') {
+      const name = String(values.name || values.file_name || '').trim();
+      parts.push(`[历史文件${name ? `：${name}` : ''}]`);
+    }
+  }
+  return parts.join('\n');
 }
 
 function cloudSpeakerLabel(message: CatsAgentContextMessage): string {

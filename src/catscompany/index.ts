@@ -49,7 +49,10 @@ import {
   buildCatsCoAttachmentCachePath,
   scheduleCatsCoAttachmentCacheCleanup,
 } from './attachment-cache';
-import { CatsCompanyCloudSessionRestorer } from './cloud-session-restore';
+import {
+  CatsCompanyCloudSessionRestorer,
+  type CloudSessionRestoreResult,
+} from './cloud-session-restore';
 
 interface PendingAttachment {
   fileName: string;
@@ -257,7 +260,7 @@ export function isCatsCompanyPassiveAcknowledgement(text: string): boolean {
 }
 
 function isClearCommand(text: string): boolean {
-  return /^\s*\/clear(?:\s|$)/i.test(String(text || ''));
+  return /^\/clear(?:\s|$)/i.test(String(text || ''));
 }
 
 function compactCatsSubAgentSummary(text: string, maxLength = 4000): string {
@@ -286,7 +289,7 @@ export class CatsCompanyBot {
   private sessionManager: MessageSessionManager;
   private agentServices: AgentServices;
   private cloudSessionRestorer: CatsCompanyCloudSessionRestorer;
-  private cloudSessionRestorePromises = new Map<string, Promise<void>>();
+  private cloudSessionRestorePromises = new Map<string, Promise<CloudSessionRestoreResult>>();
   /** 等待用户后续指令的附件队列，key 为 sessionKey */
   private pendingAttachments = new Map<string, PendingAttachment[]>();
   /** 主会话忙时的消息队列，key = sessionKey */
@@ -1169,7 +1172,16 @@ export class CatsCompanyBot {
   private async processParsedMessage(msg: ParsedCatsMessage, key: string): Promise<void> {
     const sessionRoute = msg.envelope ? createCatsCoSessionRoute(msg.envelope) : undefined;
     if (sessionRoute && !isClearCommand(msg.text)) {
-      await this.ensureCloudSessionRestored(msg, sessionRoute);
+      const restoreResult = await this.ensureCloudSessionRestored(msg, sessionRoute);
+      if (restoreResult.status === 'failed' || restoreResult.status === 'skipped') {
+        await this.sender.reply(
+          msg.topic,
+          '这台设备暂时没能恢复这段会话，我没有新建空白上下文。请稍后再发一次。',
+        ).catch((error: any) => {
+          Logger.warning(`云端会话恢复失败提示发送失败: ${error?.message || error}`);
+        });
+        return;
+      }
     }
     const session = this.sessionManager.getOrCreate(sessionRoute && sessionRoute.sessionKey === key ? sessionRoute : key);
 
@@ -1189,6 +1201,9 @@ export class CatsCompanyBot {
       }
       if (result.handled && command.toLowerCase() === 'clear') {
         this.pendingAttachments.delete(key);
+        if (!args.includes('--all')) {
+          this.cloudSessionRestorer.markLocalSessionCleared(sessionRoute?.sessionKey || key);
+        }
       }
       if (result.handled) return;
     }
@@ -1334,27 +1349,40 @@ export class CatsCompanyBot {
   private async ensureCloudSessionRestored(
     msg: ParsedCatsMessage,
     sessionRoute: ReturnType<typeof createCatsCoSessionRoute>,
-  ): Promise<void> {
-    if (this.sessionManager.get(sessionRoute)) return;
-    if (sessionRoute.topicType !== 'p2p' && sessionRoute.topicType !== 'group') return;
+  ): Promise<CloudSessionRestoreResult> {
+    if (this.sessionManager.get(sessionRoute)) {
+      return {
+        status: 'local_present',
+        restoredMessages: 0,
+        fetchedMessages: 0,
+        compressed: false,
+      };
+    }
+    if (sessionRoute.topicType !== 'p2p' && sessionRoute.topicType !== 'group') {
+      return {
+        status: 'skipped',
+        restoredMessages: 0,
+        fetchedMessages: 0,
+        compressed: false,
+      };
+    }
 
     const key = sessionRoute.sessionKey;
     const existing = this.cloudSessionRestorePromises.get(key);
     if (existing) {
-      await existing;
-      return;
+      return existing;
     }
 
     const restore = this.restoreCloudSessionWithStatus(msg, sessionRoute)
       .finally(() => this.cloudSessionRestorePromises.delete(key));
     this.cloudSessionRestorePromises.set(key, restore);
-    await restore;
+    return restore;
   }
 
   private async restoreCloudSessionWithStatus(
     msg: ParsedCatsMessage,
     sessionRoute: ReturnType<typeof createCatsCoSessionRoute>,
-  ): Promise<void> {
+  ): Promise<CloudSessionRestoreResult> {
     let statusTimer: ReturnType<typeof setTimeout> | undefined;
     try {
       statusTimer = setTimeout(() => {
@@ -1363,12 +1391,13 @@ export class CatsCompanyBot {
         });
       }, 800);
 
-      await this.cloudSessionRestorer.restoreIfMissing({
+      return await this.cloudSessionRestorer.restoreIfMissing({
         sessionKey: sessionRoute.sessionKey,
         topicId: sessionRoute.topicId,
         topicType: sessionRoute.topicType === 'group' ? 'group' : 'p2p',
         agentId: sessionRoute.agentId || this.botUid || '',
         currentSeq: Number(msg.seq || sessionRoute.channelSeq || 0),
+        signal: AbortSignal.timeout(30_000),
       });
     } finally {
       if (statusTimer) clearTimeout(statusTimer);
