@@ -65,13 +65,19 @@ function selectRequiredFiles(files, arch) {
     const matches = files.filter((file) => (
       fileExtension(file.url) === extension && fileMatchesArch(file.url, arch)
     ));
-    if (matches.length === 0) {
+    const uniqueMatches = matches.filter((file, index) => matches.findIndex((candidate) => (
+      candidate.url === file.url
+      && candidate.sha512 === file.sha512
+      && candidate.size === file.size
+    )) === index);
+
+    if (uniqueMatches.length === 0) {
       throw new Error(`macOS ${arch} update metadata is missing a .${extension} file`);
     }
-    if (matches.length > 1) {
+    if (uniqueMatches.length > 1) {
       throw new Error(`macOS ${arch} update metadata contains multiple .${extension} files`);
     }
-    selected.set(extension, matches[0]);
+    selected.set(extension, uniqueMatches[0]);
   }
   return selected;
 }
