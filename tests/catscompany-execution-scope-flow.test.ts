@@ -76,11 +76,17 @@ function metadataWithDeviceSelection(actorUserId: string, topicId: string, selec
   return metadata;
 }
 
-function createHarness(options: { busy?: boolean } = {}) {
+function createHarness(options: {
+  busy?: boolean;
+  existingSession?: boolean;
+  restoreStatus?: 'local_present' | 'restored' | 'empty' | 'skipped' | 'failed';
+} = {}) {
   const bot = Object.create(CatsCompanyBot.prototype) as any;
   const handledTurns: Array<{ userMessage: unknown; options: any }> = [];
   const sessionKeys: string[] = [];
   const sessionInputs: any[] = [];
+  const replies: string[] = [];
+  const clearedSessionMarkers: string[] = [];
   let busy = options.busy ?? false;
 
   const session = {
@@ -92,6 +98,9 @@ function createHarness(options: { busy?: boolean } = {}) {
       handledTurns.push({ userMessage, options: handleOptions });
       return { visibleToUser: false, text: '' };
     },
+    handleCommand: async (command: string) => command.toLowerCase() === 'clear'
+      ? { handled: true, reply: '历史已清空' }
+      : { handled: false },
     handleRuntimeObservation: async () => ({ visibleToUser: false, text: '' }),
   };
 
@@ -101,12 +110,12 @@ function createHarness(options: { busy?: boolean } = {}) {
       sessionKeys.push(typeof input === 'string' ? input : input.sessionKey);
       return session;
     },
-    get: () => session,
+    get: () => options.existingSession === false ? null : session,
   };
   bot.sender = {
     downloadFile: async () => null,
     sendTyping: () => undefined,
-    reply: async () => undefined,
+    reply: async (_topic: string, text: string) => { replies.push(text); },
     sendFile: async () => undefined,
     sendText: async () => undefined,
     sendThinking: async () => undefined,
@@ -116,11 +125,95 @@ function createHarness(options: { busy?: boolean } = {}) {
   bot.pendingAttachments = new Map();
   bot.messageQueue = new Map();
   bot.botUid = 'usr43';
+  bot.cloudSessionRestorePromises = new Map();
+  bot.cloudSessionRestorer = {
+    restoreIfMissing: async () => ({
+      status: options.restoreStatus || 'empty',
+      restoredMessages: 0,
+      fetchedMessages: 0,
+      compressed: false,
+    }),
+    markLocalSessionCleared: (sessionKey: string) => clearedSessionMarkers.push(sessionKey),
+  };
 
-  return { bot, handledTurns, sessionKeys, sessionInputs, session };
+  return {
+    bot,
+    handledTurns,
+    sessionKeys,
+    sessionInputs,
+    session,
+    replies,
+    clearedSessionMarkers,
+  };
 }
 
 describe('CatsCompany execution scope flow', () => {
+  test('does not create a blank session when first cloud recovery fails', async () => {
+    const { bot, handledTurns, sessionKeys, replies } = createHarness({
+      existingSession: false,
+      restoreStatus: 'failed',
+    });
+
+    await (bot as any).onMessage({
+      topic: 'p2p_7_43',
+      senderId: 'usr7',
+      text: '继续之前的工作',
+      content: '继续之前的工作',
+      metadata: canonicalMetadata('usr7', 'p2p_7_43'),
+      isGroup: false,
+      seq: 12,
+    });
+
+    assert.deepEqual(sessionKeys, []);
+    assert.equal(handledTurns.length, 0);
+    assert.match(replies[0] || '', /没有新建空白上下文/);
+  });
+
+  test('regular clear writes an empty sentinel while clear --all keeps files deleted', async () => {
+    const regular = createHarness();
+    await (regular.bot as any).onMessage({
+      topic: 'p2p_7_43',
+      senderId: 'usr7',
+      text: '/clear',
+      content: '/clear',
+      metadata: canonicalMetadata('usr7', 'p2p_7_43'),
+      isGroup: false,
+      seq: 12,
+    });
+    assert.deepEqual(regular.clearedSessionMarkers, [
+      'session:v2:catscompany:p2p:p2p_7_43:agent:usr43',
+    ]);
+
+    const all = createHarness();
+    await (all.bot as any).onMessage({
+      topic: 'p2p_7_43',
+      senderId: 'usr7',
+      text: '/clear --all',
+      content: '/clear --all',
+      metadata: canonicalMetadata('usr7', 'p2p_7_43'),
+      isGroup: false,
+      seq: 13,
+    });
+    assert.deepEqual(all.clearedSessionMarkers, []);
+  });
+
+  test('text that only resembles a clear command remains a normal user message', async () => {
+    const { bot, handledTurns, clearedSessionMarkers } = createHarness();
+
+    await (bot as any).onMessage({
+      topic: 'p2p_7_43',
+      senderId: 'usr7',
+      text: ' /clear',
+      content: ' /clear',
+      metadata: canonicalMetadata('usr7', 'p2p_7_43'),
+      isGroup: false,
+      seq: 14,
+    });
+
+    assert.equal(handledTurns.length, 1);
+    assert.deepEqual(clearedSessionMarkers, []);
+  });
+
   test('passes canonical execution scope from websocket message into session turn', async () => {
     const { bot, handledTurns, sessionKeys, sessionInputs } = createHarness();
 
