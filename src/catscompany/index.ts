@@ -49,6 +49,10 @@ import {
   buildCatsCoAttachmentCachePath,
   scheduleCatsCoAttachmentCacheCleanup,
 } from './attachment-cache';
+import {
+  isNativeFeishuGroupTrigger,
+  selectNativeFeishuGroupContext,
+} from './agent-context-history';
 
 interface PendingAttachment {
   fileName: string;
@@ -1162,6 +1166,8 @@ export class CatsCompanyBot {
     const sessionRoute = msg.envelope ? createCatsCoSessionRoute(msg.envelope) : undefined;
     const session = this.sessionManager.getOrCreate(sessionRoute && sessionRoute.sessionKey === key ? sessionRoute : key);
 
+    await this.hydrateNativeFeishuGroupContext(session, msg, key);
+
     // 处理斜杠命令
     if (typeof msg.text === 'string' && msg.text.startsWith('/')) {
       const parts = msg.text.slice(1).split(/\s+/);
@@ -1318,6 +1324,33 @@ export class CatsCompanyBot {
 
     // 处理忙时排队的消息
     await this.drainMessageQueue(key);
+  }
+
+  private async hydrateNativeFeishuGroupContext(
+    session: {
+      injectContext(text: string): void;
+      getRemoteContextCursor(source: string): number;
+      saveRemoteContextCursor(source: string, cursor: number): void;
+    },
+    msg: ParsedCatsMessage,
+    sessionKey: string,
+  ): Promise<void> {
+    if (!isNativeFeishuGroupTrigger(msg)) return;
+    try {
+      const cursorKey = 'catscompany.agent_context';
+      const previousCursor = session.getRemoteContextCursor(cursorKey);
+      const history = await this.bot.fetchAgentContextHistory(msg.topic, msg.seq);
+      const contextMessages = selectNativeFeishuGroupContext(history.messages || [], previousCursor);
+      for (const message of contextMessages) {
+        session.injectContext(message);
+      }
+      session.saveRemoteContextCursor(cursorKey, msg.seq);
+      if (contextMessages.length > 0) {
+        Logger.info(`[${sessionKey}] 已补入 ${contextMessages.length} 条飞书群普通消息上下文`);
+      }
+    } catch (err: any) {
+      Logger.warning(`[${sessionKey}] 飞书群历史上下文恢复失败，继续处理当前消息: ${err?.message || err}`);
+    }
   }
 
   /**

@@ -4,6 +4,7 @@ import { EventEmitter } from 'events';
 import crypto from 'crypto';
 import { Logger } from '../utils/logger';
 import { uploadCatsLocalFile, type UploadResult } from './upload';
+import type { CatsAgentContextHistoryResponse } from './agent-context-history';
 
 export type { UploadResult } from './upload';
 
@@ -730,6 +731,29 @@ export class CatsClient extends EventEmitter {
       throw new Error(`CatsCompany device registration failed: ${res.status}`);
     }
     return res.json().catch(() => ({}));
+  }
+
+  async fetchAgentContextHistory(
+    topic: string,
+    beforeId: number,
+    limit = 100,
+  ): Promise<CatsAgentContextHistoryResponse> {
+    const params = new URLSearchParams({
+      topic_id: topic,
+      agent_context: '1',
+      before_id: String(beforeId),
+      limit: String(limit),
+    });
+    const res = await fetch(`${this.httpBaseUrl()}/api/messages?${params.toString()}`, {
+      headers: {
+        'Authorization': `ApiKey ${this.config.apiKey}`,
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) {
+      throw new Error(`CatsCompany agent context history failed: ${res.status}`);
+    }
+    return res.json() as Promise<CatsAgentContextHistoryResponse>;
   }
 
   async sendImage(topic: string, upload: UploadResult): Promise<number> {

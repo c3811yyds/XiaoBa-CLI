@@ -372,6 +372,14 @@ export class AgentSession {
     this.enforceInjectedContextLimit();
   }
 
+  getRemoteContextCursor(source: string): number {
+    return this.lifecycleManager.loadRemoteContextCursor(source);
+  }
+
+  saveRemoteContextCursor(source: string, cursor: number): void {
+    this.lifecycleManager.saveRemoteContextCursor(source, cursor);
+  }
+
   /**
    * 注入给 agent 可见的运行时反馈。
    * 反馈会暂存在 turn-scoped buffer，下一次真正执行 handleMessage 时才进入本轮上下文。
