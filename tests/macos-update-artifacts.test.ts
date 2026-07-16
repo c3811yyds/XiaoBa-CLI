@@ -105,6 +105,36 @@ test('macOS update artifact verification rejects duplicate artifacts', async () 
   );
 });
 
+test('macOS update artifact verification accepts identical duplicate metadata entries', async () => {
+  const { selectRequiredFiles } = await import(moduleUrl) as any;
+  const duplicateDmg = {
+    url: 'CatsCo-1.4.4-mac-x64.dmg',
+    sha512: 'same-dmg',
+    size: 10,
+  };
+
+  const selected = selectRequiredFiles([
+    duplicateDmg,
+    { ...duplicateDmg },
+    { url: 'CatsCo-1.4.4-mac-x64.zip', sha512: 'zip', size: 20 },
+  ], 'x64');
+
+  assert.deepEqual(selected.get('dmg'), duplicateDmg);
+});
+
+test('macOS update artifact verification rejects conflicting duplicate metadata entries', async () => {
+  const { selectRequiredFiles } = await import(moduleUrl) as any;
+
+  assert.throws(
+    () => selectRequiredFiles([
+      { url: 'CatsCo-1.4.4-mac-x64.dmg', sha512: 'dmg-a', size: 10 },
+      { url: 'CatsCo-1.4.4-mac-x64.dmg', sha512: 'dmg-b', size: 10 },
+      { url: 'CatsCo-1.4.4-mac-x64.zip', sha512: 'zip', size: 20 },
+    ], 'x64'),
+    /contains multiple \.dmg files/,
+  );
+});
+
 test('macOS update artifact verification checks published DMG and ZIP URLs', async () => {
   const { verifyMacosUpdateArtifacts } = await import(moduleUrl) as any;
   const requests: string[] = [];
