@@ -314,7 +314,11 @@ function normalizeCatalogRuntime(runtime: BotCatalogModelRuntime): BotCatalogMod
 export function botModelDefinitionFromLocalProfile(profile: LocalModelProfile): BotModelDefinition {
   if (profile.source === 'catalog') {
     if (!profile.modelId) throw new Error('catalog modelId is required');
-    return { kind: 'catalog', modelId: canonicalRelayModelId(profile.modelId) ?? profile.modelId };
+    return {
+      kind: 'catalog',
+      modelId: canonicalRelayModelId(profile.modelId) ?? profile.modelId,
+      ...(profile.reasoningEffort ? { reasoningEffort: profile.reasoningEffort } : {}),
+    };
   }
   if (!profile.provider || !profile.apiBase || !profile.model || !profile.apiKey || !profile.contextWindowTokens) {
     throw new Error('custom model profile is incomplete');
@@ -401,6 +405,22 @@ export class BotDefinitionSyncService {
     return {
       botId,
       direction: 'local_to_simulated_cloud',
+      definition,
+    };
+  }
+
+  acceptCloud(botId: string, model: BotModelDefinition): BotDefinitionSyncResult {
+    const definition: BotDefinition = {
+      schema: BOT_DEFINITION_SCHEMA,
+      botId,
+      model: normalizeBotModelDefinition(model),
+    };
+    this.repository.writeCanonical(definition);
+    this.repository.writeCache(definition);
+    this.clearLegacyModelConfigurationWhenReady(definition);
+    return {
+      botId,
+      direction: 'cloud_to_local',
       definition,
     };
   }

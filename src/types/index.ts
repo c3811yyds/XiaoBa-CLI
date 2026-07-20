@@ -3,7 +3,7 @@ export type ContentBlock =
   | { type: 'image'; source: { type: 'base64'; media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'; data: string } };
 
 export type ProviderContentBlock = Record<string, unknown> & { type: string };
-export type ReasoningEffort = 'default' | 'high' | 'max' | 'disabled';
+export type ReasoningEffort = 'default' | 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'disabled';
 export type OpenAIApiMode = 'chat_completions' | 'responses';
 
 export interface Message {

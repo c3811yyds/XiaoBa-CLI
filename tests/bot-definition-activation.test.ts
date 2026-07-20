@@ -53,6 +53,9 @@ describe('BotDefinition activation', () => {
     const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(String(input));
       requests.push(`${init?.method || 'GET'} ${url.pathname}`);
+      if (url.pathname === '/api/bot/model-config') {
+        return Response.json({ error: 'not deployed' }, { status: 404 });
+      }
       if (url.pathname === '/api/relay/config') {
         return Response.json({
           self_service_enabled: true,
@@ -83,8 +86,272 @@ describe('BotDefinition activation', () => {
     assert.equal(resolveActiveBotLLMConfig({ runtimeRoot, env })?.config.apiKey, 'sk-bravo-relay-material');
     assert.equal(env.CATSCO_RELAY_LLM_API_KEY, undefined);
     assert.deepStrictEqual(requests, [
+      'GET /api/bot/model-config',
       'GET /api/relay/config',
       'GET /api/relay/key',
     ]);
+  });
+
+  test('applies and acknowledges a cloud-selected model after its local runtime is ready', async () => {
+    const runtimeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-cloud-model-runtime-'));
+    const simulatedCloudRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-cloud-model-canonical-'));
+    roots.push(runtimeRoot, simulatedCloudRoot);
+    const env = {} as NodeJS.ProcessEnv;
+    createCatsCoLocalConfigService({ runtimeRoot, env }).save({
+      version: 1,
+      endpoints: { httpBaseUrl: 'https://cats.example.test', serverUrl: 'wss://cats.example.test/v0/channels' },
+      account: { token: 'user-token', uid: '7', displayName: 'Alice' },
+      currentBot: {
+        uid: '43', apiKey: 'bot-api-key', boundByUserUid: '7', bindingSource: 'test',
+      },
+    });
+    new FileBotDefinitionRepository({ runtimeRoot, simulatedCloudRoot }).writeCanonical({
+      schema: BOT_DEFINITION_SCHEMA,
+      botId: '43',
+      model: { kind: 'catalog', modelId: 'minimax-m3' },
+    });
+
+    const requests: Array<{ method: string; path: string; body?: any; authorization?: string }> = [];
+    const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(String(input));
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      requests.push({
+        method: init?.method || 'GET',
+        path: url.pathname,
+        body,
+        authorization: new Headers(init?.headers).get('Authorization') || undefined,
+      });
+      if (url.pathname === '/api/bot/model-config') {
+        return Response.json({
+          uid: 43,
+          configured: true,
+          desired: { model_id: 'deepseek-v4-flash', reasoning_effort: 'max', revision: 2 },
+        });
+      }
+      if (url.pathname === '/api/relay/config') {
+        return Response.json({
+          self_service_enabled: true,
+          base_url: 'https://relay.example.test',
+          endpoints: [{ protocol: 'Anthropic-compatible', base_url: 'https://relay.example.test/anthropic' }],
+        });
+      }
+      if (url.pathname === '/api/relay/key') {
+        return Response.json({ key: { state: 'active', key: 'sk-cloud-model' } });
+      }
+      if (url.pathname === '/api/bot/model-config/ack') {
+        return Response.json({ status: 'applied' });
+      }
+      return Response.json({ error: 'unexpected request' }, { status: 500 });
+    }) as typeof fetch;
+
+    const prepared = await prepareBoundBotDefinition({ runtimeRoot, simulatedCloudRoot, env, fetchImpl });
+
+    assert.equal(prepared?.cloudRevision, 2);
+    assert.deepStrictEqual(prepared?.definition.model, {
+      kind: 'catalog', modelId: 'deepseek-v4-flash', reasoningEffort: 'max',
+    });
+    const runtime = new FileBotCatalogModelRuntimeRepository({ runtimeRoot }).read('43');
+    assert.equal(runtime?.modelId, 'deepseek-v4-flash');
+    assert.equal(runtime?.reasoningEffort, 'max');
+    const ack = requests.find(item => item.path === '/api/bot/model-config/ack');
+    assert.deepStrictEqual(ack?.body, {
+      revision: 2,
+      model_id: 'deepseek-v4-flash',
+      reasoning_effort: 'max',
+    });
+    assert.equal(requests.find(item => item.path === '/api/bot/model-config')?.authorization, 'ApiKey bot-api-key');
+    assert.equal(ack?.authorization, 'ApiKey bot-api-key');
+    assert.equal(requests.find(item => item.path === '/api/relay/config')?.authorization, 'Bearer user-token');
+  });
+
+  test('materializes a cloud-selected GPT-5.6 model through OpenAI Responses', async () => {
+    const runtimeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-cloud-gpt56-runtime-'));
+    const simulatedCloudRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-cloud-gpt56-canonical-'));
+    roots.push(runtimeRoot, simulatedCloudRoot);
+    const env = {} as NodeJS.ProcessEnv;
+    createCatsCoLocalConfigService({ runtimeRoot, env }).save({
+      version: 1,
+      endpoints: { httpBaseUrl: 'https://cats.example.test', serverUrl: 'wss://cats.example.test/v0/channels' },
+      account: { token: 'user-token', uid: '7', displayName: 'Alice' },
+      currentBot: { uid: '43', apiKey: 'bot-api-key', boundByUserUid: '7', bindingSource: 'test' },
+    });
+
+    let ackBody: any;
+    const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(String(input));
+      if (url.pathname === '/api/bot/model-config') {
+        return Response.json({
+          uid: 43,
+          configured: true,
+          desired: { model_id: 'gpt-5.6-terra', reasoning_effort: 'xhigh', revision: 5 },
+        });
+      }
+      if (url.pathname === '/api/relay/config') {
+        return Response.json({
+          self_service_enabled: true,
+          base_url: 'https://relay.example.test',
+          models: [{ id: 'gpt-5.6-terra', model: 'gpt-5.6-terra', enabled: true }],
+          endpoints: [{ protocol: 'OpenAI-compatible', base_url: 'https://relay.example.test/v1' }],
+        });
+      }
+      if (url.pathname === '/api/relay/key') {
+        return Response.json({ key: { state: 'active', key: 'sk-cloud-gpt56' } });
+      }
+      if (url.pathname === '/api/bot/model-config/ack') {
+        ackBody = JSON.parse(String(init?.body));
+        return Response.json({ status: 'applied' });
+      }
+      return Response.json({ error: 'unexpected request' }, { status: 500 });
+    }) as typeof fetch;
+
+    const prepared = await prepareBoundBotDefinition({ runtimeRoot, simulatedCloudRoot, env, fetchImpl });
+    const runtime = new FileBotCatalogModelRuntimeRepository({ runtimeRoot }).read('43');
+
+    assert.equal(prepared?.cloudRevision, 5);
+    assert.equal(runtime?.provider, 'openai');
+    assert.equal(runtime?.openaiApiMode, 'responses');
+    assert.equal(runtime?.model, 'gpt-5.6-terra');
+    assert.equal(runtime?.reasoningEffort, 'xhigh');
+    assert.deepStrictEqual(ackBody, {
+      revision: 5,
+      model_id: 'gpt-5.6-terra',
+      reasoning_effort: 'xhigh',
+    });
+  });
+
+  test('prepares an exact runtime reload selection without polling or acknowledging early', async () => {
+    const runtimeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-cloud-runtime-reload-'));
+    const simulatedCloudRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-cloud-runtime-reload-canonical-'));
+    roots.push(runtimeRoot, simulatedCloudRoot);
+    const env = {} as NodeJS.ProcessEnv;
+    createCatsCoLocalConfigService({ runtimeRoot, env }).save({
+      version: 1,
+      endpoints: { httpBaseUrl: 'https://cats.example.test', serverUrl: 'wss://cats.example.test/v0/channels' },
+      account: { token: 'user-token', uid: '7' },
+      currentBot: { uid: '43', apiKey: 'bot-api-key', boundByUserUid: '7', bindingSource: 'test' },
+    });
+    const requestedPaths: string[] = [];
+    const fetchImpl = (async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      requestedPaths.push(url.pathname);
+      if (url.pathname === '/api/relay/config') {
+        return Response.json({
+          self_service_enabled: true,
+          base_url: 'https://relay.example.test',
+          models: [{ id: 'gpt-5.6-luna', model: 'gpt-5.6-luna', enabled: true }],
+          endpoints: [{ protocol: 'OpenAI-compatible', base_url: 'https://relay.example.test/v1' }],
+        });
+      }
+      if (url.pathname === '/api/relay/key') {
+        return Response.json({ key: { state: 'active', key: 'sk-runtime-reload' } });
+      }
+      return Response.json({ error: 'unexpected request' }, { status: 500 });
+    }) as typeof fetch;
+
+    const prepared = await prepareBoundBotDefinition({
+      runtimeRoot,
+      simulatedCloudRoot,
+      env,
+      auth: createCatsCoLocalConfigService({ runtimeRoot, env }).getAuthState(),
+      fetchImpl,
+      cloudSelection: { modelId: 'gpt-5.6-luna', reasoningEffort: 'medium', revision: 8 },
+      acknowledgeCloudSelection: false,
+    });
+
+    assert.equal(prepared?.cloudRevision, 8);
+    assert.equal(requestedPaths.includes('/api/bot/model-config'), false);
+    assert.equal(requestedPaths.includes('/api/bot/model-config/ack'), false);
+  });
+
+  test('keeps the last runnable local model when a cloud selection cannot be applied', async () => {
+    const runtimeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-cloud-model-fallback-runtime-'));
+    const simulatedCloudRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-cloud-model-fallback-canonical-'));
+    roots.push(runtimeRoot, simulatedCloudRoot);
+    const env = {} as NodeJS.ProcessEnv;
+    createCatsCoLocalConfigService({ runtimeRoot, env }).save({
+      version: 1,
+      endpoints: { httpBaseUrl: 'https://cats.example.test', serverUrl: 'wss://cats.example.test/v0/channels' },
+      account: { token: 'user-token', uid: '7' },
+      currentBot: { uid: '43', apiKey: 'bot-api-key', boundByUserUid: '7', bindingSource: 'test' },
+    });
+    new FileBotDefinitionRepository({ runtimeRoot, simulatedCloudRoot }).writeCanonical({
+      schema: BOT_DEFINITION_SCHEMA,
+      botId: '43',
+      model: { kind: 'catalog', modelId: 'minimax-m3' },
+    });
+    new FileBotCatalogModelRuntimeRepository({ runtimeRoot }).write({
+      schema: 'xiaoba.bot-catalog-model-runtime.v1',
+      botId: '43',
+      modelId: 'minimax-m3',
+      provider: 'anthropic',
+      apiBase: 'https://relay.example.test/anthropic',
+      apiKey: 'sk-existing',
+      model: 'MiniMax-M3',
+      contextWindowTokens: 1_000_000,
+    });
+    let failureAck: any;
+    const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(String(input));
+      if (url.pathname === '/api/bot/model-config') {
+        return Response.json({ uid: 43, configured: true, desired: { model_id: 'unknown-model', revision: 4 } });
+      }
+      if (url.pathname === '/api/bot/model-config/ack') {
+        failureAck = JSON.parse(String(init?.body));
+        return Response.json({ status: 'failed' });
+      }
+      return Response.json({ error: 'unexpected request' }, { status: 500 });
+    }) as typeof fetch;
+
+    const prepared = await prepareBoundBotDefinition({ runtimeRoot, simulatedCloudRoot, env, fetchImpl });
+
+    assert.deepStrictEqual(prepared?.definition.model, { kind: 'catalog', modelId: 'minimax-m3' });
+    assert.equal(new FileBotCatalogModelRuntimeRepository({ runtimeRoot }).read('43')?.apiKey, 'sk-existing');
+    assert.equal(failureAck.revision, 4);
+    assert.equal(failureAck.model_id, 'unknown-model');
+    assert.match(failureAck.error, /Unknown CatsCo relay model/);
+  });
+
+  test('does not replace an existing local custom model until the owner enables cloud management', async () => {
+    const runtimeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-cloud-model-opt-in-runtime-'));
+    const simulatedCloudRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-cloud-model-opt-in-canonical-'));
+    roots.push(runtimeRoot, simulatedCloudRoot);
+    const env = {} as NodeJS.ProcessEnv;
+    createCatsCoLocalConfigService({ runtimeRoot, env }).save({
+      version: 1,
+      endpoints: { httpBaseUrl: 'https://cats.example.test', serverUrl: 'wss://cats.example.test/v0/channels' },
+      currentBot: { uid: '43', apiKey: 'bot-api-key', boundByUserUid: '7', bindingSource: 'test' },
+    });
+    const customModel = {
+      kind: 'custom' as const,
+      protocol: 'openai-responses' as const,
+      apiBase: 'https://custom.example.test/v1',
+      apiKey: 'sk-local-custom',
+      model: 'custom-model',
+      contextWindowTokens: 128_000,
+    };
+    new FileBotDefinitionRepository({ runtimeRoot, simulatedCloudRoot }).writeCanonical({
+      schema: BOT_DEFINITION_SCHEMA,
+      botId: '43',
+      model: customModel,
+    });
+    let acknowledged = false;
+    const fetchImpl = (async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      if (url.pathname === '/api/bot/model-config') {
+        return Response.json({
+          uid: 43,
+          configured: false,
+          desired: { model_id: 'minimax-m3', reasoning_effort: '', revision: 0 },
+        });
+      }
+      if (url.pathname === '/api/bot/model-config/ack') acknowledged = true;
+      return Response.json({ error: 'unexpected request' }, { status: 500 });
+    }) as typeof fetch;
+
+    const prepared = await prepareBoundBotDefinition({ runtimeRoot, simulatedCloudRoot, env, fetchImpl });
+
+    assert.deepStrictEqual(prepared?.definition.model, customModel);
+    assert.equal(prepared?.cloudRevision, undefined);
+    assert.equal(acknowledged, false);
   });
 });

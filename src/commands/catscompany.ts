@@ -8,8 +8,17 @@ import { resolveCatsCoRuntimeConfig } from '../catscompany/runtime-config';
 import { CatsCoConnectorLock, acquireCatsCoConnectorLock, isProcessAlive } from '../catscompany/connector-lock';
 import { PathResolver } from '../utils/path-resolver';
 import { prepareBoundBotDefinition } from '../bot-definition/activation';
+import { createCatsCoLocalConfigService, type CatsCoAuthSnapshot } from '../catscompany/local-config';
+import {
+  acknowledgeCloudBotModelSelection,
+  pullCloudBotModelSelection,
+  type CloudBotModelSelection,
+} from '../bot-definition/cloud-client';
+import { CloudBotModelRuntimeReloadController } from '../bot-definition/runtime-reload';
+import { createBotDefinitionSyncService } from '../bot-definition/service';
 
 const CONNECTOR_OWNER_POLL_MS = 2000;
+const CLOUD_MODEL_POLL_MS = 5000;
 
 export interface CatsCoCommandConfigResolution {
   config?: CatsCompanyConfig;
@@ -32,8 +41,13 @@ export function resolveCatsCoCommandConfig(
  */
 export async function catscompanyCommand(): Promise<void> {
   const runtimeRoot = PathResolver.getRuntimeDataRoot();
-  const preparedBot = await prepareBoundBotDefinition({ runtimeRoot });
-  if (preparedBot?.initializedDefault) {
+  const preparedBot = await prepareBoundBotDefinition({
+    runtimeRoot,
+    acknowledgeCloudSelection: false,
+  });
+  if (preparedBot?.cloudRevision !== undefined) {
+    Logger.info(`CatsCo bot ${preparedBot.botId} 已准备云端模型配置 revision=${preparedBot.cloudRevision}。`);
+  } else if (preparedBot?.initializedDefault) {
     Logger.info(`CatsCo bot ${preparedBot.botId} 已自动初始化默认模型 MiniMax M3。`);
   } else if (preparedBot?.materializedCatalogRuntime) {
     Logger.info(`CatsCo bot ${preparedBot.botId} 已在当前设备准备 ${preparedBot.definition.model.kind === 'catalog' ? preparedBot.definition.model.modelId : '模型'} 的运行材料。`);
@@ -73,9 +87,12 @@ export async function catscompanyCommand(): Promise<void> {
     return;
   }
 
-  const bot = new CatsCompanyBot(connectorConfig);
+  let bot = new CatsCompanyBot(connectorConfig);
   let lock: CatsCoConnectorLock | null = connectorLock;
   let ownerWatchTimer: NodeJS.Timeout | null = null;
+  let cloudModelWatchTimer: NodeJS.Timeout | null = null;
+  let cloudModelReloadPromise: Promise<void> | null = null;
+  let pendingCloudModelAck: PendingCloudModelAck | null = null;
   let shuttingDown = false;
 
   // 优雅退出
@@ -86,7 +103,12 @@ export async function catscompanyCommand(): Promise<void> {
       clearInterval(ownerWatchTimer);
       ownerWatchTimer = null;
     }
+    if (cloudModelWatchTimer) {
+      clearInterval(cloudModelWatchTimer);
+      cloudModelWatchTimer = null;
+    }
     try {
+      await cloudModelReloadPromise;
       await stopRuntimeCommandSupport();
       await bot.destroy();
     } finally {
@@ -113,6 +135,93 @@ export async function catscompanyCommand(): Promise<void> {
   try {
     await bot.start();
     await startRuntimeCommandSupport();
+    const auth = createCatsCoLocalConfigService({ runtimeRoot }).getAuthState();
+    const modelBotId = String(preparedBot?.botId || connectorConfig.botUid || '').trim();
+    if (preparedBot?.cloudSelection) {
+      const initialApplyError = preparedBot.cloudApplyError || '';
+      try {
+        await acknowledgeCloudBotModelSelection(
+          { botId: modelBotId, auth },
+          preparedBot.cloudSelection,
+          initialApplyError,
+        );
+      } catch (error) {
+        pendingCloudModelAck = {
+          selection: preparedBot.cloudSelection,
+          applyError: initialApplyError,
+          attempts: 0,
+        };
+        Logger.warning(`CatsCo 启动模型状态回报失败，将自动重试: ${errorMessage(error)}`);
+      }
+    }
+    let lastCloudPollWarningAt = 0;
+    const reloadController = new CloudBotModelRuntimeReloadController({
+      initialRevision: preparedBot?.cloudSelection?.revision,
+      pullSelection: async () => {
+        const selection = await pullCloudBotModelSelection({ botId: modelBotId, auth });
+        if (
+          pendingCloudModelAck
+          && (!selection || selection.revision > pendingCloudModelAck.selection.revision)
+        ) {
+          pendingCloudModelAck = null;
+        }
+        return selection;
+      },
+      isIdle: () => !shuttingDown && bot.isIdleForRuntimeReload(),
+      applySelection: async selection => applyCloudModelRuntimeSelection({
+        runtimeRoot,
+        connectorConfig,
+        currentBot: () => bot,
+        replaceBot: next => { bot = next; },
+        botId: modelBotId,
+        canApply: () => !shuttingDown,
+        scheduleAckRetry: (selection, applyError) => {
+          pendingCloudModelAck = { selection, applyError, attempts: 0 };
+        },
+        clearAckRetry: selection => {
+          if (pendingCloudModelAck?.selection.revision === selection.revision) {
+            pendingCloudModelAck = null;
+          }
+        },
+        selection,
+        auth,
+      }),
+      onError: (error, selection) => {
+        const now = Date.now();
+        if (selection || now - lastCloudPollWarningAt >= 60_000) {
+          lastCloudPollWarningAt = now;
+          Logger.warning(
+            selection
+              ? `CatsCo 云端模型 revision=${selection.revision} 运行时切换失败: ${errorMessage(error)}`
+              : `CatsCo 云端模型轮询失败，继续使用当前模型: ${errorMessage(error)}`,
+          );
+        }
+      },
+    });
+    cloudModelWatchTimer = setInterval(() => {
+      if (cloudModelReloadPromise) return;
+      const run = (async () => {
+        if (pendingCloudModelAck) {
+          const pending = pendingCloudModelAck;
+          try {
+            await acknowledgeCloudBotModelSelection({ botId: modelBotId, auth }, pending.selection, pending.applyError);
+            if (pendingCloudModelAck === pending) pendingCloudModelAck = null;
+          } catch (error) {
+            pending.attempts += 1;
+            if (pending.attempts % 12 === 0 && pendingCloudModelAck === pending) {
+              Logger.warning(
+                `CatsCo 云端模型 revision=${pending.selection.revision} 状态回报仍在重试: ${errorMessage(error)}`,
+              );
+            }
+          }
+        }
+        await reloadController.pollOnce();
+      })();
+      cloudModelReloadPromise = run;
+      void run.finally(() => {
+        if (cloudModelReloadPromise === run) cloudModelReloadPromise = null;
+      });
+    }, CLOUD_MODEL_POLL_MS);
   } catch (error) {
     if (ownerWatchTimer) {
       clearInterval(ownerWatchTimer);
@@ -122,4 +231,135 @@ export async function catscompanyCommand(): Promise<void> {
     lock = null;
     throw error;
   }
+}
+
+interface ApplyCloudModelRuntimeSelectionOptions {
+  runtimeRoot: string;
+  connectorConfig: CatsCompanyConfig;
+  currentBot(): CatsCompanyBot;
+  replaceBot(bot: CatsCompanyBot): void;
+  botId: string;
+  canApply(): boolean;
+  scheduleAckRetry(selection: CloudBotModelSelection, applyError: string): void;
+  clearAckRetry(selection: CloudBotModelSelection): void;
+  selection: CloudBotModelSelection;
+  auth: CatsCoAuthSnapshot;
+}
+
+interface PendingCloudModelAck {
+  selection: CloudBotModelSelection;
+  applyError: string;
+  attempts: number;
+}
+
+async function applyCloudModelRuntimeSelection(
+  options: ApplyCloudModelRuntimeSelectionOptions,
+): Promise<'applied' | 'deferred'> {
+  const botId = options.botId;
+  if (!botId || !options.canApply()) return 'deferred';
+  const definitionService = createBotDefinitionSyncService({ runtimeRoot: options.runtimeRoot });
+  const previousDefinition = definitionService.pullOrBootstrap(botId)?.definition;
+  const previousRuntime = previousDefinition?.model.kind === 'catalog'
+    ? definitionService.readCatalogRuntime(botId)
+    : undefined;
+  const restorePreviousModelFiles = () => {
+    if (!previousDefinition) return;
+    definitionService.acceptCloud(botId, previousDefinition.model);
+    if (previousRuntime) definitionService.storeCatalogRuntime(previousRuntime);
+  };
+
+  const prepared = await prepareBoundBotDefinition({
+    runtimeRoot: options.runtimeRoot,
+    botId,
+    auth: options.auth,
+    cloudSelection: options.selection,
+    acknowledgeCloudSelection: false,
+  });
+  if (!prepared || prepared.cloudRevision !== options.selection.revision || prepared.cloudApplyError) {
+    const message = prepared?.cloudApplyError || '云端模型运行材料未能完成准备。';
+    restorePreviousModelFiles();
+    await acknowledgeCloudModelApply(options, message);
+    throw new Error(message);
+  }
+
+  let latestSelection: CloudBotModelSelection | undefined;
+  try {
+    latestSelection = await pullCloudBotModelSelection({ botId, auth: options.auth });
+  } catch (error) {
+    restorePreviousModelFiles();
+    Logger.warning(`CatsCo 模型切换复核失败，已延后本次切换: ${errorMessage(error)}`);
+    return 'deferred';
+  }
+  if (!cloudSelectionsMatch(latestSelection, options.selection)) {
+    restorePreviousModelFiles();
+    return 'deferred';
+  }
+
+  const previousBot = options.currentBot();
+  if (!options.canApply() || !previousBot.isIdleForRuntimeReload()) {
+    restorePreviousModelFiles();
+    return 'deferred';
+  }
+
+  let nextBot: CatsCompanyBot | undefined;
+  try {
+    await previousBot.destroy();
+    nextBot = new CatsCompanyBot(options.connectorConfig);
+    await nextBot.start();
+    options.replaceBot(nextBot);
+  } catch (error) {
+    if (nextBot) {
+      await nextBot.destroy().catch(cleanupError => {
+        Logger.warning(`CatsCo 未启动的新 connector 清理失败: ${errorMessage(cleanupError)}`);
+      });
+    }
+    restorePreviousModelFiles();
+    const fallbackBot = new CatsCompanyBot(options.connectorConfig);
+    try {
+      await fallbackBot.start();
+      options.replaceBot(fallbackBot);
+    } catch (fallbackError) {
+      await fallbackBot.destroy().catch(() => undefined);
+      Logger.error(`CatsCo 模型切换回滚后 connector 恢复失败: ${errorMessage(fallbackError)}`);
+    }
+    await acknowledgeCloudModelApply(options, errorMessage(error));
+    throw error;
+  }
+
+  await acknowledgeCloudModelApply(options);
+  Logger.success(
+    `CatsCo 已在线切换模型到 ${options.selection.modelId}`
+      + `${options.selection.reasoningEffort ? ` (${options.selection.reasoningEffort})` : ''}`
+      + `，revision=${options.selection.revision}。`,
+  );
+  return 'applied';
+}
+
+async function acknowledgeCloudModelApply(
+  options: ApplyCloudModelRuntimeSelectionOptions,
+  applyError = '',
+): Promise<void> {
+  try {
+    await acknowledgeCloudBotModelSelection({
+      botId: options.botId,
+      auth: options.auth,
+    }, options.selection, applyError);
+    options.clearAckRetry(options.selection);
+  } catch (error) {
+    options.scheduleAckRetry(options.selection, applyError);
+    Logger.warning(`CatsCo 云端模型应用状态回报失败: ${errorMessage(error)}`);
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function cloudSelectionsMatch(
+  current: CloudBotModelSelection | undefined,
+  expected: CloudBotModelSelection,
+): boolean {
+  return current?.revision === expected.revision
+    && current.modelId === expected.modelId
+    && (current.reasoningEffort || '') === (expected.reasoningEffort || '');
 }

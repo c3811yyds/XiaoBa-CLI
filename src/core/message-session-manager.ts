@@ -106,6 +106,15 @@ export class MessageSessionManager {
     session.injectContext(text);
   }
 
+  /** True only when no model turn, cleanup, or child agent is active. */
+  isIdle(): boolean {
+    if (this.destroying.size > 0) return false;
+    for (const [key, session] of this.sessions) {
+      if (session.isBusy() || SubAgentManager.getInstance().hasActiveForParent(key)) return false;
+    }
+    return true;
+  }
+
   private normalizeSessionInput(input: SessionKeyInput): { key: string; route?: SessionRoute } {
     if (isSessionRoute(input)) {
       return { key: input.sessionKey, route: input };

@@ -367,6 +367,8 @@ export class CatsCompanyBot {
   private taskStatusTasks = new Map<string, Promise<void>>();
   /** Tracks the visible user turn for cancellation and retry handling. */
   private activeConversationTasks = new Map<string, ActiveConversationTask>();
+  /** Covers message parsing, cloud restore, attachment download, commands, and the model turn. */
+  private activeMessageHandlers = 0;
   /** Invalidates queued or in-flight pre-turn hydration after /clear. */
   private sessionClearGenerations = new Map<string, number>();
   /** Lets /clear cancel an initial cloud restore before it can recreate old history. */
@@ -487,6 +489,16 @@ export class CatsCompanyBot {
 
     this.bot.connect();
     Logger.success('CatsCo agent 已启动，等待消息...');
+  }
+
+  /** Runtime model reloads must not interrupt a turn, queued message, restore, or child result. */
+  isIdleForRuntimeReload(): boolean {
+    return this.activeMessageHandlers === 0
+      && this.sessionExecutionReservations.size === 0
+      && Array.from(this.messageQueue.values()).every(queue => queue.length === 0)
+      && this.cloudSessionRestorePromises.size === 0
+      && this.subAgentCompletionBatches.size === 0
+      && this.sessionManager.isIdle();
   }
 
   private async registerCurrentDevice(): Promise<void> {
@@ -1233,7 +1245,12 @@ export class CatsCompanyBot {
 
     const key = msg.envelope.sessionKey;
 
-    await this.processParsedMessage(msg, key);
+    this.activeMessageHandlers += 1;
+    try {
+      await this.processParsedMessage(msg, key);
+    } finally {
+      this.activeMessageHandlers = Math.max(0, this.activeMessageHandlers - 1);
+    }
   }
 
   private registerSubAgentPlatformCallbacks(

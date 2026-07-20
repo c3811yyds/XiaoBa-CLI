@@ -5,6 +5,7 @@ import {
   type RelayModelProvider,
 } from '../utils/relay-model-profiles';
 import type { BotCatalogModelRuntime } from '../bot-definition/types';
+import type { ReasoningEffort } from '../types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -12,6 +13,7 @@ export interface CatsRelayBootstrapOptions {
   botId: string;
   modelId: string;
   auth: CatsCoAuthSnapshot;
+  reasoningEffort?: ReasoningEffort;
   fetchImpl?: typeof fetch;
 }
 
@@ -51,8 +53,8 @@ export async function provisionCatsRelayCatalogRuntime(
     apiKey,
     model: profile.model,
     contextWindowTokens: profile.contextWindowTokens,
-    reasoningEffort: 'high',
-    openaiApiMode: 'chat_completions',
+    reasoningEffort: options.reasoningEffort ?? 'high',
+    openaiApiMode: profile.openaiApiMode ?? 'chat_completions',
     capabilities: {
       vision: profile.capabilities.vision,
       toolCalling: profile.capabilities.toolCalling,
