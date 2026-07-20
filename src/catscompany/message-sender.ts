@@ -8,7 +8,16 @@ const MAX_MSG_LENGTH = 4000;
 const IDEAL_REPLY_SEGMENT_LENGTH = 520;
 const MAX_REPLY_SEGMENT_LENGTH = 1200;
 
-type CatsMessageType = 'thinking' | 'tool_use' | 'tool_result' | 'runtime_plan' | 'text' | 'image' | 'file';
+type CatsMessageType = 'thinking' | 'tool_use' | 'tool_result' | 'runtime_plan' | 'task_status' | 'text' | 'image' | 'file';
+
+export type ConversationTaskState = 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface ConversationTaskStatusInput {
+  run_id: string;
+  state: ConversationTaskState;
+  summary: string;
+  error?: string;
+}
 
 interface CatsSendBody {
   topic_id: string;
@@ -204,6 +213,15 @@ export class MessageSender {
       cleared: snapshot.steps.length === 0,
     });
     Logger.info(`Runtime plan 已发送: revision=${snapshot.revision}, steps=${snapshot.steps.length}`);
+  }
+
+  /**
+   * Publishes the latest task state for the conversation sidebar. The server
+   * stores this independently from chat history, so it must stay lightweight.
+   */
+  async sendTaskStatus(topic: string, status: ConversationTaskStatusInput): Promise<void> {
+    await this.send(topic, 'task_status', status);
+    Logger.info(`Task status 已发送: topic=${topic}, state=${status.state}, run=${status.run_id}`);
   }
 
   async sendText(topic: string, text: string): Promise<void> {

@@ -4,6 +4,30 @@ import { CatsSendError } from '../src/catscompany/client';
 import { MessageSender } from '../src/catscompany/message-sender';
 
 describe('CatsCompany MessageSender retry behavior', () => {
+  test('sends task status as a dedicated transient protocol message', async () => {
+    const sent: any[] = [];
+    const sender = new MessageSender({
+      sendStructuredMessage: async (payload: any) => {
+        sent.push(payload);
+        return 0;
+      },
+    } as any, 'https://app.example.test', 'cc_test');
+
+    await sender.sendTaskStatus('p2p_1_2', {
+      run_id: 'run-1',
+      state: 'running',
+      summary: '正在处理请求',
+    });
+
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].type, 'task_status');
+    assert.deepEqual(sent[0].content, {
+      run_id: 'run-1',
+      state: 'running',
+      summary: '正在处理请求',
+    });
+  });
+
   test('falls back to HTTP after retryable ack timeout with the same client_msg_id', async () => {
     const requests: any[] = [];
     const originalFetch = globalThis.fetch;
