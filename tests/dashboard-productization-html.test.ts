@@ -285,9 +285,9 @@ test('custom model save refreshes simplified state before Chat remains locked', 
   );
   assert.match(
     dashboardHtml,
-    /const requestPayload=\{\.\.\.payload,modelProfileSource:'custom',activateConnector:!auto\}/,
+    /const requestPayload=\{\.\.\.payload,modelProfileSource:'custom',activateConnector:true\}/,
   );
-  assert.match(dashboardHtml, /已自动保存，等待启用。/);
+  assert.match(dashboardHtml, /已自动保存为当前自定义配置。/);
   assert.match(dashboardHtml, /if\(auto\)await fetchDashboardSettings\(\)/);
   assert.doesNotMatch(dashboardHtml, /restartConnector:!auto/);
 });

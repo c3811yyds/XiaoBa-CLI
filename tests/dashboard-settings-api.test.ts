@@ -521,6 +521,11 @@ describe('dashboard typed settings API', () => {
     assert.equal(savedSettings.modelStartup.custom.model, 'gpt-custom-draft');
     assert.equal(savedSettings.modelStartup.custom.contextWindowTokens, 512_000);
 
+    fs.rmSync(
+      new FileBotCatalogModelRuntimeRepository({ runtimeRoot: testRoot }).getPath('profile-isolation-bot'),
+      { force: true },
+    );
+
     const applyResponse = await fetch(`${baseUrl}/api/model-source/custom/apply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
