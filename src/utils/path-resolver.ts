@@ -2,17 +2,22 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 export class PathResolver {
-  static getRuntimeDataRoot(): string {
+  static getRuntimeDataRoot(
+    env: NodeJS.ProcessEnv = process.env,
+    cwd: string = process.cwd(),
+  ): string {
     const explicit = [
-      process.env.XIAOBA_USER_DATA_DIR,
-      process.env.CATSCO_USER_DATA_DIR,
-      process.env.XIAOBA_ELECTRON_USER_DATA_DIR,
-      process.env.XIAOBA_RUNTIME_ROOT,
+      env.XIAOBA_USER_DATA_DIR,
+      env.CATSCO_USER_DATA_DIR,
+      env.XIAOBA_ELECTRON_USER_DATA_DIR,
+      // Legacy data-root compatibility only. Bundled executable discovery uses
+      // XIAOBA_BUNDLED_EXECUTABLES_DIR and must not write this variable.
+      env.XIAOBA_RUNTIME_ROOT,
     ]
       .map(value => String(value || '').trim())
       .find(Boolean);
 
-    return path.resolve(explicit || process.cwd());
+    return path.resolve(explicit || cwd);
   }
 
   static getDataPath(...segments: string[]): string {
