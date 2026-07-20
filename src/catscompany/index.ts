@@ -6,7 +6,7 @@ import {
   type CatsThinToolRpcMessage,
 } from './client';
 import { CatsCompanyConfig, ParsedCatsMessage, CatsFileInfo } from './types';
-import { MessageSender } from './message-sender';
+import { MessageSender, type ConversationTaskStatusInput } from './message-sender';
 import { extractContentBlocks } from './content-blocks';
 import { createCatsCoMessageEnvelope, createExecutionScope } from './message-envelope';
 import { logCatsCoExecutionContextDiagnostics } from './execution-context-diagnostics';
@@ -100,6 +100,12 @@ interface QueuedMessage {
   attempts?: number;
   deliveryOnly?: boolean;
   deliveryAttempts?: number;
+}
+
+interface ActiveConversationTask {
+  runID: string;
+  topic: string;
+  finished: boolean;
 }
 
 interface SubAgentEventRoute {
@@ -357,6 +363,10 @@ export class CatsCompanyBot {
   private messageQueue = new Map<string, QueuedMessage[]>();
   /** Serializes history hydration and all model turns for one CatsCo session. */
   private sessionExecutionReservations = new Set<string>();
+  /** Serializes auxiliary status events so a terminal state cannot overtake its running state. */
+  private taskStatusTasks = new Map<string, Promise<void>>();
+  /** Tracks the visible user turn for cancellation and retry handling. */
+  private activeConversationTasks = new Map<string, ActiveConversationTask>();
   /** Invalidates queued or in-flight pre-turn hydration after /clear. */
   private sessionClearGenerations = new Map<string, number>();
   /** Lets /clear cancel an initial cloud restore before it can recreate old history. */
@@ -1279,6 +1289,7 @@ export class CatsCompanyBot {
         this.cloudSessionRestoreAbortControllers?.get(key)?.abort();
         this.cloudSessionRestorePromises.delete(key);
         session.requestInterrupt?.();
+        this.cancelConversationTask(key);
       }
 
       const result = await session.handleCommand(command, args);
@@ -1409,6 +1420,7 @@ export class CatsCompanyBot {
     });
 
     const stopTypingHeartbeat = this.startTypingHeartbeat(msg.topic);
+    let task: ActiveConversationTask | undefined;
 
     try {
       let shouldProcess = true;
@@ -1420,6 +1432,7 @@ export class CatsCompanyBot {
         );
       }
       if (shouldProcess) {
+        task = this.beginConversationTask(key, msg.topic);
         const result = await session.handleMessage(userMessage, {
           channel,
           sessionRoute,
@@ -1441,14 +1454,24 @@ export class CatsCompanyBot {
         });
 
         // 最终文本回复
+        let replyDelivered = true;
         if (result.visibleToUser && result.text) {
           try {
             await this.sender.reply(msg.topic, result.text);
           } catch (err: any) {
+            replyDelivered = false;
             Logger.warning(`前端通知发送失败 (text): ${err.message}`);
           }
         }
+        this.finishConversationTask(key, task, this.taskStatusForResult(result, replyDelivered));
       }
+    } catch (err: any) {
+      this.finishConversationTask(key, task, {
+        state: 'failed',
+        summary: '任务执行失败',
+        error: '任务执行失败',
+      });
+      throw err;
     } finally {
       this.releaseSessionExecution(key);
       stopTypingHeartbeat();
@@ -1559,6 +1582,85 @@ export class CatsCompanyBot {
     if (reservations.has(sessionKey) || session.isBusy?.()) return false;
     reservations.add(sessionKey);
     return true;
+  }
+
+  private beginConversationTask(sessionKey: string, topic: string): ActiveConversationTask {
+    const tasks = this.activeConversationTasks ??= new Map<string, ActiveConversationTask>();
+    const active = tasks.get(sessionKey);
+    if (active && !active.finished) return active;
+
+    const task: ActiveConversationTask = {
+      runID: `xiaoba-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`,
+      topic,
+      finished: false,
+    };
+    tasks.set(sessionKey, task);
+    this.enqueueConversationTaskStatus(task, {
+      state: 'running',
+      summary: '正在处理请求',
+    });
+    return task;
+  }
+
+  private finishConversationTask(
+    sessionKey: string,
+    task: ActiveConversationTask | undefined,
+    status: Omit<ConversationTaskStatusInput, 'run_id'>,
+  ): void {
+    if (!task || task.finished) return;
+    task.finished = true;
+    const tasks = this.activeConversationTasks ??= new Map<string, ActiveConversationTask>();
+    if (tasks.get(sessionKey) === task) {
+      tasks.delete(sessionKey);
+    }
+    this.enqueueConversationTaskStatus(task, status);
+  }
+
+  private cancelConversationTask(sessionKey: string, summary = '任务已停止'): void {
+    this.finishConversationTask(sessionKey, this.activeConversationTasks?.get(sessionKey), {
+      state: 'cancelled',
+      summary,
+    });
+  }
+
+  private enqueueConversationTaskStatus(
+    task: ActiveConversationTask,
+    status: Omit<ConversationTaskStatusInput, 'run_id'>,
+  ): void {
+    const payload: ConversationTaskStatusInput = { run_id: task.runID, ...status };
+    const statusTasks = this.taskStatusTasks ??= new Map<string, Promise<void>>();
+    const previous = statusTasks.get(task.topic) ?? Promise.resolve();
+    const next = previous
+      .catch(() => undefined)
+      .then(() => this.sender.sendTaskStatus(task.topic, payload))
+      .catch((error: any) => {
+        // Task status is supplementary. A connectivity problem must not affect the reply path.
+        Logger.warning(`[${task.topic}] 任务状态上报失败: ${error?.message || error}`);
+      });
+
+    statusTasks.set(task.topic, next);
+    void next.finally(() => {
+      if (statusTasks.get(task.topic) === next) {
+        statusTasks.delete(task.topic);
+      }
+    }).catch(() => undefined);
+  }
+
+  private taskStatusForResult(
+    result: { text?: string; taskOutcome?: 'completed' | 'failed' | 'cancelled' },
+    replyDelivered: boolean,
+  ): Omit<ConversationTaskStatusInput, 'run_id'> {
+    const text = String(result.text || '');
+    if (result.taskOutcome === 'cancelled' || text.startsWith('已停止当前请求')) {
+      return { state: 'cancelled', summary: '任务已停止' };
+    }
+    if (result.taskOutcome === 'failed' || text.startsWith('处理消息时出错:')) {
+      return { state: 'failed', summary: '任务执行失败', error: '任务执行失败' };
+    }
+    if (!replyDelivered) {
+      return { state: 'failed', summary: '回复发送失败', error: '回复发送失败' };
+    }
+    return { state: 'completed', summary: '任务已完成' };
   }
 
   private releaseSessionExecution(sessionKey: string): void {
@@ -2364,6 +2466,7 @@ export class CatsCompanyBot {
     }
 
     session.requestInterrupt();
+    this.cancelConversationTask(key);
     Logger.info(`[${key}] 收到 CatsCompany 取消事件，已请求中断当前回合`);
   }
 
@@ -2463,6 +2566,7 @@ export class CatsCompanyBot {
     const stopTypingHeartbeat = suppressSubAgentFinalResponse ? () => undefined : this.startTypingHeartbeat(msg.topic);
 
     let retryLater = false;
+    let task: ActiveConversationTask | undefined;
     try {
       let shouldProcess = true;
       if (msg.nativeFeishuContext) {
@@ -2473,6 +2577,9 @@ export class CatsCompanyBot {
         );
       }
       if (shouldProcess) {
+        if (msg.source === 'user') {
+          task = this.beginConversationTask(sessionKey, msg.topic);
+        }
         const result = msg.source === 'subagent_feedback'
           ? await session.handleRuntimeObservation(msg.userMessage as string, {
             channel,
@@ -2515,19 +2622,23 @@ export class CatsCompanyBot {
           retryLater = true;
           Logger.info(`[${sessionKey}] 队列执行遇到竞态忙碌，消息保留等待重试`);
         } else {
+          let replyDelivered = true;
           if (result.text.startsWith('处理消息时出错:')) {
             try {
               await this.sender.reply(msg.topic, result.text);
             } catch (err: any) {
+              replyDelivered = false;
               Logger.warning(`错误消息发送失败: ${err.message}`);
             }
           } else if (result.visibleToUser && result.text) {
             try {
               await this.sender.reply(msg.topic, result.text);
             } catch (err: any) {
+              replyDelivered = false;
               Logger.warning(`队列消息回复发送失败: ${err.message}`);
             }
           }
+          this.finishConversationTask(sessionKey, task, this.taskStatusForResult(result, replyDelivered));
           if (msg.source === 'subagent_feedback') {
             subAgentManager.markResultObservationHandledForParent(sessionKey, msg.userMessage as string);
           }
@@ -2542,7 +2653,12 @@ export class CatsCompanyBot {
         retryLater = true;
         Logger.warning(`[${sessionKey}] 队列消息执行异常，保留等待重试: ${err?.message || err}`);
       } else {
-        Logger.error(`[${sessionKey}] 队列消息连续执行失败，停止重试: ${err?.message || err}`);
+          this.finishConversationTask(sessionKey, task, {
+            state: 'failed',
+            summary: '任务执行失败',
+            error: '任务执行失败',
+          });
+          Logger.error(`[${sessionKey}] 队列消息连续执行失败，停止重试: ${err?.message || err}`);
         if (msg.source === 'subagent_feedback') {
           const pending = this.messageQueue.get(sessionKey) ?? [];
           pending.unshift({ ...msg, attempts, deliveryOnly: true });
