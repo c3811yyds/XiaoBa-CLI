@@ -55,6 +55,7 @@ export const BUSY_MESSAGE = '正在处理上一条消息，请稍候...';
 export const ERROR_MESSAGE = '不好意思，刚才处理出了点问题，你再试一次？';
 export const MODEL_TIMEOUT_MESSAGE = '模型中转请求超时了，我已经保留本轮已完成的工具结果和上下文。你可以直接说“继续”，我会从这里接上。';
 export const MODEL_TRANSIENT_ERROR_MESSAGE = '当前模型服务临时异常，刚才这次请求没有完成。我已经保留上下文；你可以稍后重试，或临时切换到其他模型继续。';
+export const EMPTY_MODEL_RESPONSE_MESSAGE = '模型本轮未返回有效内容，自动重试后仍未恢复。请重新发送上一条消息；若仍失败，请切换模型或稍后再试。';
 export const CONTEXT_COMPACTION_START_MESSAGE = '正在压缩上下文，整理较早的对话内容。';
 export const CONTEXT_COMPACTION_COMPLETE_MESSAGE = '上下文压缩完成，继续处理当前请求。';
 export const CONTEXT_COMPACTION_ERROR_MESSAGE = '上下文压缩失败，已保留原上下文继续处理。';
@@ -601,6 +602,7 @@ export class AgentSession {
         const isVisionError = !isImageSafetyError && errorMsg.match(/image|vision|multimodal|media_type|base64.*not supported/i);
         const isModelTimeoutError = this.isModelTimeoutError(err);
         const isTransientProviderError = this.isTransientProviderError(err);
+        const isEmptyModelResponseError = this.isEmptyModelResponseError(err);
         const relayBudgetErrorReply = this.formatRelayBudgetErrorReply(err);
 
         let errorReply = ERROR_MESSAGE;
@@ -612,6 +614,8 @@ export class AgentSession {
           errorReply = '当前模型不支持图片识别。请使用支持多模态的模型（如 Claude 3.5 Sonnet 或 GPT-4V），或者用文字描述图片内容。';
         } else if (isModelTimeoutError) {
           errorReply = MODEL_TIMEOUT_MESSAGE;
+        } else if (isEmptyModelResponseError) {
+          errorReply = EMPTY_MODEL_RESPONSE_MESSAGE;
         } else if (isTransientProviderError) {
           errorReply = this.formatTransientProviderErrorReply();
         }
@@ -623,6 +627,7 @@ export class AgentSession {
             isModelTimeoutError,
             isImageSafetyError,
             isTransientProviderError,
+            isEmptyModelResponseError,
           }),
           __internalErrorArtifact: true,
         });
@@ -950,6 +955,14 @@ export class AgentSession {
     return /unknown error,\s*520|overloaded_error|service unavailable|bad gateway|gateway timeout|upstream (?:error|timeout)|MaxRetriesExceededError|Connection error|ECONNRESET|ETIMEDOUT|EAI_AGAIN|fetch failed|socket hang up|network error|premature close/i.test(text);
   }
 
+  private isEmptyModelResponseError(error: any): boolean {
+    const code = String(error?.code || error?.cause?.code || '').toUpperCase();
+    if (code === 'EMPTY_MODEL_RESPONSE') {
+      return true;
+    }
+    return /模型未返回有效内容|模型返回了空响应/i.test(String(error?.message || error || ''));
+  }
+
   private formatRelayBudgetErrorReply(error: any): string | null {
     const text = String(error?.message || error || '');
     const status = this.extractErrorStatus(error);
@@ -1008,6 +1021,7 @@ export class AgentSession {
       isModelTimeoutError?: boolean;
       isImageSafetyError?: boolean;
       isTransientProviderError?: boolean;
+      isEmptyModelResponseError?: boolean;
     },
   ): string {
     const detail = this.sanitizeErrorMessage(error?.message || String(error));
@@ -1019,6 +1033,9 @@ export class AgentSession {
     }
     if (flags.isTransientProviderError) {
       return `[处理中断: 模型服务临时异常或上游网关错误。已保留本轮上下文；如果用户要求继续，请从当前状态继续，不要重复已经完成的工具步骤。错误摘要: ${detail}]`;
+    }
+    if (flags.isEmptyModelResponseError) {
+      return `[处理中断: 模型未返回正文或工具调用，自动重试后仍未恢复。已保留本轮上下文；如果用户重试，请正常处理上一条请求。错误摘要: ${detail}]`;
     }
     return `[处理失败: ${detail}]`;
   }

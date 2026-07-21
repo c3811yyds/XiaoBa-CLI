@@ -295,6 +295,29 @@ describe('AnthropicProvider runtime feedback boundary', () => {
     assert.equal((provider as any).maxTokens, 32768);
   });
 
+  test('tolerates empty or string content from Anthropic-compatible endpoints', () => {
+    const provider = new AnthropicProvider({
+      apiKey: 'test-key',
+      apiUrl: 'https://example.test/v1/messages',
+      model: 'custom-compatible-model',
+    });
+
+    const empty = (provider as any).parseResponse({
+      content: null,
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 8, output_tokens: 0 },
+    });
+    const text = (provider as any).parseResponse({
+      content: 'compatible response',
+      stop_reason: 'end_turn',
+    });
+
+    assert.equal(empty.content, null);
+    assert.equal(empty.stopReason, 'end_turn');
+    assert.equal(empty.usage.totalTokens, 8);
+    assert.equal(text.content, 'compatible response');
+  });
+
   test('preserves MiniMax M3 thinking blocks for tool-use replay', () => {
     const provider = new AnthropicProvider({
       apiKey: 'test-key',

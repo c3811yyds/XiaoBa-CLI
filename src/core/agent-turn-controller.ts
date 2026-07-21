@@ -40,6 +40,8 @@ import {
 } from './synthetic-observation';
 import { MemorySidecarBranchHandle, startMemorySidecarBranch } from './sidecar-memory-branch';
 
+const EMPTY_FINAL_RESPONSE_MESSAGE = '模型本轮未返回有效内容。请重新发送上一条消息；若仍失败，请切换模型或稍后再试。';
+
 export interface AgentTurnServices {
   aiService: AIService;
   memoryBranch?: {
@@ -238,7 +240,7 @@ export class AgentTurnController {
     }
 
     return {
-      text: finalResponseVisible ? (result.response || '[无回复]') : '',
+      text: finalResponseVisible ? (result.response || EMPTY_FINAL_RESPONSE_MESSAGE) : '',
       visibleToUser: finalResponseVisible,
       newMessages: result.newMessages,
       messages: nextMessages,

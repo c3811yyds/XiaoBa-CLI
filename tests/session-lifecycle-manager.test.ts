@@ -816,6 +816,28 @@ describe('AgentSession lifecycle', () => {
     assert.doesNotMatch(result.text, /unknown error|request_id|API错误|520/);
   });
 
+  test('handleMessage tells the user how to recover after empty model responses are exhausted', async () => {
+    const { AgentSession, EMPTY_MODEL_RESPONSE_MESSAGE } = loadSessionModules();
+    const session = new AgentSession('catscompany:lifecycle-empty-model-response', buildMockServices({
+      aiService: {
+        async chatStream() {
+          throw Object.assign(
+            new Error('请求失败: 模型未返回有效内容（没有正文或工具调用）'),
+            { code: 'EMPTY_MODEL_RESPONSE' },
+          );
+        },
+      },
+    }), 'catscompany');
+    session.setSystemPromptProvider(() => 'system prompt');
+
+    const result = await session.handleMessage('继续上一条');
+
+    assert.equal(result.text, EMPTY_MODEL_RESPONSE_MESSAGE);
+    assert.match(result.text, /重新发送上一条消息/);
+    assert.match(result.text, /切换模型或稍后再试/);
+    assert.doesNotMatch(result.text, /EMPTY_MODEL_RESPONSE|请求失败/);
+  });
+
   test('handleMessage treats wrapped 503 request errors as transient provider failures', async () => {
     const { AgentSession } = loadSessionModules();
     const session = new AgentSession('catscompany:lifecycle-transient-503', buildMockServices({
@@ -906,6 +928,7 @@ function loadSessionModules(): any {
     ERROR_MESSAGE: require('../src/core/agent-session').ERROR_MESSAGE,
     MODEL_TIMEOUT_MESSAGE: require('../src/core/agent-session').MODEL_TIMEOUT_MESSAGE,
     MODEL_TRANSIENT_ERROR_MESSAGE: require('../src/core/agent-session').MODEL_TRANSIENT_ERROR_MESSAGE,
+    EMPTY_MODEL_RESPONSE_MESSAGE: require('../src/core/agent-session').EMPTY_MODEL_RESPONSE_MESSAGE,
     CONTEXT_COMPACTION_START_MESSAGE: require('../src/core/agent-session').CONTEXT_COMPACTION_START_MESSAGE,
     CONTEXT_COMPACTION_COMPLETE_MESSAGE: require('../src/core/agent-session').CONTEXT_COMPACTION_COMPLETE_MESSAGE,
     SessionStore: require('../src/utils/session-store').SessionStore,

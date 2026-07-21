@@ -322,9 +322,15 @@ export class AnthropicProvider implements AIProvider {
   private parseResponse(response: Anthropic.Message): ChatResponse {
     const textParts: string[] = [];
     let toolCalls: ChatResponse['toolCalls'] = undefined;
-    const providerContent = this.preserveAssistantProviderContent(response.content as any[]);
+    const rawContent = (response as any)?.content;
+    const contentBlocks = Array.isArray(rawContent)
+      ? rawContent
+      : typeof rawContent === 'string'
+        ? [{ type: 'text', text: rawContent }]
+        : [];
+    const providerContent = this.preserveAssistantProviderContent(contentBlocks);
 
-    for (const block of response.content) {
+    for (const block of contentBlocks) {
       if (block.type === 'text') {
         textParts.push(block.text);
       } else if (block.type === 'tool_use') {
@@ -341,17 +347,18 @@ export class AnthropicProvider implements AIProvider {
     }
 
     // 提取 token 用量
-    const usage = response.usage ? {
-      promptTokens: response.usage.input_tokens ?? 0,
-      completionTokens: response.usage.output_tokens ?? 0,
-      totalTokens: (response.usage.input_tokens ?? 0) + (response.usage.output_tokens ?? 0),
+    const responseUsage = (response as any)?.usage;
+    const usage = responseUsage ? {
+      promptTokens: responseUsage.input_tokens ?? 0,
+      completionTokens: responseUsage.output_tokens ?? 0,
+      totalTokens: (responseUsage.input_tokens ?? 0) + (responseUsage.output_tokens ?? 0),
     } : undefined;
 
     return {
       content: textParts.length > 0 ? textParts.join('') : null,
       toolCalls,
       usage,
-      stopReason: response.stop_reason || undefined,
+      stopReason: (response as any)?.stop_reason || undefined,
       ...(providerContent.length > 0 ? { providerContent } : {}),
     };
   }

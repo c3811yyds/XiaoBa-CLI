@@ -24,6 +24,10 @@ const SHORT_NETWORK_RETRY_CODES = new Set(['ENOTFOUND', 'ECONNREFUSED']);
 const SHORT_NETWORK_MAX_RETRIES = 3;
 const SHORT_NETWORK_MAX_ELAPSED_MS = 30 * 1000;
 const SHORT_NETWORK_MAX_DELAY_MS = 5000;
+const EMPTY_RESPONSE_ERROR_CODE = 'EMPTY_MODEL_RESPONSE';
+const EMPTY_RESPONSE_MAX_RETRIES = 2;
+const EMPTY_RESPONSE_MAX_ELAPSED_MS = 2 * 60 * 1000;
+const EMPTY_RESPONSE_MAX_DELAY_MS = 2000;
 
 type ProviderKind = 'openai' | 'anthropic';
 
@@ -108,7 +112,11 @@ export class AIService {
     }
 
     try {
-      return await this.withRetry(() => this.provider.chat(messages, tools, options), undefined, options.signal);
+      return await this.withRetry(
+        async () => this.requireUsableResponse(await this.provider.chat(messages, tools, options)),
+        undefined,
+        options.signal,
+      );
     } catch (error: any) {
       throw this.wrapError(error);
     }
@@ -136,12 +144,16 @@ export class AIService {
     });
 
     try {
-      return await this.withRetry(
-        () => this.provider.chatStream(messages, tools, providerCallbacks, options),
+      const result = await this.withRetry(
+        async () => this.requireUsableResponse(
+          await this.provider.chatStream(messages, tools, providerCallbacks, options),
+        ),
         callbacks,
         options.signal,
         () => allowStreamRetry || !hasStreamedText,
       );
+      callbacks?.onComplete?.(result);
+      return result;
     } catch (error: any) {
       const wrapped = this.wrapError(error);
       callbacks?.onError?.(wrapped);
@@ -159,8 +171,26 @@ export class AIService {
         if (text) onTextObserved?.();
         callbacks.onText?.(text);
       },
-      onComplete: callbacks.onComplete,
     };
+  }
+
+  private requireUsableResponse(response: ChatResponse): ChatResponse {
+    const content = typeof response?.content === 'string' ? response.content.trim() : '';
+    if (content || (response?.toolCalls?.length ?? 0) > 0 || this.isTokenLimitResponse(response)) {
+      return response;
+    }
+
+    const error = new Error('模型未返回有效内容（没有正文或工具调用）');
+    error.name = 'EmptyModelResponseError';
+    (error as Error & { code?: string }).code = EMPTY_RESPONSE_ERROR_CODE;
+    throw error;
+  }
+
+  private isTokenLimitResponse(response: ChatResponse): boolean {
+    const stopReason = String(response?.stopReason || '').toLowerCase();
+    return stopReason === 'max_tokens'
+      || stopReason === 'max_output_tokens'
+      || stopReason === 'length';
   }
 
   /**
@@ -181,11 +211,14 @@ export class AIService {
     const status = this.extractStatus(error);
     const errorMessage = this.extractErrorMessage(error);
 
-    if (status) {
-      return new Error(`API错误 (${status}): ${errorMessage}`);
+    const wrapped = status
+      ? new Error(`API错误 (${status}): ${errorMessage}`)
+      : new Error(`请求失败: ${errorMessage}`);
+    const code = this.extractErrorCode(error);
+    if (code) {
+      (wrapped as Error & { code?: string }).code = code;
     }
-
-    return new Error(`请求失败: ${errorMessage}`);
+    return wrapped;
   }
 
   /**
@@ -198,6 +231,10 @@ export class AIService {
 
     if (this.isKnownNonRetryableProviderError(error)) {
       return false;
+    }
+
+    if (this.isEmptyModelResponseError(error)) {
+      return true;
     }
 
     // HTTP 状态码可重试
@@ -385,6 +422,15 @@ export class AIService {
       baseDelayMs: BASE_DELAY_MS,
     };
 
+    if (this.isEmptyModelResponseError(error)) {
+      return {
+        ...policy,
+        maxRetries: Math.min(policy.maxRetries, EMPTY_RESPONSE_MAX_RETRIES),
+        maxElapsedMs: Math.min(policy.maxElapsedMs, EMPTY_RESPONSE_MAX_ELAPSED_MS),
+        maxDelayMs: Math.min(policy.maxDelayMs, EMPTY_RESPONSE_MAX_DELAY_MS),
+      };
+    }
+
     if (!this.isShortNetworkRetryError(error)) {
       return policy;
     }
@@ -428,6 +474,10 @@ export class AIService {
 
   private extractErrorCode(error: any): string {
     return String(error?.code || error?.cause?.code || '').toUpperCase();
+  }
+
+  private isEmptyModelResponseError(error: any): boolean {
+    return this.extractErrorCode(error) === EMPTY_RESPONSE_ERROR_CODE;
   }
 
   private isShortNetworkRetryError(error: any): boolean {

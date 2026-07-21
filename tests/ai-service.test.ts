@@ -195,6 +195,108 @@ test('AIService still honors explicit full stream retry opt-in', async () => {
   assert.deepStrictEqual(chunks, ['partial', 'ok']);
 });
 
+test('AIService retries a successful response with no text or tool calls', async () => {
+  const service = createTestService();
+  let attempts = 0;
+  (service as any).sleepWithAbort = async () => undefined;
+  (service as any).provider = {
+    chat: async () => {
+      attempts += 1;
+      if (attempts < 3) {
+        return {
+          content: null,
+          stopReason: 'completed',
+          usage: { promptTokens: 100, completionTokens: 30, totalTokens: 130 },
+        };
+      }
+      return { content: 'recovered' };
+    },
+    chatStream: async () => ({ content: 'unused' }),
+  };
+
+  const result = await service.chat([]);
+
+  assert.deepStrictEqual(result, { content: 'recovered' });
+  assert.equal(attempts, 3);
+});
+
+test('AIService stops bounded empty-response retries with an explicit error', async () => {
+  const service = createTestService();
+  let attempts = 0;
+  (service as any).sleepWithAbort = async () => undefined;
+  (service as any).provider = {
+    chat: async () => {
+      attempts += 1;
+      return { content: '', stopReason: 'stop' };
+    },
+    chatStream: async () => ({ content: 'unused' }),
+  };
+
+  await assert.rejects(
+    () => service.chat([]),
+    /请求失败: 模型未返回有效内容（没有正文或工具调用）/,
+  );
+  assert.equal(attempts, 3);
+});
+
+test('AIService accepts tool calls and token-limit recovery responses without semantic retries', async () => {
+  const service = createTestService();
+  let attempts = 0;
+  (service as any).provider = {
+    chat: async () => {
+      attempts += 1;
+      return attempts === 1
+        ? {
+            content: null,
+            toolCalls: [{
+              id: 'call_1',
+              type: 'function' as const,
+              function: { name: 'read_file', arguments: '{}' },
+            }],
+          }
+        : { content: null, stopReason: 'max_tokens' };
+    },
+    chatStream: async () => ({ content: 'unused' }),
+  };
+
+  const toolResponse = await service.chat([]);
+  const tokenLimitResponse = await service.chat([]);
+
+  assert.equal(toolResponse.toolCalls?.[0]?.function.name, 'read_file');
+  assert.equal(tokenLimitResponse.stopReason, 'max_tokens');
+  assert.equal(attempts, 2);
+});
+
+test('AIService emits stream completion only after an empty response has recovered', async () => {
+  const service = createTestService();
+  let attempts = 0;
+  let completions = 0;
+  const retries: Array<[number, number, string | number | undefined]> = [];
+  (service as any).sleepWithAbort = async () => undefined;
+  (service as any).provider = {
+    chat: async () => ({ content: 'unused' }),
+    chatStream: async (_messages: unknown, _tools: unknown, callbacks?: StreamCallbacks) => {
+      attempts += 1;
+      const response: ChatResponse = attempts === 1
+        ? { content: null, stopReason: 'completed' }
+        : { content: 'recovered' };
+      if (response.content) callbacks?.onText?.(response.content);
+      callbacks?.onComplete?.(response);
+      return response;
+    },
+  };
+
+  const result = await service.chatStream([], undefined, {
+    onComplete: () => { completions += 1; },
+    onRetry: (attempt, maxRetries, info) => retries.push([attempt, maxRetries, info?.status]),
+  });
+
+  assert.equal(result.content, 'recovered');
+  assert.equal(attempts, 2);
+  assert.equal(completions, 1);
+  assert.deepStrictEqual(retries, [[1, 2, 'EMPTY_MODEL_RESPONSE']]);
+});
+
 test('AIService does not treat bare token counts as retryable status codes', async () => {
   const service = createTestService();
   let attempts = 0;
