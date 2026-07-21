@@ -336,6 +336,33 @@ describe('BotDefinition local simulation', () => {
     assert.equal(second?.config.apiKey, 'sk-legacy-relay-material');
   });
 
+  test('legacy migration preserves an inactive custom profile while a catalog model is selected', () => {
+    bindCurrentBot();
+    const env = {
+      CATSCO_MODEL_SOURCE: 'relay',
+      CATSCO_RELAY_LLM_PROVIDER: 'anthropic',
+      CATSCO_RELAY_LLM_API_BASE: 'https://relay.example.test/anthropic',
+      CATSCO_RELAY_LLM_MODEL: 'minimax-m3',
+      CATSCO_RELAY_LLM_API_KEY: 'sk-legacy-relay-material',
+      CATSCO_CUSTOM_LLM_PROVIDER: 'openai',
+      CATSCO_CUSTOM_LLM_API_BASE: 'https://custom.example.test/v1',
+      CATSCO_CUSTOM_LLM_MODEL: 'gpt-custom-saved',
+      CATSCO_CUSTOM_LLM_API_KEY: 'sk-legacy-custom-material',
+      CATSCO_CUSTOM_LLM_CONTEXT_WINDOW_TOKENS: '256000',
+      CATSCO_CUSTOM_LLM_OPENAI_API_MODE: 'responses',
+    } as NodeJS.ProcessEnv;
+
+    const service = createBotDefinitionSyncService({ runtimeRoot, simulatedCloudRoot, env });
+    const result = service.pullOrBootstrap('bot-alpha');
+    const savedCustomModel = service.readCustomModelProfile('bot-alpha');
+
+    assert.deepStrictEqual(result?.definition.model, { kind: 'catalog', modelId: 'minimax-m3' });
+    assert.equal(savedCustomModel?.model, 'gpt-custom-saved');
+    assert.equal(savedCustomModel?.apiKey, 'sk-legacy-custom-material');
+    assert.equal(savedCustomModel?.protocol, 'openai-responses');
+    assert.equal(env.CATSCO_CUSTOM_LLM_API_KEY, undefined);
+  });
+
   test('normalizes a relay-facing legacy model name to the catalog id during migration', () => {
     bindCurrentBot();
     new FileBotDefinitionRepository({ runtimeRoot, simulatedCloudRoot }).writeCanonical({

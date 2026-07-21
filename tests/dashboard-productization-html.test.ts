@@ -319,11 +319,38 @@ test('custom model save refreshes simplified state before Chat remains locked', 
   );
   assert.match(
     dashboardHtml,
-    /const requestPayload=\{\.\.\.payload,modelProfileSource:'custom',activateConnector:!auto\}/,
+    /const requestPayload=\{\.\.\.payload,modelProfileSource:'custom',activateConnector:true\}/,
   );
-  assert.match(dashboardHtml, /已自动保存，等待启用。/);
+  assert.match(dashboardHtml, /已自动保存为当前自定义配置。/);
   assert.match(dashboardHtml, /if\(auto\)await fetchDashboardSettings\(\)/);
+  assert.match(dashboardHtml, /if\(!activationError\)customModelAutoSaveLastSignature=signature/);
+  assert.match(dashboardHtml, /setModelSourceStatus\(appliedMessage,activationError\?'error':'success'\)/);
   assert.doesNotMatch(dashboardHtml, /restartConnector:!auto/);
+});
+
+test('custom model activation failures remain retryable and visible', () => {
+  const functionSource = dashboardHtml.match(
+    /function customModelActivationError\(result\)\{[\s\S]*?\n    \}/,
+  )?.[0];
+  assert.ok(functionSource);
+
+  const activationError = vm.runInNewContext(
+    `${functionSource}; customModelActivationError`,
+  ) as (result: Record<string, unknown>) => string;
+
+  assert.match(
+    activationError({ connectorStartBlocked: true }),
+    /connector 启动检查未通过/,
+  );
+  assert.match(
+    activationError({ restartError: 'restart failed' }),
+    /connector 激活失败：restart failed/,
+  );
+  assert.match(
+    activationError({ startError: 'start failed' }),
+    /connector 激活失败：start failed/,
+  );
+  assert.equal(activationError({ connectorRestarted: true }), '');
 });
 
 test('CatsCo Chat setup refreshes readiness before unlocking the composer', () => {

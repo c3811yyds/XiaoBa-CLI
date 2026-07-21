@@ -9377,6 +9377,17 @@
       });
     }
 
+    function customModelActivationError(result){
+      const response=result||{};
+      if(response.connectorStartBlocked){
+        return '模型配置已保存，但 connector 启动检查未通过。请查看 CatsCo 连接检查项后重试。';
+      }
+      const error=response.restartError||response.startError;
+      return error
+        ? '模型配置已保存，但 connector 激活失败：'+error+'。请检查后重试。'
+        : '';
+    }
+
     function enableCatsRelayModelFromButton(button, options={}){
       const context=button?.dataset?.relayModelContext || 'settings';
       if(!isCatsLoggedIn() && context==='chat'){
@@ -9634,7 +9645,7 @@
       }
       const signature=customModelPayloadSignature(payload);
       if(auto && signature===customModelAutoSaveLastSignature && secretUpdate.action==='keep'){
-        setModelSourceStatus('已自动保存，等待启用。','success');
+        setModelSourceStatus('已自动保存为当前自定义配置。','success');
         return;
       }
       if(customModelAutoSaveInFlight){
@@ -9650,28 +9661,25 @@
       try{
         customModelAutoSaveInFlight=true;
         setModelSourceStatus(auto?'自动保存中...':'保存中...','muted');
-        const requestPayload={...payload,modelProfileSource:'custom',activateConnector:!auto};
+        const requestPayload={...payload,modelProfileSource:'custom',activateConnector:true};
         const r=await fetch(API+'/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(requestPayload)});
         const d=await r.json();
         if(!r.ok||d.error)throw new Error(d.error||'保存失败');
-        customModelAutoSaveLastSignature=signature;
         updateReasoningEffortSnapshots(payload.settings['model.reasoningEffort']||'default','custom');
-        const activationError=d.connectorStartBlocked
-          ? '模型配置已保存，但 connector 启动检查未通过。请查看 CatsCo 连接检查项。'
-          : d.restartError||d.startError
-            ? '模型配置已保存，但 connector 激活失败：'+(d.restartError||d.startError)
-            : '';
-        const appliedMessage=auto
-          ? '已自动保存，等待启用。'
-          : activationError||(
+        const activationError=customModelActivationError(d);
+        if(!activationError)customModelAutoSaveLastSignature=signature;
+        const appliedMessage=activationError||(
+          auto
+          ? '已自动保存为当前自定义配置。'
+          : (
           d.connectorRestarted
             ? '已保存自定义模型，并已请求重启 CatsCo agent 使用新配置。'
             : d.connectorStarted
               ? '已保存自定义模型，并已启动 CatsCo agent 使用新配置。'
               : '已保存自定义模型。connector 状态未改变。'
-          );
+          ));
         if(auto)await fetchDashboardSettings();
-        setModelSourceStatus(appliedMessage,!auto&&activationError?'error':'success');
+        setModelSourceStatus(appliedMessage,activationError?'error':'success');
         const secretInput=document.getElementById('model-secret-setting');
         const clearInput=document.getElementById('model-secret-clear-setting');
         if(secretInput && secretUpdate.action==='replace'){
