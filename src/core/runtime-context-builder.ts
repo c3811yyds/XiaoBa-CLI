@@ -76,8 +76,8 @@ function buildRuntimeContextText(targetRoutes?: TargetRoutes, attachmentDirector
   const routes = targetRoutes?.routes || [];
   const lines = [TRANSIENT_RUNTIME_CONTEXT_PREFIX];
   if (attachmentDirectory) {
-    lines.push(`当前会话附件目录：${attachmentDirectory}`);
-    lines.push('需要历史附件时直接用 glob 查看该目录，并把具体文件路径传给现有文件工具或本机脚本。');
+    lines.push(`当前会话附件缓存目录（XiaoBa 本地运行体）：${attachmentDirectory}`);
+    lines.push('需要查找本会话历史附件时，用不带 target 的 glob 查看该目录；找到具体文件后再传给 read_file、grep 或本机脚本。');
     lines.push('');
   }
   if (routes.length > 0) {
