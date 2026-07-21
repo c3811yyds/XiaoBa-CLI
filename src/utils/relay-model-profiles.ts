@@ -1,4 +1,4 @@
-export type RelayModelFamily = 'minimax' | 'deepseek';
+export type RelayModelFamily = 'minimax' | 'deepseek' | 'gpt';
 export type RelayModelProvider = 'anthropic' | 'openai';
 
 export const RELAY_MODEL_BASE_URLS: Record<RelayModelProvider, string> = {
@@ -29,6 +29,7 @@ export interface RelayModelProfile {
   family: RelayModelFamily;
   quotaClass: string;
   preferredProvider: RelayModelProvider;
+  openaiApiMode?: 'chat_completions' | 'responses';
   contextWindowTokens: number;
   capabilities: RelayModelCapabilities;
 }
@@ -76,6 +77,21 @@ export const RELAY_MODEL_PROFILES: RelayModelProfile[] = [
       streaming: true,
     },
   },
+  ...(['terra', 'sol', 'luna'] as const).map(variant => ({
+    id: `gpt-5.6-${variant}`,
+    label: `GPT-5.6 ${variant[0].toUpperCase()}${variant.slice(1)}`,
+    model: `gpt-5.6-${variant}`,
+    family: 'gpt' as const,
+    quotaClass: 'gpt-5.6',
+    preferredProvider: 'openai' as const,
+    openaiApiMode: 'responses' as const,
+    contextWindowTokens: 1_000_000,
+    capabilities: {
+      toolCalling: true,
+      vision: false,
+      streaming: true,
+    },
+  })),
 ];
 
 /** The first-run CatsCo model when the user has not chosen one yet. */

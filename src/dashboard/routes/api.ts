@@ -876,6 +876,7 @@ async function commitCatsBotBindingAndStartConnector(
       runtimeRoot: runtimeDataRoot(),
       botId: input.botUid,
       selectedCatalogRuntime: input.selectedCatalogRuntime,
+      acknowledgeCloudSelection: false,
     });
     const botDefinitionSync = toBotDefinitionSyncPayload(preparedBot?.sync);
     const {
@@ -3256,6 +3257,18 @@ export function createApiRouter(
     const bodyStatus = await getCatsBotBodyStatus(state, state.botUid, localBodyId);
     const bodyBlocking = bodyStatus.state === 'conflict' || bodyStatus.state === 'auth_error';
     const chatReady = connected && runtime.bodyConfigured && !bodyBlocking;
+    const boundBotId = String(state.botUid || '').trim();
+    const cloudDefinition = boundBotId
+      ? createBotDefinitionSyncService({ runtimeRoot: runtimeDataRoot() }).readCloudModelOverride(boundBotId)
+      : undefined;
+    const cloudModelOverride = cloudDefinition ? {
+      kind: cloudDefinition.model.kind,
+      modelId: cloudDefinition.model.kind === 'catalog' ? cloudDefinition.model.modelId : 'custom',
+      model: cloudDefinition.model.kind === 'catalog'
+        ? cloudDefinition.model.modelId
+        : cloudDefinition.model.model,
+      reasoningEffort: cloudDefinition.model.reasoningEffort || '',
+    } : null;
 
     res.json({
       connected,
@@ -3276,6 +3289,7 @@ export function createApiRouter(
       } : null,
       device: runtime.localConfig.device || null,
       bodyStatus,
+      cloudModelOverride,
       conflicts: runtime.conflicts,
       topicId: chatReady && user?.uid && state.botUid ? p2pTopicId(user.uid, state.botUid) : '',
       httpBaseUrl: state.httpBaseUrl,
@@ -3402,6 +3416,7 @@ export function createApiRouter(
       const preparedBot = await prepareBoundBotDefinition({
         runtimeRoot: runtimeDataRoot(),
         botId,
+        acknowledgeCloudSelection: false,
       });
       const result = await startCatsCompanyConnectorIfReady(serviceManager);
       if (!result.service) {

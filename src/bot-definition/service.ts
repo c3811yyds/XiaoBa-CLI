@@ -23,9 +23,12 @@ import {
 } from './types';
 import {
   FileBotCatalogModelRuntimeRepository,
+  FileBotCloudCatalogModelRuntimeRepository,
+  FileBotCloudModelOverrideRepository,
   FileBotCustomModelProfileRepository,
   FileBotDefinitionRepository,
   type BotCatalogModelRuntimeRepository,
+  type BotCloudModelOverrideRepository,
   type BotCustomModelProfileRepository,
   type BotDefinitionRepository,
   type FileBotDefinitionRepositoryOptions,
@@ -314,7 +317,11 @@ function normalizeCatalogRuntime(runtime: BotCatalogModelRuntime): BotCatalogMod
 export function botModelDefinitionFromLocalProfile(profile: LocalModelProfile): BotModelDefinition {
   if (profile.source === 'catalog') {
     if (!profile.modelId) throw new Error('catalog modelId is required');
-    return { kind: 'catalog', modelId: canonicalRelayModelId(profile.modelId) ?? profile.modelId };
+    return {
+      kind: 'catalog',
+      modelId: canonicalRelayModelId(profile.modelId) ?? profile.modelId,
+      ...(profile.reasoningEffort ? { reasoningEffort: profile.reasoningEffort } : {}),
+    };
   }
   if (!profile.provider || !profile.apiBase || !profile.model || !profile.apiKey || !profile.contextWindowTokens) {
     throw new Error('custom model profile is incomplete');
@@ -339,6 +346,8 @@ export function botModelDefinitionFromLocalProfile(profile: LocalModelProfile): 
 export interface BotDefinitionSyncServiceOptions extends FileBotDefinitionRepositoryOptions {
   repository?: BotDefinitionRepository;
   catalogRuntimeRepository?: BotCatalogModelRuntimeRepository;
+  cloudOverrideRepository?: BotCloudModelOverrideRepository;
+  cloudCatalogRuntimeRepository?: BotCatalogModelRuntimeRepository;
   customModelProfileRepository?: BotCustomModelProfileRepository;
   env?: NodeJS.ProcessEnv;
 }
@@ -352,6 +361,8 @@ export class BotDefinitionSyncService {
   private readonly env: NodeJS.ProcessEnv;
   private readonly repository: BotDefinitionRepository;
   private readonly catalogRuntimeRepository: BotCatalogModelRuntimeRepository;
+  private readonly cloudOverrideRepository: BotCloudModelOverrideRepository;
+  private readonly cloudCatalogRuntimeRepository: BotCatalogModelRuntimeRepository;
   private readonly customModelProfileRepository: BotCustomModelProfileRepository;
 
   constructor(options: BotDefinitionSyncServiceOptions = {}) {
@@ -360,6 +371,10 @@ export class BotDefinitionSyncService {
     this.repository = options.repository ?? new FileBotDefinitionRepository(options);
     this.catalogRuntimeRepository = options.catalogRuntimeRepository
       ?? new FileBotCatalogModelRuntimeRepository({ runtimeRoot: this.runtimeRoot });
+    this.cloudOverrideRepository = options.cloudOverrideRepository
+      ?? new FileBotCloudModelOverrideRepository({ runtimeRoot: this.runtimeRoot });
+    this.cloudCatalogRuntimeRepository = options.cloudCatalogRuntimeRepository
+      ?? new FileBotCloudCatalogModelRuntimeRepository({ runtimeRoot: this.runtimeRoot });
     this.customModelProfileRepository = options.customModelProfileRepository
       ?? new FileBotCustomModelProfileRepository({ runtimeRoot: this.runtimeRoot });
   }
@@ -405,6 +420,32 @@ export class BotDefinitionSyncService {
     };
   }
 
+  acceptCloud(botId: string, model: BotModelDefinition): BotDefinitionSyncResult {
+    const definition: BotDefinition = {
+      schema: BOT_DEFINITION_SCHEMA,
+      botId,
+      model: normalizeBotModelDefinition(model),
+    };
+    this.cloudOverrideRepository.write(definition);
+    return {
+      botId,
+      direction: 'cloud_to_local',
+      definition,
+    };
+  }
+
+  readCloudModelOverride(botId: string): BotDefinition | undefined {
+    const raw = this.cloudOverrideRepository.read(botId);
+    if (!raw) return undefined;
+    const normalized = normalizeBotDefinition(raw);
+    if (normalized !== raw) this.cloudOverrideRepository.write(normalized);
+    return normalized;
+  }
+
+  clearCloudModelOverride(botId: string): void {
+    this.cloudOverrideRepository.delete(botId);
+  }
+
   storeCatalogRuntime(runtime: BotCatalogModelRuntime): void {
     this.catalogRuntimeRepository.write(normalizeCatalogRuntime(runtime));
   }
@@ -415,6 +456,20 @@ export class BotDefinitionSyncService {
     const normalized = normalizeCatalogRuntime(runtime);
     if (JSON.stringify(normalized) !== JSON.stringify(runtime)) {
       this.catalogRuntimeRepository.write(normalized);
+    }
+    return normalized;
+  }
+
+  storeCloudCatalogRuntime(runtime: BotCatalogModelRuntime): void {
+    this.cloudCatalogRuntimeRepository.write(normalizeCatalogRuntime(runtime));
+  }
+
+  readCloudCatalogRuntime(botId: string): BotCatalogModelRuntime | undefined {
+    const runtime = this.cloudCatalogRuntimeRepository.read(botId);
+    if (!runtime) return undefined;
+    const normalized = normalizeCatalogRuntime(runtime);
+    if (JSON.stringify(normalized) !== JSON.stringify(runtime)) {
+      this.cloudCatalogRuntimeRepository.write(normalized);
     }
     return normalized;
   }

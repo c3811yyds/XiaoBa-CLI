@@ -11,6 +11,7 @@ export const BOT_CUSTOM_MODEL_PROFILE_SCHEMA = 'xiaoba.bot-custom-model-profile.
 export interface CatalogBotModelDefinition {
   kind: 'catalog';
   modelId: string;
+  reasoningEffort?: ReasoningEffort;
 }
 
 /**
@@ -99,6 +100,6 @@ export interface BotCustomModelProfile {
 
 export interface BotDefinitionSyncResult {
   botId: string;
-  direction: 'local_to_simulated_cloud' | 'simulated_cloud_to_local' | 'bootstrap_to_simulated_cloud';
+  direction: 'local_to_simulated_cloud' | 'simulated_cloud_to_local' | 'bootstrap_to_simulated_cloud' | 'cloud_to_local';
   definition: BotDefinition;
 }

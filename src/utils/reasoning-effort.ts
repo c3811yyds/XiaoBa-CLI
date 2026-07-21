@@ -7,11 +7,24 @@ export const REASONING_EFFORT_OPTIONS: ReasoningEffort[] = [
   'disabled',
 ];
 
-type ReasoningModelFamily = 'deepseek' | 'glm';
+export const OPENAI_REASONING_EFFORT_OPTIONS: ReasoningEffort[] = [
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+];
+
+const NORMALIZABLE_REASONING_EFFORTS = [
+  ...new Set([...REASONING_EFFORT_OPTIONS, ...OPENAI_REASONING_EFFORT_OPTIONS]),
+];
+
+type ReasoningModelFamily = 'deepseek' | 'glm' | 'gpt56';
 
 export function normalizeReasoningEffort(value: unknown): ReasoningEffort | undefined {
   const text = String(value || '').trim().toLowerCase();
-  return REASONING_EFFORT_OPTIONS.includes(text as ReasoningEffort)
+  return NORMALIZABLE_REASONING_EFFORTS.includes(text as ReasoningEffort)
     ? text as ReasoningEffort
     : undefined;
 }
@@ -26,6 +39,12 @@ export function applyOpenAIReasoningOptions(body: Record<string, unknown>, confi
 
   const family = inferReasoningModelFamily(config);
   if (!family) return;
+
+  if (family === 'gpt56') {
+    body.reasoning_effort = effort === 'max' ? 'xhigh' : effort === 'disabled' ? 'none' : effort;
+    delete body.thinking;
+    return;
+  }
 
   if (effort === 'disabled') {
     body.thinking = { type: 'disabled' };
@@ -45,6 +64,7 @@ export function applyAnthropicReasoningOptions(params: Record<string, unknown>, 
 
   const family = inferReasoningModelFamily(config);
   if (!family) return;
+  if (family === 'gpt56') return;
 
   if (effort === 'disabled') {
     params.thinking = { type: 'disabled' };
@@ -68,6 +88,7 @@ export function supportsOpenAIReasoningReplay(config: Pick<ChatConfig, 'model' |
 
 function inferReasoningModelFamily(config: Pick<ChatConfig, 'model' | 'apiUrl'>): ReasoningModelFamily | undefined {
   const text = `${config.model || ''} ${config.apiUrl || ''}`.toLowerCase();
+  if (/\bgpt-5\.6-(terra|sol|luna)\b/.test(text)) return 'gpt56';
   if (text.includes('deepseek')) return 'deepseek';
   if (/\bglm\b|glm-/.test(text)) return 'glm';
   return undefined;

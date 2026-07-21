@@ -1,0 +1,94 @@
+import assert from 'node:assert/strict';
+import { describe, test } from 'node:test';
+import { CloudBotModelRuntimeReloadController } from '../src/bot-definition/runtime-reload';
+import type { CloudBotModelSelection } from '../src/bot-definition/cloud-client';
+
+describe('CloudBotModelRuntimeReloadController', () => {
+  test('applies each new revision once', async () => {
+    let selection: CloudBotModelSelection | undefined = { modelId: 'minimax-m3', revision: 2 };
+    const applied: number[] = [];
+    const controller = new CloudBotModelRuntimeReloadController({
+      initialRevision: 1,
+      pullSelection: async () => selection,
+      isIdle: () => true,
+      applySelection: async value => {
+        applied.push(value.revision);
+        return 'applied';
+      },
+    });
+
+    await controller.pollOnce();
+    await controller.pollOnce();
+    selection = { modelId: 'gpt-5.6-terra', reasoningEffort: 'high', revision: 3 };
+    await controller.pollOnce();
+
+    assert.deepStrictEqual(applied, [2, 3]);
+  });
+
+  test('keeps the latest revision pending until the runtime is idle', async () => {
+    let idle = false;
+    let selection: CloudBotModelSelection | undefined = { modelId: 'minimax-m3', revision: 2 };
+    const applied: CloudBotModelSelection[] = [];
+    const controller = new CloudBotModelRuntimeReloadController({
+      pullSelection: async () => selection,
+      isIdle: () => idle,
+      applySelection: async value => {
+        applied.push(value);
+        return 'applied';
+      },
+    });
+
+    await controller.pollOnce();
+    selection = { modelId: 'gpt-5.6-sol', reasoningEffort: 'medium', revision: 3 };
+    await controller.pollOnce();
+    idle = true;
+    await controller.pollOnce();
+
+    assert.deepStrictEqual(applied, [selection]);
+  });
+
+  test('does not loop a failed revision and allows a newer retry revision', async () => {
+    let selection: CloudBotModelSelection = { modelId: 'gpt-5.6-luna', revision: 4 };
+    const attempts: number[] = [];
+    const errors: number[] = [];
+    const controller = new CloudBotModelRuntimeReloadController({
+      pullSelection: async () => selection,
+      isIdle: () => true,
+      applySelection: async value => {
+        attempts.push(value.revision);
+        throw new Error('reload failed');
+      },
+      onError: (_error, value) => errors.push(value?.revision ?? -1),
+    });
+
+    await controller.pollOnce();
+    await controller.pollOnce();
+    selection = { ...selection, revision: 5 };
+    await controller.pollOnce();
+
+    assert.deepStrictEqual(attempts, [4, 5]);
+    assert.deepStrictEqual(errors, [4, 5]);
+  });
+
+  test('drops a deferred cloud selection after cloud management is disabled', async () => {
+    let selection: CloudBotModelSelection | undefined = { modelId: 'minimax-m3', revision: 2 };
+    let idle = false;
+    let applyCount = 0;
+    const controller = new CloudBotModelRuntimeReloadController({
+      pullSelection: async () => selection,
+      isIdle: () => idle,
+      applySelection: async () => {
+        applyCount += 1;
+        return 'applied';
+      },
+    });
+
+    await controller.pollOnce();
+    selection = undefined;
+    await controller.pollOnce();
+    idle = true;
+    await controller.pollOnce();
+
+    assert.equal(applyCount, 0);
+  });
+});

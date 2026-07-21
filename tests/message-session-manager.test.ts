@@ -213,6 +213,31 @@ describe('MessageSessionManager', () => {
     }
   });
 
+  test('reports idle only when sessions and their subagents are inactive', async () => {
+    const { MessageSessionManager, SubAgentManager } = loadSessionManagerModules();
+    const manager = new MessageSessionManager(buildMockServices(), 'runtime-reload-idle-test');
+    const subAgentManager = SubAgentManager.getInstance();
+    const originalHasActiveForParent = subAgentManager.hasActiveForParent.bind(subAgentManager);
+
+    try {
+      assert.equal(manager.isIdle(), true);
+      const session = manager.getOrCreate('user:runtime-reload');
+      const originalIsBusy = session.isBusy.bind(session);
+      (session as any).isBusy = () => true;
+      assert.equal(manager.isIdle(), false);
+
+      (session as any).isBusy = originalIsBusy;
+      (subAgentManager as any).hasActiveForParent = (key: string) => key === session.key;
+      assert.equal(manager.isIdle(), false);
+
+      (subAgentManager as any).hasActiveForParent = () => false;
+      assert.equal(manager.isIdle(), true);
+    } finally {
+      (subAgentManager as any).hasActiveForParent = originalHasActiveForParent;
+      await manager.destroy();
+    }
+  });
+
   test('ttl cleanup saves expired sessions without hidden AI wakeup', async () => {
     const { MessageSessionManager, SessionStore } = loadSessionManagerModules();
     let aiCalls = 0;

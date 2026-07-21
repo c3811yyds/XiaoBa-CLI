@@ -2,7 +2,12 @@ import * as path from 'path';
 import { createCatsCoLocalConfigService } from '../catscompany/local-config';
 import type { ChatConfig } from '../types';
 import { PathResolver } from '../utils/path-resolver';
-import { FileBotCatalogModelRuntimeRepository, FileBotDefinitionRepository } from './repository';
+import {
+  FileBotCatalogModelRuntimeRepository,
+  FileBotCloudCatalogModelRuntimeRepository,
+  FileBotCloudModelOverrideRepository,
+  FileBotDefinitionRepository,
+} from './repository';
 import { catalogRuntimeMatchesModelId } from './service';
 import type { CustomBotModelDefinition } from './types';
 
@@ -76,7 +81,8 @@ export function resolveActiveBotLLMConfig(
   if (!botId) return undefined;
 
   const definitions = new FileBotDefinitionRepository({ runtimeRoot });
-  const definition = definitions.readCache(botId);
+  const cloudOverride = new FileBotCloudModelOverrideRepository({ runtimeRoot }).read(botId);
+  const definition = cloudOverride ?? definitions.readCache(botId);
   if (!definition) return undefined;
 
   if (definition.model.kind === 'custom') {
@@ -87,7 +93,9 @@ export function resolveActiveBotLLMConfig(
     };
   }
 
-  const catalogRuntime = new FileBotCatalogModelRuntimeRepository({ runtimeRoot });
+  const catalogRuntime = cloudOverride
+    ? new FileBotCloudCatalogModelRuntimeRepository({ runtimeRoot })
+    : new FileBotCatalogModelRuntimeRepository({ runtimeRoot });
   const runtime = catalogRuntime.read(botId);
   if (!runtime || !catalogRuntimeMatchesModelId(runtime, definition.model.modelId)) return undefined;
   return {

@@ -90,6 +90,30 @@ describe('OpenAIProvider runtime feedback boundary', () => {
     assert.equal(minimaxBody.reasoning_effort, undefined);
   });
 
+  test('maps GPT-5.6 reasoning effort to Chat Completions and Responses fields', () => {
+    const chatProvider = new OpenAIProvider({
+      apiKey: 'test-key',
+      apiUrl: 'https://relay.catsco.cc/v1',
+      model: 'gpt-5.6-terra',
+      reasoningEffort: 'minimal',
+      openaiApiMode: 'chat_completions',
+    });
+    const responsesProvider = new OpenAIProvider({
+      apiKey: 'test-key',
+      apiUrl: 'https://relay.catsco.cc/v1',
+      model: 'gpt-5.6-luna',
+      reasoningEffort: 'xhigh',
+      openaiApiMode: 'responses',
+    });
+
+    const chatBody = (chatProvider as any).buildRequestBody([{ role: 'user', content: 'hello' }]);
+    const responsesBody = (responsesProvider as any).buildResponsesRequestBody([{ role: 'user', content: 'hello' }]);
+
+    assert.equal(chatBody.reasoning_effort, 'minimal');
+    assert.equal(chatBody.thinking, undefined);
+    assert.deepStrictEqual(responsesBody.reasoning, { effort: 'xhigh' });
+  });
+
   test('sends explicit OpenAI-compatible reasoning disable', () => {
     const provider = new OpenAIProvider({
       apiKey: 'test-key',
