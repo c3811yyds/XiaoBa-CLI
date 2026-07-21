@@ -39,10 +39,14 @@ import {
   withSyntheticObservationTiming,
 } from './synthetic-observation';
 import { MemorySidecarBranchHandle, startMemorySidecarBranch } from './sidecar-memory-branch';
-import { isBranchAgentsEnabled } from './branch-agent-settings';
 
 export interface AgentTurnServices {
   aiService: AIService;
+  memoryBranch?: {
+    enabled: boolean;
+    modelSource: 'inherit' | 'catalog' | 'custom';
+    aiService: AIService;
+  };
   toolManager: ToolManager;
   skillManager: SkillManager;
 }
@@ -125,7 +129,7 @@ export class AgentTurnController {
     const turnNumber = ++this.turnSequence;
     const episodeId = this.createEpisodeId(turnNumber);
     const previousCarryoverMemoryBranch = this.memoryBranchCarryover;
-    const branchAgentsEnabled = isBranchAgentsEnabled();
+    const branchAgentsEnabled = this.isMemoryBranchEnabled();
     const carryoverMemoryBranch = branchAgentsEnabled ? previousCarryoverMemoryBranch : null;
     this.memoryBranchCarryover = null;
     if (!branchAgentsEnabled) {
@@ -320,13 +324,11 @@ export class AgentTurnController {
     messages: Message[];
     abortSignal?: AbortSignal;
   }): MemoryBranchSlot | null {
-    if (!isBranchAgentsEnabled()) {
+    if (!this.isMemoryBranchEnabled()) {
       return null;
     }
-    if (process.env.XIAOBA_MEMORY_SIDECAR_ENABLED === 'false') {
-      return null;
-    }
-    if (!(this.options.services.aiService instanceof AIService)) {
+    const memoryBranchAiService = this.options.services.memoryBranch?.aiService ?? this.options.services.aiService;
+    if (!(memoryBranchAiService instanceof AIService) || !memoryBranchAiService.isToolCallingSupported()) {
       return null;
     }
     const queue = new InMemorySyntheticObservationQueue();
@@ -416,10 +418,14 @@ export class AgentTurnController {
       input: options.input,
       recentMessages: options.messages,
       workingDirectory: this.options.getCurrentDirectory(),
-      aiService: this.options.services.aiService,
+      aiService: this.options.services.memoryBranch?.aiService ?? this.options.services.aiService,
       queue: options.queue,
       signal: options.abortSignal,
     });
+  }
+
+  private isMemoryBranchEnabled(): boolean {
+    return this.options.services.memoryBranch?.enabled ?? true;
   }
 
   private withMemoryBranchObservationMetadata(

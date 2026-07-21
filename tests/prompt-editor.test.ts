@@ -18,6 +18,7 @@ describe('prompt-editor', () => {
     try {
       process.env.XIAOBA_PROMPTS_DIR = base;
       process.env.XIAOBA_PROMPT_OVERRIDES_DIR = overrides;
+      process.env.XIAOBA_USER_DATA_DIR = base;
       delete process.env.XIAOBA_RUNTIME_ROOT;
       delete process.env.XIAOBA_DISABLE_PROMPT_OVERRIDES;
       fs.writeFileSync(path.join(base, 'system-prompt.md'), 'base prompt\n', 'utf-8');
@@ -55,6 +56,7 @@ describe('prompt-editor', () => {
     try {
       process.env.XIAOBA_PROMPTS_DIR = base;
       process.env.XIAOBA_PROMPT_OVERRIDES_DIR = overrides;
+      process.env.XIAOBA_USER_DATA_DIR = base;
       fs.writeFileSync(path.join(base, 'system-prompt.md'), 'base prompt\n', 'utf-8');
       fs.writeFileSync(path.join(base, 'runtime-context.md'), 'runtime prompt\n', 'utf-8');
 
@@ -79,6 +81,7 @@ describe('prompt-editor', () => {
     try {
       process.env.XIAOBA_PROMPTS_DIR = base;
       process.env.XIAOBA_PROMPT_OVERRIDES_DIR = base;
+      process.env.XIAOBA_USER_DATA_DIR = base;
       delete process.env.XIAOBA_RUNTIME_ROOT;
       delete process.env.XIAOBA_DISABLE_PROMPT_OVERRIDES;
       fs.writeFileSync(path.join(base, 'system-prompt.md'), 'base prompt\n', 'utf-8');
@@ -108,6 +111,7 @@ function capturePromptEnv(): Record<string, string | undefined> {
   return {
     XIAOBA_PROMPTS_DIR: process.env.XIAOBA_PROMPTS_DIR,
     XIAOBA_PROMPT_OVERRIDES_DIR: process.env.XIAOBA_PROMPT_OVERRIDES_DIR,
+    XIAOBA_USER_DATA_DIR: process.env.XIAOBA_USER_DATA_DIR,
     XIAOBA_RUNTIME_ROOT: process.env.XIAOBA_RUNTIME_ROOT,
     XIAOBA_DISABLE_PROMPT_OVERRIDES: process.env.XIAOBA_DISABLE_PROMPT_OVERRIDES,
   };
