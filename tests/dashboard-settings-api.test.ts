@@ -8,7 +8,7 @@ import express from 'express';
 import type { Server } from 'http';
 import { createApiRouter } from '../src/dashboard/routes/api';
 import { createCatsCoLocalConfigService } from '../src/catscompany/local-config';
-import { FileBotCatalogModelRuntimeRepository } from '../src/bot-definition/repository';
+import { FileBotCatalogModelRuntimeRepository, FileBotDefinitionRepository } from '../src/bot-definition/repository';
 import { createBotDefinitionSyncService } from '../src/bot-definition/service';
 
 describe('dashboard typed settings API', () => {
@@ -65,6 +65,7 @@ describe('dashboard typed settings API', () => {
     'CATSCOMPANY_BODY_ID',
     'CATSCOMPANY_INSTALLATION_ID',
     'XIAOBA_USER_DATA_DIR',
+    'XIAOBA_CONFIG_PATH',
   ];
   const originalEnv: Record<string, string | undefined> = {};
 
@@ -146,6 +147,44 @@ describe('dashboard typed settings API', () => {
     assert.equal(text.includes('abc'), false);
   });
 
+  test('GET /settings preserves a bound custom model served through the relay gateway', async () => {
+    createCatsCoLocalConfigService({ runtimeRoot: testRoot }).save({
+      version: 1,
+      currentBot: {
+        uid: 'custom-relay-gateway-bot',
+        apiKey: 'catsco-bot-api-key',
+        boundByUserUid: 'user-custom-relay-gateway',
+        bindingSource: 'test',
+      },
+      device: {
+        deviceId: 'device-custom-relay-gateway',
+        bodyId: 'body-custom-relay-gateway',
+        installationId: 'install-custom-relay-gateway',
+      },
+    });
+    createBotDefinitionSyncService({ runtimeRoot: testRoot }).publish('custom-relay-gateway-bot', {
+      kind: 'custom',
+      protocol: 'openai-responses',
+      apiBase: 'https://relay.catsco.cc/v1',
+      model: 'gpt-5.6-sol',
+      apiKey: 'sk-custom-relay-gateway',
+      contextWindowTokens: 256_000,
+      reasoningEffort: 'default',
+    });
+
+    const response = await fetch(`${baseUrl}/api/settings`);
+    const text = await response.text();
+    const data = JSON.parse(text) as any;
+
+    assert.equal(response.status, 200, text);
+    assert.equal(data.modelStartup.source, 'custom');
+    assert.equal(data.modelStartup.effective.model, 'gpt-5.6-sol');
+    assert.equal(data.modelStartup.custom.configured, true);
+    assert.equal(data.modelStartup.custom.model, 'gpt-5.6-sol');
+    assert.equal(data.modelStartup.relay.configured, false);
+    assert.equal(text.includes('sk-custom-relay-gateway'), false);
+  });
+
   test('PUT /cats/config/preferences persists close button behavior', async () => {
     const initialResponse = await fetch(`${baseUrl}/api/cats/config`);
     const initial = await initialResponse.json() as any;
@@ -212,6 +251,31 @@ describe('dashboard typed settings API', () => {
     assert.deepStrictEqual(openaiApiMode.options, ['chat_completions', 'responses']);
     assert.equal(data.modelStartup.effective.openaiApiMode, 'responses');
     assert.equal(data.modelStartup.custom.openaiApiMode, 'responses');
+  });
+
+  test('GET /settings reports the effective ConfigManager custom model when legacy env is empty', async () => {
+    const configPath = path.join(testRoot, 'runtime-config.json');
+    fs.writeFileSync(configPath, JSON.stringify({
+      provider: 'openai',
+      apiUrl: 'https://model.example.test/v1',
+      apiKey: 'sk-effective-custom-secret',
+      model: 'gpt-5.6-sol',
+      contextWindowTokens: 256_000,
+      openaiApiMode: 'responses',
+    }));
+    process.env.XIAOBA_CONFIG_PATH = configPath;
+
+    const response = await fetch(`${baseUrl}/api/settings`);
+    const text = await response.text();
+    const settings = JSON.parse(text) as any;
+
+    assert.equal(response.status, 200, text);
+    assert.equal(settings.modelStartup.source, 'custom');
+    assert.equal(settings.modelStartup.effective.configured, true);
+    assert.equal(settings.modelStartup.effective.model, 'gpt-5.6-sol');
+    assert.equal(settings.modelStartup.custom.configured, true);
+    assert.equal(settings.modelStartup.custom.model, 'gpt-5.6-sol');
+    assert.equal(text.includes('sk-effective-custom-secret'), false);
   });
 
   test('GET /settings carries legacy relay reasoning effort into startup snapshot', async () => {
@@ -329,8 +393,151 @@ describe('dashboard typed settings API', () => {
     assert.equal(data.botDefinitionSync.direction, 'local_to_simulated_cloud');
     assert.equal(data.botDefinitionSync.model.kind, 'custom');
     assert.equal(data.botDefinitionSync.model.model, 'gpt-portable');
+    assert.equal(data.connectorRestarted, false);
+    assert.equal(data.connectorStarted, false);
     assert.equal(text.includes('sk-portable-secret'), false);
     assert.equal(definition.model.apiKey, 'sk-portable-secret');
+  });
+
+  test('GET /settings keeps a bound custom Definition custom on the CatsCo relay host', async () => {
+    createCatsCoLocalConfigService({ runtimeRoot: testRoot }).save({
+      version: 1,
+      currentBot: {
+        uid: 'custom-relay-host-bot',
+        apiKey: 'catsco-bot-api-key',
+        boundByUserUid: 'user-definition-test',
+        bindingSource: 'test',
+      },
+      device: {
+        deviceId: 'device-definition-test',
+        bodyId: 'body-definition-test',
+        installationId: 'install-definition-test',
+      },
+    });
+    createBotDefinitionSyncService({ runtimeRoot: testRoot }).publish('custom-relay-host-bot', {
+      kind: 'custom',
+      protocol: 'openai-responses',
+      apiBase: 'https://relay.catsco.cc/v1',
+      model: 'gpt-5.6-sol',
+      apiKey: 'sk-custom-relay-host-secret',
+      contextWindowTokens: 256_000,
+    });
+
+    const response = await fetch(`${baseUrl}/api/settings`);
+    const text = await response.text();
+    const data = JSON.parse(text) as any;
+
+    assert.equal(response.status, 200, text);
+    assert.equal(data.modelStartup.source, 'custom');
+    assert.equal(data.modelStartup.custom.configured, true);
+    assert.equal(data.modelStartup.custom.model, 'gpt-5.6-sol');
+    assert.equal(data.modelStartup.relay.configured, false);
+    assert.equal(text.includes('sk-custom-relay-host-secret'), false);
+  });
+
+  test('bound bot keeps its custom profile while relay is active and background saves do not replace the active source', async () => {
+    createCatsCoLocalConfigService({ runtimeRoot: testRoot }).save({
+      version: 1,
+      currentBot: {
+        uid: 'profile-isolation-bot',
+        apiKey: 'catsco-bot-api-key',
+        boundByUserUid: 'profile-isolation-user',
+        bindingSource: 'test',
+      },
+      device: {
+        deviceId: 'device-profile-isolation',
+        bodyId: 'body-profile-isolation',
+        installationId: 'install-profile-isolation',
+      },
+    });
+    const definitions = createBotDefinitionSyncService({ runtimeRoot: testRoot });
+    definitions.publish('profile-isolation-bot', {
+      kind: 'custom',
+      protocol: 'openai-responses',
+      apiBase: 'https://custom.example.test/v1',
+      model: 'gpt-custom-original',
+      apiKey: 'sk-custom-original',
+      contextWindowTokens: 256_000,
+      reasoningEffort: 'max',
+    });
+    definitions.storeCatalogRuntime({
+      schema: 'xiaoba.bot-catalog-model-runtime.v1',
+      botId: 'profile-isolation-bot',
+      modelId: 'minimax-m3',
+      provider: 'anthropic',
+      apiBase: 'https://relay.catsco.cc/anthropic',
+      apiKey: 'sk-relay-only',
+      model: 'MiniMax-M3',
+      contextWindowTokens: 1_000_000,
+      reasoningEffort: 'high',
+    });
+    definitions.publish('profile-isolation-bot', { kind: 'catalog', modelId: 'minimax-m3' });
+
+    const relaySettingsResponse = await fetch(`${baseUrl}/api/settings`);
+    const relaySettingsText = await relaySettingsResponse.text();
+    const relaySettings = JSON.parse(relaySettingsText) as any;
+    const relayModelField = relaySettings.fields.find((field: any) => field.id === 'model.model');
+
+    assert.equal(relaySettingsResponse.status, 200, relaySettingsText);
+    assert.equal(relaySettings.modelStartup.source, 'relay');
+    assert.equal(relaySettings.modelStartup.effective.model, 'MiniMax-M3');
+    assert.equal(relaySettings.modelStartup.custom.configured, true);
+    assert.equal(relaySettings.modelStartup.custom.model, 'gpt-custom-original');
+    assert.equal(relayModelField.value, 'gpt-custom-original');
+    assert.equal(relaySettingsText.includes('sk-custom-original'), false);
+    assert.equal(relaySettingsText.includes('sk-relay-only'), false);
+
+    const autoSaveResponse = await fetch(`${baseUrl}/api/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        activateConnector: false,
+        modelProfileSource: 'custom',
+        settings: {
+          'model.provider': 'openai',
+          'model.openaiApiMode': 'responses',
+          'model.apiBase': 'https://custom.example.test/v1',
+          'model.model': 'gpt-custom-draft',
+          'model.contextWindowTokens': '512000',
+          'model.reasoningEffort': 'high',
+          'model.apiKey': { action: 'keep' },
+        },
+      }),
+    });
+    const autoSaveText = await autoSaveResponse.text();
+    const activeAfterAutoSave = new FileBotDefinitionRepository({ runtimeRoot: testRoot }).readCache('profile-isolation-bot');
+
+    assert.equal(autoSaveResponse.status, 200, autoSaveText);
+    assert.equal(activeAfterAutoSave?.model.kind, 'catalog');
+    if (activeAfterAutoSave?.model.kind === 'catalog') {
+      assert.equal(activeAfterAutoSave.model.modelId, 'minimax-m3');
+    }
+
+    const savedSettingsResponse = await fetch(`${baseUrl}/api/settings`);
+    const savedSettingsText = await savedSettingsResponse.text();
+    const savedSettings = JSON.parse(savedSettingsText) as any;
+    assert.equal(savedSettings.modelStartup.source, 'relay');
+    assert.equal(savedSettings.modelStartup.effective.model, 'MiniMax-M3');
+    assert.equal(savedSettings.modelStartup.custom.model, 'gpt-custom-draft');
+    assert.equal(savedSettings.modelStartup.custom.contextWindowTokens, 512_000);
+
+    const applyResponse = await fetch(`${baseUrl}/api/model-source/custom/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ activateConnector: false }),
+    });
+    const applyText = await applyResponse.text();
+    const activeAfterApply = new FileBotDefinitionRepository({ runtimeRoot: testRoot }).readCache('profile-isolation-bot');
+
+    assert.equal(applyResponse.status, 200, applyText);
+    assert.equal(activeAfterApply?.model.kind, 'custom');
+    if (activeAfterApply?.model.kind === 'custom') {
+      assert.equal(activeAfterApply.model.model, 'gpt-custom-draft');
+      assert.equal(activeAfterApply.model.apiKey, 'sk-custom-original');
+      assert.notEqual(activeAfterApply.model.apiKey, 'sk-relay-only');
+    }
+    assert.equal(applyText.includes('sk-custom-original'), false);
+    assert.equal(applyText.includes('sk-relay-only'), false);
   });
 
   test('PUT /settings uses the explicit runtime data root for bound bot state and Definition storage', async () => {

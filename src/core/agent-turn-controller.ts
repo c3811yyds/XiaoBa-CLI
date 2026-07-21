@@ -39,7 +39,6 @@ import {
   withSyntheticObservationTiming,
 } from './synthetic-observation';
 import { MemorySidecarBranchHandle, startMemorySidecarBranch } from './sidecar-memory-branch';
-import { isBranchAgentsEnabled } from './branch-agent-settings';
 
 export interface AgentTurnServices {
   aiService: AIService;
@@ -328,9 +327,6 @@ export class AgentTurnController {
     if (!this.isMemoryBranchEnabled()) {
       return null;
     }
-    if (process.env.XIAOBA_MEMORY_SIDECAR_ENABLED === 'false') {
-      return null;
-    }
     const memoryBranchAiService = this.options.services.memoryBranch?.aiService ?? this.options.services.aiService;
     if (!(memoryBranchAiService instanceof AIService) || !memoryBranchAiService.isToolCallingSupported()) {
       return null;
@@ -429,7 +425,7 @@ export class AgentTurnController {
   }
 
   private isMemoryBranchEnabled(): boolean {
-    return this.options.services.memoryBranch?.enabled ?? isBranchAgentsEnabled();
+    return this.options.services.memoryBranch?.enabled ?? true;
   }
 
   private withMemoryBranchObservationMetadata(

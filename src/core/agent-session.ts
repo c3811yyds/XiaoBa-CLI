@@ -137,6 +137,8 @@ export interface CommandResult {
 export interface HandleMessageResult {
   text: string;
   visibleToUser: boolean;
+  /** Explicit lifecycle result for adapters that expose per-turn task state. */
+  taskOutcome?: 'completed' | 'failed' | 'cancelled';
   /** code mode 过程数据（thinking / tool_use / tool_result） */
   newMessages?: import('../types').Message[];
 }
@@ -533,7 +535,7 @@ export class AgentSession {
         if (this.interruptRequested || this.activeAbortController.signal.aborted) {
           Logger.info(`[会话 ${this.key}] 当前请求已取消，忽略压缩在中断后的返回`);
           this.saveInterruptedContextIfCurrent(lifecycleGeneration);
-          return { text: '已停止当前请求。', visibleToUser: true };
+          return { text: '已停止当前请求。', visibleToUser: true, taskOutcome: 'cancelled' };
         }
         this.messages = compactedMessages;
 
@@ -544,7 +546,7 @@ export class AgentSession {
         if (this.interruptRequested || this.activeAbortController.signal.aborted) {
           Logger.info(`[会话 ${this.key}] 当前请求已取消，不再启动模型回合`);
           this.saveInterruptedContextIfCurrent(lifecycleGeneration);
-          return { text: '已停止当前请求。', visibleToUser: true };
+          return { text: '已停止当前请求。', visibleToUser: true, taskOutcome: 'cancelled' };
         }
         const result = await this.turnController.run({
           input: text,
@@ -571,17 +573,17 @@ export class AgentSession {
           Logger.info(`[会话 ${this.key}] 当前请求已取消，忽略模型在中断后的返回`);
           this.messages = this.turnContextBuilder.removeTransientMessages(this.messages);
           this.saveInterruptedContextIfCurrent(lifecycleGeneration);
-          return { text: '已停止当前请求。', visibleToUser: true };
+          return { text: '已停止当前请求。', visibleToUser: true, taskOutcome: 'cancelled' };
         }
         this.messages = result.messages;
         this.lifecycleManager.saveContext(this.messages);
-        return result;
+        return { ...result, taskOutcome: 'completed' };
       } catch (err: any) {
         if (this.isAbortError(err) || this.interruptRequested || this.activeAbortController.signal.aborted) {
           Logger.info(`[会话 ${this.key}] 当前请求已取消`);
           this.messages = this.turnContextBuilder.removeTransientMessages(this.messages);
           this.saveInterruptedContextIfCurrent(lifecycleGeneration);
-          return { text: '已停止当前请求。', visibleToUser: true };
+          return { text: '已停止当前请求。', visibleToUser: true, taskOutcome: 'cancelled' };
         }
 
         const recoveredMessages = this.getPartialMessagesFromError(err);
@@ -627,7 +629,7 @@ export class AgentSession {
         this.messages = stripAssistantArtifactsFromMessages(this.turnContextBuilder.removeTransientMessages(this.messages));
         this.lifecycleManager.saveContext(this.messages);
 
-        return { text: errorReply, visibleToUser: true };
+        return { text: errorReply, visibleToUser: true, taskOutcome: 'failed' };
       } finally {
         this.planRuntime.clear();
         this.busy = false;

@@ -58,6 +58,7 @@ function createProcessHarness() {
   const toolUses: Array<{ topic: string; toolUseId: string; name: string; input: any; metadata?: any }> = [];
   const toolResults: Array<{ topic: string; toolUseId: string; content: string; isError?: boolean; metadata?: any }> = [];
   const runtimePlans: Array<{ topic: string; snapshot: any }> = [];
+  const taskStatuses: Array<{ topic: string; status: any }> = [];
 
   const session = {
     isBusy: () => false,
@@ -102,6 +103,9 @@ function createProcessHarness() {
     sendRuntimePlan: async (topic: string, snapshot: any) => {
       runtimePlans.push({ topic, snapshot });
     },
+    sendTaskStatus: async (topic: string, status: any) => {
+      taskStatuses.push({ topic, status });
+    },
   };
   bot.pendingAttachments = new Map();
   bot.messageQueue = new Map();
@@ -119,7 +123,7 @@ function createProcessHarness() {
     ];
   };
 
-  return { bot, downloads, multimodalCalls, handledTurns, runtimeObservations, sentTexts, replies, sentTyping, sentThinking, toolUses, toolResults, runtimePlans, session };
+  return { bot, downloads, multimodalCalls, handledTurns, runtimeObservations, sentTexts, replies, sentTyping, sentThinking, toolUses, toolResults, runtimePlans, taskStatuses, session };
 }
 
 describe('CatsCo content blocks', () => {
@@ -330,6 +334,93 @@ describe('CatsCo content blocks', () => {
       { type: 'text', text: '[file] b.pdf -> (no authorized attachment reference)' },
     ]);
     assert.deepStrictEqual(handledTurns[0].options.runtimeFeedback, []);
+  });
+
+  test('publishes ordered running and completed states for a CatsCo user turn', async () => {
+    const { bot, session, taskStatuses } = createProcessHarness();
+    session.handleMessage = async () => ({ visibleToUser: true, text: '处理完成' });
+
+    await (bot as any).processParsedMessage({
+      topic: 'p2p_1_2',
+      chatType: 'p2p',
+      senderId: 'usr1',
+      seq: 10,
+      text: '请完成这个任务',
+      rawContent: '请完成这个任务',
+    }, 'cc_user:usr1');
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.deepStrictEqual(
+      taskStatuses.map(({ topic, status }) => ({ topic, state: status.state, summary: status.summary })),
+      [
+        { topic: 'p2p_1_2', state: 'running', summary: '正在处理请求' },
+        { topic: 'p2p_1_2', state: 'completed', summary: '任务已完成' },
+      ],
+    );
+    assert.strictEqual(taskStatuses[0].status.run_id, taskStatuses[1].status.run_id);
+  });
+
+  test('marks the task as failed when the final CatsCo reply cannot be delivered', async () => {
+    const { bot, session, taskStatuses } = createProcessHarness();
+    session.handleMessage = async () => ({ visibleToUser: true, text: '处理完成' });
+    bot.sender.reply = async () => { throw new Error('socket closed'); };
+
+    await (bot as any).processParsedMessage({
+      topic: 'p2p_1_2',
+      chatType: 'p2p',
+      senderId: 'usr1',
+      seq: 10,
+      text: '请完成这个任务',
+      rawContent: '请完成这个任务',
+    }, 'cc_user:usr1');
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.deepStrictEqual(
+      taskStatuses.map(({ status }) => status.state),
+      ['running', 'failed'],
+    );
+    assert.strictEqual(taskStatuses[1].status.summary, '回复发送失败');
+  });
+
+  test('preserves an explicit failed session outcome even when its fallback reply is delivered', async () => {
+    const { bot, session, taskStatuses } = createProcessHarness();
+    session.handleMessage = async () => ({
+      visibleToUser: true,
+      text: '不好意思，刚才处理出了点问题，你再试一次？',
+      taskOutcome: 'failed',
+    });
+
+    await (bot as any).processParsedMessage({
+      topic: 'p2p_1_2',
+      chatType: 'p2p',
+      senderId: 'usr1',
+      seq: 10,
+      text: '请完成这个任务',
+      rawContent: '请完成这个任务',
+    }, 'cc_user:usr1');
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.deepStrictEqual(taskStatuses.map(({ status }) => status.state), ['running', 'failed']);
+    assert.strictEqual(taskStatuses[1].status.summary, '任务执行失败');
+  });
+
+  test('marks an active task as cancelled when CatsCo sends a cancel control event', async () => {
+    const { bot, session, taskStatuses } = createProcessHarness();
+    let interrupted = false;
+    session.requestInterrupt = () => { interrupted = true; };
+    (bot as any).beginConversationTask('session:v2:catscompany:p2p:p2p_1_2:agent:usr43', 'p2p_1_2');
+
+    (bot as any).handleCancelMessage({
+      topic: 'p2p_1_2',
+      senderId: 'usr1',
+      text: '',
+      isGroup: false,
+      seq: 11,
+    });
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual(interrupted, true);
+    assert.deepStrictEqual(taskStatuses.map(({ status }) => status.state), ['running', 'cancelled']);
   });
 
   test('builds direct image blocks for MiniMax M3 relay model', async () => {

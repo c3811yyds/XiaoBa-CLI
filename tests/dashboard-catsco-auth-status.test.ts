@@ -9,6 +9,7 @@ import type { Server } from 'http';
 import { createApiRouter } from '../src/dashboard/routes/api';
 import { createCatsCoLocalConfigService } from '../src/catscompany/local-config';
 import { FileBotCatalogModelRuntimeRepository, FileBotDefinitionRepository } from '../src/bot-definition/repository';
+import { resolveActiveBotLLMConfig } from '../src/bot-definition/llm-config-resolver';
 import { BOT_CATALOG_MODEL_RUNTIME_SCHEMA, BOT_DEFINITION_SCHEMA } from '../src/bot-definition/types';
 
 describe('dashboard CatsCo account status', () => {
@@ -134,6 +135,231 @@ describe('dashboard CatsCo account status', () => {
     assert.equal(data.topicId, '');
   });
 
+  test('PUT /settings immediately restarts a running connector after a bound custom model update', async () => {
+    if (dashboardServer) {
+      await close(dashboardServer);
+      dashboardServer = undefined;
+    }
+
+    createCatsCoLocalConfigService({ runtimeRoot: testRoot }).save({
+      version: 1,
+      currentBot: {
+        uid: '117',
+        name: 'Friday',
+        apiKey: 'cats-agent-key',
+        boundByUserUid: '116',
+        bindingSource: 'test',
+      },
+      device: {
+        deviceId: 'device-model-switch',
+        bodyId: 'body-model-switch',
+        installationId: 'install-model-switch',
+      },
+    });
+
+    const service = {
+      name: 'catscompany',
+      label: 'CatsCo agent',
+      command: process.execPath,
+      args: [],
+      status: 'running',
+    };
+    let restartCalled = 0;
+    const app = express();
+    app.use(express.json());
+    app.use('/api', createApiRouter({
+      getAll: () => [service],
+      getService: (name: string) => (name === 'catscompany' ? service : undefined),
+      restart: (name: string) => {
+        assert.equal(name, 'catscompany');
+        restartCalled += 1;
+        return service;
+      },
+    } as any));
+    dashboardServer = await listen(app);
+    dashboardBaseUrl = serverBaseUrl(dashboardServer);
+
+    const response = await fetch(`${dashboardBaseUrl}/api/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        activateConnector: true,
+        settings: {
+          'model.provider': 'openai',
+          'model.openaiApiMode': 'responses',
+          'model.apiBase': 'https://relay.catsco.cc/v1',
+          'model.model': 'gpt-5.6-sol',
+          'model.contextWindowTokens': '256000',
+          'model.apiKey': { action: 'replace', value: 'sk-custom-model-secret' },
+        },
+      }),
+    });
+    const text = await response.text();
+    const data = JSON.parse(text) as any;
+    const definition = new FileBotDefinitionRepository({ runtimeRoot: testRoot }).readCache('117');
+
+    assert.equal(response.status, 200, text);
+    assert.equal(data.connectorRestarted, true);
+    assert.equal(data.connectorStarted, false);
+    assert.equal(data.connectorStartBlocked, false);
+    assert.equal(restartCalled, 1);
+    assert.equal(definition?.model.kind, 'custom');
+    assert.equal(definition?.model.model, 'gpt-5.6-sol');
+    assert.equal(text.includes('sk-custom-model-secret'), false);
+  });
+
+  test('PUT /settings does not restart a connector for background auto-save', async () => {
+    createCatsCoLocalConfigService({ runtimeRoot: testRoot }).save({
+      version: 1,
+      currentBot: {
+        uid: '118',
+        name: 'Saturday',
+        apiKey: 'cats-agent-key',
+        boundByUserUid: '116',
+        bindingSource: 'test',
+      },
+      device: {
+        deviceId: 'device-auto-save',
+        bodyId: 'body-auto-save',
+        installationId: 'install-auto-save',
+      },
+    });
+
+    const service = {
+      name: 'catscompany',
+      label: 'CatsCo agent',
+      command: process.execPath,
+      args: [],
+      status: 'running',
+    };
+    let restartCalled = 0;
+    const app = express();
+    app.use(express.json());
+    app.use('/api', createApiRouter({
+      getAll: () => [service],
+      getService: (name: string) => (name === 'catscompany' ? service : undefined),
+      restart: () => {
+        restartCalled += 1;
+        return service;
+      },
+    } as any));
+    const localServer = await listen(app);
+
+    try {
+      const response = await fetch(`${serverBaseUrl(localServer)}/api/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          activateConnector: false,
+          settings: {
+            'model.provider': 'openai',
+            'model.openaiApiMode': 'responses',
+            'model.apiBase': 'https://relay.catsco.cc/v1',
+            'model.model': 'gpt-5.6-sol-preview',
+            'model.contextWindowTokens': '256000',
+            'model.apiKey': { action: 'replace', value: 'sk-custom-model-secret' },
+          },
+        }),
+      });
+      const data = await response.json() as any;
+
+      assert.equal(response.status, 200);
+      assert.equal(data.connectorRestarted, false);
+      assert.equal(data.connectorStarted, false);
+      assert.equal(restartCalled, 0);
+    } finally {
+      await close(localServer);
+    }
+  });
+
+  test('POST /cats/connector/start requires an existing bot binding', async () => {
+    const response = await fetch(`${dashboardBaseUrl}/api/cats/connector/start`, {
+      method: 'POST',
+    });
+    const data = await response.json() as any;
+
+    assert.equal(response.status, 409);
+    assert.match(data.error, /No CatsCo bot is bound/);
+  });
+
+  test('POST /cats/connector/start starts the bound Definition without legacy model setup', async () => {
+    createCatsCoLocalConfigService({ runtimeRoot: testRoot }).save({
+      version: 1,
+      endpoints: {
+        httpBaseUrl: 'https://app.catsco.cc',
+        serverUrl: 'wss://app.catsco.cc/v0/channels',
+      },
+      account: {
+        token: 'user-token',
+        uid: '38',
+      },
+      currentBot: {
+        uid: '320',
+        name: 'Friday',
+        apiKey: 'cats_svc_test',
+        boundByUserUid: '38',
+        bindingSource: 'test',
+      },
+      device: {
+        deviceId: 'device-connector-start',
+        bodyId: 'body-connector-start',
+        installationId: 'install-connector-start',
+      },
+    });
+    new FileBotDefinitionRepository({ runtimeRoot: testRoot }).writeCanonical({
+      schema: BOT_DEFINITION_SCHEMA,
+      botId: '320',
+      model: {
+        kind: 'custom',
+        protocol: 'openai-responses',
+        apiBase: 'https://relay.catsco.cc/v1',
+        model: 'gpt-5.6-sol',
+        apiKey: 'sk-custom-secret',
+        contextWindowTokens: 256_000,
+      },
+    });
+
+    const service = {
+      name: 'catscompany',
+      label: 'CatsCompany',
+      status: 'stopped',
+      command: process.execPath,
+    };
+    let startCalled = 0;
+    const app = express();
+    app.use(express.json());
+    app.use('/api', createApiRouter({
+      getAll: () => [service],
+      getService: (name: string) => name === 'catscompany' ? service : undefined,
+      start: (name: string) => {
+        assert.equal(name, 'catscompany');
+        startCalled += 1;
+        service.status = 'running';
+        return service;
+      },
+    } as any));
+    const localServer = await listen(app);
+
+    try {
+      const response = await fetch(`${serverBaseUrl(localServer)}/api/cats/connector/start`, {
+        method: 'POST',
+      });
+      const text = await response.text();
+      const data = JSON.parse(text) as any;
+      const definition = new FileBotDefinitionRepository({ runtimeRoot: testRoot }).readCanonical('320');
+
+      assert.equal(response.status, 200, text);
+      assert.equal(data.ok, true);
+      assert.equal(data.connectorStarted, true);
+      assert.equal(startCalled, 1);
+      assert.equal(definition?.model.kind, 'custom');
+      assert.equal(definition?.model.kind === 'custom' ? definition.model.model : '', 'gpt-5.6-sol');
+      assert.equal(fs.existsSync(path.join(testRoot, '.env')), false);
+    } finally {
+      await close(localServer);
+    }
+  });
+
   test('GET /cats/status validates the shared CatsCompany account token', async () => {
     await startCatsServer((req, res) => {
       assert.equal(req.header('authorization'), 'Bearer valid-user-token');
@@ -219,6 +445,51 @@ describe('dashboard CatsCo account status', () => {
     assert.equal(data.botUid, '110');
     assert.equal(data.bodyStatus.state, 'online');
     assert.equal(data.topicId, 'p2p_42_110');
+  });
+
+  test('GET /cats/status does not report conflict for an inactive historical body', async () => {
+    await startCatsServer((req, res) => {
+      if (req.path === '/api/me') {
+        return res.json({ uid: 42, username: 'webuser', display_name: 'Web User' });
+      }
+      if (req.path === '/api/bots/body-status') {
+        return res.json({ body_id: 'body-from-old-installation', active: false });
+      }
+      return res.status(404).json({ error: 'not found' });
+    });
+    saveConfirmedLocalBinding('body-local');
+
+    const response = await fetch(`${dashboardBaseUrl}/api/cats/status`);
+    const data = await response.json() as any;
+
+    assert.equal(response.status, 200);
+    assert.equal(data.bodyStatus.state, 'offline');
+    assert.equal(data.bodyStatus.active, false);
+    assert.equal(data.bodyStatus.platformBodyId, 'body-from-old-installation');
+    assert.equal(data.bodyStatus.conflictReason, undefined);
+    assert.equal(data.chatReady, true);
+  });
+
+  test('GET /cats/status keeps a real active-body conflict blocking', async () => {
+    await startCatsServer((req, res) => {
+      if (req.path === '/api/me') {
+        return res.json({ uid: 42, username: 'webuser', display_name: 'Web User' });
+      }
+      if (req.path === '/api/bots/body-status') {
+        return res.json({ body_id: 'body-from-other-installation', active: true });
+      }
+      return res.status(404).json({ error: 'not found' });
+    });
+    saveConfirmedLocalBinding('body-local');
+
+    const response = await fetch(`${dashboardBaseUrl}/api/cats/status`);
+    const data = await response.json() as any;
+
+    assert.equal(response.status, 200);
+    assert.equal(data.bodyStatus.state, 'conflict');
+    assert.equal(data.bodyStatus.active, true);
+    assert.equal(data.bodyStatus.conflictReason, 'active_lease_owned_by_other_body');
+    assert.equal(data.chatReady, false);
   });
 
   test('POST /cats/auth/login writes both CatsCo and CatsCompany env aliases', async () => {
@@ -884,6 +1155,12 @@ describe('dashboard CatsCo account status', () => {
       'CATSCO_USER_NAME=fresh',
       'CATSCO_USER_DISPLAY_NAME=Fresh User',
     ]);
+    const definitionRepository = new FileBotDefinitionRepository({ runtimeRoot: testRoot });
+    definitionRepository.writeCanonical({
+      schema: BOT_DEFINITION_SCHEMA,
+      botId: '188',
+      model: { kind: 'catalog', modelId: 'minimax-m2.7' },
+    });
 
     const response = await fetch(`${dashboardBaseUrl}/api/cats/bind-bot`, {
       method: 'POST',
@@ -899,6 +1176,8 @@ describe('dashboard CatsCo account status', () => {
     const data = JSON.parse(text) as any;
     const env = dotenv.parse(fs.readFileSync(path.join(testRoot, '.env'), 'utf-8'));
     const runtime = new FileBotCatalogModelRuntimeRepository({ runtimeRoot: testRoot }).read('188');
+    const definition = definitionRepository.readCanonical('188');
+    const resolved = resolveActiveBotLLMConfig({ runtimeRoot: testRoot });
 
     assert.equal(response.status, 200, text);
     assert.equal(data.ok, true);
@@ -907,13 +1186,15 @@ describe('dashboard CatsCo account status', () => {
     assert.equal(data.relayModelSetup.reasoningEffort, 'high');
     assert.equal(data.relayModelSetup.createdKey, true);
     assert.equal(text.includes('sk-bf-existing-bot-secret'), false);
-    assert.equal(relayKeyCreated, 1);
     assert.equal(runtime?.modelId, 'minimax-m3');
     assert.equal(runtime?.provider, 'anthropic');
     assert.equal(runtime?.apiBase, 'https://relay.catsco.cc/anthropic');
     assert.equal(runtime?.model, 'MiniMax-M3');
     assert.equal(runtime?.apiKey, 'sk-bf-existing-bot-secret');
     assert.equal(runtime?.reasoningEffort, 'high');
+    assert.deepStrictEqual(definition?.model, { kind: 'catalog', modelId: 'minimax-m3' });
+    assert.equal(resolved?.config.model, 'MiniMax-M3');
+    assert.equal(relayKeyCreated, 1);
     assert.equal(env.CATSCO_BOT_UID, '188');
     assert.equal(env.CATSCO_API_KEY, 'cats-agent-key');
     assert.equal(startCalled, 1);
@@ -968,16 +1249,27 @@ describe('dashboard CatsCo account status', () => {
         return res.json({
           base_url: 'https://relay.catsco.cc',
           self_service_enabled: true,
-          models: [{
-            id: 'minimax-m2.7',
-            label: 'MiniMax M2.7',
-            model: 'MiniMax-M2.7',
-            provider: 'anthropic',
-            protocol: 'Anthropic-compatible',
-            base_url: 'https://relay.catsco.cc/anthropic',
-            enabled: true,
-            default: true,
-          }],
+          models: [
+            {
+              id: 'minimax-m2.7',
+              label: 'MiniMax M2.7',
+              model: 'MiniMax-M2.7',
+              provider: 'anthropic',
+              protocol: 'Anthropic-compatible',
+              base_url: 'https://relay.catsco.cc/anthropic',
+              enabled: true,
+              default: true,
+            },
+            {
+              id: 'minimax-m3',
+              label: 'MiniMax M3',
+              model: 'MiniMax-M3',
+              provider: 'anthropic',
+              protocol: 'Anthropic-compatible',
+              base_url: 'https://relay.catsco.cc/anthropic',
+              enabled: true,
+            },
+          ],
         });
       }
       if (req.path === '/api/relay/key' && req.method === 'GET') {
@@ -995,6 +1287,12 @@ describe('dashboard CatsCo account status', () => {
       'CATSCO_USER_UID=88',
       'CATSCO_USER_NAME=fresh',
     ]);
+    const definitionRepository = new FileBotDefinitionRepository({ runtimeRoot: testRoot });
+    definitionRepository.writeCanonical({
+      schema: BOT_DEFINITION_SCHEMA,
+      botId: '188',
+      model: { kind: 'catalog', modelId: 'minimax-m2.7' },
+    });
 
     const response = await fetch(`${dashboardBaseUrl}/api/cats/setup`, {
       method: 'POST',
@@ -1002,12 +1300,20 @@ describe('dashboard CatsCo account status', () => {
       body: JSON.stringify({
         httpBaseUrl: catsBaseUrl,
         serverUrl: 'wss://app.catsco.cc/v0/channels',
+        relayModelId: 'minimax-m3',
       }),
     });
     const text = await response.text();
     const data = JSON.parse(text) as any;
+    const runtime = new FileBotCatalogModelRuntimeRepository({ runtimeRoot: testRoot }).read('188');
+    const definition = definitionRepository.readCanonical('188');
+    const resolved = resolveActiveBotLLMConfig({ runtimeRoot: testRoot });
 
     assert.equal(response.status, 200, text);
+    assert.equal(data.relayModelSetup.modelId, 'minimax-m3');
+    assert.equal(runtime?.modelId, 'minimax-m3');
+    assert.deepStrictEqual(definition?.model, { kind: 'catalog', modelId: 'minimax-m3' });
+    assert.equal(resolved?.config.model, 'MiniMax-M3');
     assert.equal(data.connectorRestarted, true);
     assert.equal(data.connectorStarted, false);
     assert.equal(restartCalled, 1);
@@ -1127,6 +1433,35 @@ describe('dashboard CatsCo account status', () => {
     app.use(handler);
     catsServer = await listen(app);
     catsBaseUrl = serverBaseUrl(catsServer);
+  }
+
+  function saveConfirmedLocalBinding(bodyId: string): void {
+    createCatsCoLocalConfigService({ runtimeRoot: testRoot }).save({
+      version: 1,
+      endpoints: {
+        httpBaseUrl: catsBaseUrl,
+        serverUrl: 'wss://app.catsco.cc/v0/channels',
+      },
+      account: {
+        token: 'valid-user-token',
+        uid: '42',
+        username: 'webuser',
+        displayName: 'Web User',
+      },
+      currentBot: {
+        uid: '110',
+        name: 'CatsCo',
+        username: 'catsco_42',
+        apiKey: 'agent-api-key',
+        boundByUserUid: '42',
+        bindingSource: 'test',
+      },
+      device: {
+        deviceId: `device-for-${bodyId}`,
+        bodyId,
+        installationId: `installation-for-${bodyId}`,
+      },
+    });
   }
 
   function writeEnv(lines: string[]): void {

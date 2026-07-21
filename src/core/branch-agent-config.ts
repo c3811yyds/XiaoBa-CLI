@@ -2,7 +2,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { ChatConfig, OpenAIApiMode, ReasoningEffort } from '../types';
 import { PathResolver } from '../utils/path-resolver';
-import { isBranchAgentsEnabled } from './branch-agent-settings';
+import {
+  hasLegacyBranchAgentSwitch,
+  resolveLegacyBranchAgentsEnabled,
+} from './branch-agent-settings';
 
 export const BRANCH_AGENT_CONFIG_SCHEMA = 'xiaoba.branch-agents.v1';
 export const BRANCH_AGENT_CONFIG_FILE = 'branch-agents.json';
@@ -51,13 +54,27 @@ export function getBranchAgentConfigPath(runtimeRoot = PathResolver.getRuntimeDa
 
 export function loadBranchAgentConfig(options: BranchAgentConfigOptions = {}): BranchAgentConfig {
   const runtimeRoot = options.runtimeRoot ?? PathResolver.getRuntimeDataRoot();
-  const fallback = defaultBranchAgentConfig(options.env ?? process.env);
   const configPath = getBranchAgentConfigPath(runtimeRoot);
-  if (!fs.existsSync(configPath)) return fallback;
+  if (!fs.existsSync(configPath)) {
+    const env = options.env ?? process.env;
+    if (!hasLegacyBranchAgentSwitch(env)) return defaultBranchAgentConfig();
+    const migrated = defaultBranchAgentConfig(resolveLegacyBranchAgentsEnabled(env));
+    try {
+      return saveInitialBranchAgentConfig(migrated, runtimeRoot);
+    } catch (error: any) {
+      // Dashboard and Connector can race during the first startup. The process
+      // that loses the exclusive create must use the winner's persisted value.
+      if (error?.code === 'EEXIST' && fs.existsSync(configPath)) {
+        return loadInitialBranchAgentConfigAfterRace(configPath);
+      }
+      throw error;
+    }
+  }
+
+  const fallback = defaultBranchAgentConfig();
 
   try {
-    const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    return normalizeBranchAgentConfig(parsed, fallback);
+    return readBranchAgentConfigFile(configPath, fallback);
   } catch {
     return fallback;
   }
@@ -68,7 +85,7 @@ export function saveBranchAgentConfig(
   options: BranchAgentConfigOptions = {},
 ): BranchAgentConfig {
   const runtimeRoot = options.runtimeRoot ?? PathResolver.getRuntimeDataRoot();
-  const normalized = normalizeBranchAgentConfig(config, defaultBranchAgentConfig(options.env ?? process.env));
+  const normalized = normalizeBranchAgentConfig(config, defaultBranchAgentConfig());
   const persisted: BranchAgentConfig = {
     ...normalized,
     updatedAt: new Date().toISOString(),
@@ -99,16 +116,65 @@ export function resolveMemoryBranchModelOverride(config: BranchAgentConfig): Par
   };
 }
 
-function defaultBranchAgentConfig(env: NodeJS.ProcessEnv): BranchAgentConfig {
+function defaultBranchAgentConfig(enabled = true): BranchAgentConfig {
   return {
     schema: BRANCH_AGENT_CONFIG_SCHEMA,
     branches: {
       memorySearch: {
-        enabled: isBranchAgentsEnabled(env),
+        enabled,
         model: { kind: 'inherit' },
       },
     },
   };
+}
+
+function saveInitialBranchAgentConfig(config: BranchAgentConfig, runtimeRoot: string): BranchAgentConfig {
+  const persisted: BranchAgentConfig = {
+    ...config,
+    updatedAt: new Date().toISOString(),
+  };
+  fs.mkdirSync(runtimeRoot, { recursive: true });
+  const configPath = getBranchAgentConfigPath(runtimeRoot);
+  const tempPath = `${configPath}.${process.pid}.${Date.now()}.initial.tmp`;
+  fs.writeFileSync(tempPath, `${JSON.stringify(persisted, null, 2)}\n`, { encoding: 'utf-8', mode: 0o600 });
+  try {
+    // Linking a fully-written same-directory file publishes it atomically and
+    // fails with EEXIST when another process won the first-start migration.
+    try {
+      fs.linkSync(tempPath, configPath);
+    } catch (error: any) {
+      if (!new Set(['EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'EXDEV']).has(error?.code)) throw error;
+      // Some removable/network file systems cannot create hard links. The
+      // exclusive copy fallback is paired with a bounded reader retry below.
+      fs.copyFileSync(tempPath, configPath, fs.constants.COPYFILE_EXCL);
+    }
+  } finally {
+    try { fs.unlinkSync(tempPath); } catch { /* Best-effort cleanup after a failed publish. */ }
+  }
+  try { fs.chmodSync(configPath, 0o600); } catch { /* Windows does not expose POSIX modes. */ }
+  return persisted;
+}
+
+function loadInitialBranchAgentConfigAfterRace(configPath: string): BranchAgentConfig {
+  const fallback = defaultBranchAgentConfig();
+  const waiter = new Int32Array(new SharedArrayBuffer(4));
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    try {
+      return readBranchAgentConfigFile(configPath, fallback);
+    } catch (error) {
+      lastError = error;
+      Atomics.wait(waiter, 0, 0, 5);
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Timed out reading initial Branch config: ${configPath}`);
+}
+
+function readBranchAgentConfigFile(configPath: string, fallback: BranchAgentConfig): BranchAgentConfig {
+  const parsed = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+  return normalizeBranchAgentConfig(parsed, fallback);
 }
 
 function normalizeBranchAgentConfig(input: any, fallback: BranchAgentConfig): BranchAgentConfig {

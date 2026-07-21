@@ -15,6 +15,12 @@ test('Branch page follows the approved per-branch model layout', () => {
   assert.match(branchPageHtml, /id="branch-workbench"/);
   assert.match(dashboardHtml, /branch-model-grid/);
   assert.match(dashboardHtml, /renderBranchCustomCard\(custom,customActive\)/);
+  assert.match(dashboardHtml, /renderBranchInheritCard\(primary,source==='inherit'\)/);
+  assert.match(
+    dashboardHtml,
+    /\[renderBranchCustomCard\(custom,customActive\),renderBranchInheritCard\(primary,source==='inherit'\)\]\.concat/,
+    'custom stays first and inherit is presented before the CatsCo catalog',
+  );
   assert.match(dashboardHtml, /renderBranchCatalogCard/);
   assert.match(dashboardHtml, /data-model-id/);
   assert.match(dashboardHtml, /decodeURIComponent\(this\.dataset\.modelId\)/);
@@ -26,8 +32,12 @@ test('Branch page follows the approved per-branch model layout', () => {
   assert.doesNotMatch(dashboardHtml, /function toggleBranchCustomPanel\(\)\{branchCustomOpen=!branchCustomOpen;renderBranchPage\(\);\}/);
   assert.doesNotMatch(dashboardHtml, /function renderPromptBranchAgentControls/);
   assert.match(dashboardHtml, /测试 Tool Calling/);
+  assert.match(dashboardHtml, /Memory Branch 自定义模型必须支持 Tool Calling，否则无法执行记忆检索/);
+  assert.match(dashboardHtml, /function applyBranchInheritModel\(\)/);
+  assert.match(dashboardHtml, /\/api\/branch-agents\/memory\/model\/inherit/);
   assert.match(dashboardHtml, /\/api\/branch-agents\/memory\/model\/custom/);
   assert.match(dashboardHtml, /\/api\/branch-agents\/memory\/model\/catalog\/apply/);
+  assert.doesNotMatch(dashboardHtml, /清除已保存的访问凭证，并恢复跟随主模型/);
   assert.doesNotMatch(branchPageHtml, /Memory Branch/);
 });
 
@@ -162,6 +172,16 @@ test('CatsCo Chat page is driven by readiness state instead of loose controls', 
   assert.match(dashboardHtml, /let pendingStartupSource = ''/);
   assert.match(dashboardHtml, /let pendingRelayReasoningEffort = ''/);
   assert.match(dashboardHtml, /function relayModelIdForSetup\(\)/);
+  assert.match(
+    dashboardHtml,
+    /id:'minimax-m3'[^\n]*default:true/,
+    'Dashboard fallback catalog must select the product default MiniMax M3 before the authenticated catalog loads',
+  );
+  assert.doesNotMatch(
+    dashboardHtml,
+    /id:'minimax-m2\.7'[^\n]*default:true/,
+    'The legacy first catalog entry must not silently become the Dashboard default',
+  );
   assert.match(dashboardHtml, /function relayReasoningEffortForSetup\(\)/);
   assert.match(dashboardHtml, /登录后会自动接入/);
   assert.match(dashboardHtml, /function buildCatsChatStage\(\)/);
@@ -195,7 +215,10 @@ test('CatsCo Chat page is driven by readiness state instead of loose controls', 
   assert.match(dashboardHtml, /function maybeAutoStartCats\(stage\)/);
   assert.match(dashboardHtml, /function catsAutoStartReason\(stage\)/);
   assert.match(dashboardHtml, /function catsAutoStartReadinessSafe\(reason\)/);
+  assert.match(dashboardHtml, /if\(reason==='binding'\)\{/);
   assert.match(dashboardHtml, /setupCatsBot\(\{forceLegacySetup:true, automatic:true\}\)/);
+  assert.match(dashboardHtml, /startCurrentCatsConnector\(\{automatic:true\}\)/);
+  assert.match(dashboardHtml, /\/api\/cats\/connector\/start/);
   assert.match(dashboardHtml, /maybeAutoStartCats\(stage\)/);
   assert.match(dashboardHtml, /function focusCatsMessageInputSoon\(\)/);
   assert.match(dashboardHtml, /function invalidateRelayModelConfigRequests\(\)/);
@@ -294,7 +317,13 @@ test('custom model save refreshes simplified state before Chat remains locked', 
     dashboardHtml,
     /fetchDashboardSettings\(\),fetchStatus\(\),fetchRuntimeConfig\(\),fetchReadiness\(\),fetchCatsStatus\(\)/,
   );
-  assert.match(dashboardHtml, /已保存。新 session 或下一次启动 connector 后生效。/);
+  assert.match(
+    dashboardHtml,
+    /const requestPayload=\{\.\.\.payload,modelProfileSource:'custom',activateConnector:!auto\}/,
+  );
+  assert.match(dashboardHtml, /已自动保存，等待启用。/);
+  assert.match(dashboardHtml, /if\(auto\)await fetchDashboardSettings\(\)/);
+  assert.doesNotMatch(dashboardHtml, /restartConnector:!auto/);
 });
 
 test('CatsCo Chat setup refreshes readiness before unlocking the composer', () => {
@@ -316,6 +345,16 @@ test('CatsCo Chat setup refreshes readiness before unlocking the composer', () =
   assert.match(setupBlock, /setCatsSetupBusy\(false\)/);
   assert.match(setupBlock, /const stage=await refreshCatsChatAfterMutation\(\{focusInput:true\}\)/);
   assert.match(setupBlock, /await loadCatsMessages\(true, \{reset:true, forceBottom:true\}\)/);
+});
+
+test('bound CatsCo connector recovery does not re-enter legacy setup or rebind the bot', () => {
+  const handler = dashboardHtml.match(
+    /async function handleCatsSetupAction\(\) \{[\s\S]*?async function sendCatsCode/,
+  )?.[0] || '';
+  assert.match(handler, /return startCurrentCatsConnector\(\)/);
+  assert.match(handler, /fetch\(API\+'\/api\/cats\/connector\/start',\{method:'POST'\}\)/);
+  assert.doesNotMatch(handler, /return bindCatsBot\(catsState\.botUid/);
+  assert.doesNotMatch(handler, /fetch\(API\+'\/api\/cats\/setup'/);
 });
 
 test('CatsCo bot binding carries selected relay model setup', () => {

@@ -14,21 +14,26 @@ describe('Dashboard Branch agent API', () => {
   let baseUrl: string;
   let originalRuntimeRoot: string | undefined;
   let originalLegacySwitch: string | undefined;
+  let originalMemorySidecarSwitch: string | undefined;
   let originalMainModel: string | undefined;
   let restartCalls: string[];
+  let serviceStatus: 'running' | 'stopped';
 
   beforeEach(async () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-branch-api-'));
     originalRuntimeRoot = process.env.XIAOBA_USER_DATA_DIR;
     originalLegacySwitch = process.env.XIAOBA_BRANCH_AGENTS_ENABLED;
+    originalMemorySidecarSwitch = process.env.XIAOBA_MEMORY_SIDECAR_ENABLED;
     originalMainModel = process.env.GAUZ_LLM_MODEL;
     process.env.XIAOBA_USER_DATA_DIR = root;
     delete process.env.XIAOBA_BRANCH_AGENTS_ENABLED;
+    delete process.env.XIAOBA_MEMORY_SIDECAR_ENABLED;
     restartCalls = [];
+    serviceStatus = 'running';
     const serviceManager = {
       getAll: () => [],
       getService: (name: string) => name === 'catscompany'
-        ? { name, status: 'running', pid: 101 }
+        ? { name, status: serviceStatus, ...(serviceStatus === 'running' ? { pid: 101 } : {}) }
         : undefined,
       restart: (name: string) => { restartCalls.push(name); return { name, status: 'stopping' }; },
     };
@@ -49,6 +54,8 @@ describe('Dashboard Branch agent API', () => {
     else process.env.XIAOBA_USER_DATA_DIR = originalRuntimeRoot;
     if (originalLegacySwitch === undefined) delete process.env.XIAOBA_BRANCH_AGENTS_ENABLED;
     else process.env.XIAOBA_BRANCH_AGENTS_ENABLED = originalLegacySwitch;
+    if (originalMemorySidecarSwitch === undefined) delete process.env.XIAOBA_MEMORY_SIDECAR_ENABLED;
+    else process.env.XIAOBA_MEMORY_SIDECAR_ENABLED = originalMemorySidecarSwitch;
     if (originalMainModel === undefined) delete process.env.GAUZ_LLM_MODEL;
     else process.env.GAUZ_LLM_MODEL = originalMainModel;
     fs.rmSync(root, { recursive: true, force: true });
@@ -61,6 +68,7 @@ describe('Dashboard Branch agent API', () => {
     assert.equal(response.status, 200);
     assert.equal(data.enabled, true);
     assert.equal(data.modelSource, 'inherit');
+    assert.equal(typeof data.primary.model, 'string');
     assert.equal(data.custom.apiKeyPresent, false);
     assert.equal(text.includes('apiKey"'), false);
   });
@@ -92,7 +100,8 @@ describe('Dashboard Branch agent API', () => {
     assert.deepEqual(restartCalls, ['catscompany']);
   });
 
-  test('toggles only Memory Search and mirrors the legacy switch for downgrade compatibility', async () => {
+  test('toggles only the persisted Memory Search switch without rewriting legacy env state', async () => {
+    process.env.XIAOBA_BRANCH_AGENTS_ENABLED = 'legacy-marker';
     const response = await fetch(`${baseUrl}/api/branch-agents/memory/enabled`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -102,8 +111,89 @@ describe('Dashboard Branch agent API', () => {
     assert.equal(response.status, 200);
     assert.equal(data.enabled, false);
     assert.equal(loadBranchAgentConfig({ runtimeRoot: root }).branches.memorySearch.enabled, false);
+    assert.equal(process.env.XIAOBA_BRANCH_AGENTS_ENABLED, 'legacy-marker');
+    assert.deepEqual(restartCalls, ['catscompany']);
+  });
+
+  test('legacy Prompt endpoint updates the canonical config without rewriting env state', async () => {
+    process.env.XIAOBA_BRANCH_AGENTS_ENABLED = 'false';
+    const response = await fetch(`${baseUrl}/api/prompts/branch-agents`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true }),
+    });
+    const data = await response.json() as any;
+    assert.equal(response.status, 200);
+    assert.equal(data.enabled, true);
+    assert.equal(loadBranchAgentConfig({ runtimeRoot: root }).branches.memorySearch.enabled, true);
     assert.equal(process.env.XIAOBA_BRANCH_AGENTS_ENABLED, 'false');
     assert.deepEqual(restartCalls, ['catscompany']);
+  });
+
+  test('switches custom -> inherit -> custom without losing the saved custom model or secret', async () => {
+    const customPayload = {
+      provider: 'openai',
+      apiBase: 'https://branch.example.test/v1',
+      model: 'branch-model',
+      contextWindowTokens: 256000,
+      reasoningEffort: 'high',
+      openaiApiMode: 'responses',
+      apiKey: { action: 'replace', value: 'branch-secret' },
+    };
+    const customResponse = await fetch(`${baseUrl}/api/branch-agents/memory/model/custom`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(customPayload),
+    });
+    assert.equal(customResponse.status, 200);
+
+    const inheritResponse = await fetch(`${baseUrl}/api/branch-agents/memory/model/inherit`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    });
+    const inheritText = await inheritResponse.text();
+    const inheritData = JSON.parse(inheritText) as any;
+    const inherited = loadBranchAgentConfig({ runtimeRoot: root }).branches.memorySearch;
+    assert.equal(inheritResponse.status, 200);
+    assert.equal(inheritData.modelSource, 'inherit');
+    assert.equal(inheritData.custom.apiKeyPresent, true);
+    assert.equal(inheritText.includes('branch-secret'), false);
+    assert.deepEqual(inherited.model, { kind: 'inherit' });
+    assert.equal(inherited.customDraft?.apiKey, 'branch-secret');
+    assert.equal(inherited.customDraft?.reasoningEffort, 'high');
+    assert.equal(inherited.customDraft?.openaiApiMode, 'responses');
+
+    const restoreResponse = await fetch(`${baseUrl}/api/branch-agents/memory/model/custom`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...customPayload, apiKey: { action: 'keep' } }),
+    });
+    const restoreText = await restoreResponse.text();
+    const restored = loadBranchAgentConfig({ runtimeRoot: root }).branches.memorySearch;
+    assert.equal(restoreResponse.status, 200);
+    assert.equal(restoreText.includes('branch-secret'), false);
+    assert.equal(restored.model.kind, 'custom');
+    assert.equal(restored.model.kind === 'custom' ? restored.model.apiKey : '', 'branch-secret');
+    assert.equal(restored.customDraft?.apiKey, 'branch-secret');
+    assert.deepEqual(restartCalls, ['catscompany', 'catscompany', 'catscompany']);
+  });
+
+  test('switching a legacy active custom model to inherit archives it and does not start a stopped Connector', async () => {
+    const config = loadBranchAgentConfig({ runtimeRoot: root });
+    config.branches.memorySearch.model = {
+      kind: 'custom', provider: 'openai', apiBase: 'https://branch.example.test/v1',
+      apiKey: 'branch-secret', model: 'branch-model', contextWindowTokens: 256000,
+      capabilities: { toolCalling: true },
+    };
+    delete config.branches.memorySearch.customDraft;
+    saveBranchAgentConfig(config, { runtimeRoot: root });
+    serviceStatus = 'stopped';
+
+    const response = await fetch(`${baseUrl}/api/branch-agents/memory/model/inherit`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    });
+    const stored = loadBranchAgentConfig({ runtimeRoot: root }).branches.memorySearch;
+    assert.equal(response.status, 200);
+    assert.deepEqual(stored.model, { kind: 'inherit' });
+    assert.equal(stored.customDraft?.apiKey, 'branch-secret');
+    assert.deepEqual(restartCalls, []);
   });
 
   test('rejects unsafe custom model URLs before changing device config', async () => {
@@ -147,7 +237,7 @@ describe('Dashboard Branch agent API', () => {
     assert.deepEqual(restartCalls, []);
   });
 
-  test('clearing the custom credential restores inheritance even while a catalog model is active', async () => {
+  test('clearing a saved custom credential does not change an active catalog model', async () => {
     const config = loadBranchAgentConfig({ runtimeRoot: root });
     config.branches.memorySearch.model = {
       kind: 'catalog', modelId: 'minimax-m3', provider: 'anthropic',
@@ -162,9 +252,59 @@ describe('Dashboard Branch agent API', () => {
     });
     const data = await response.json() as any;
     assert.equal(response.status, 200);
-    assert.equal(data.modelSource, 'inherit');
-    assert.equal(loadBranchAgentConfig({ runtimeRoot: root }).branches.memorySearch.model.kind, 'inherit');
-    assert.deepEqual(restartCalls, ['catscompany']);
+    assert.equal(data.modelSource, 'catalog');
+    assert.equal(loadBranchAgentConfig({ runtimeRoot: root }).branches.memorySearch.model.kind, 'catalog');
+    assert.equal(data.restartRequested, false);
+    assert.deepEqual(restartCalls, []);
+  });
+
+  test('Tool Calling probe sends a 1024-token output budget', async () => {
+    let requestBody: any;
+    const modelApp = express();
+    modelApp.use(express.json());
+    modelApp.post('/v1/chat/completions', (req, res) => {
+      requestBody = req.body;
+      res.json({
+        choices: [{
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: null,
+            tool_calls: [{
+              id: 'call_probe',
+              type: 'function',
+              function: { name: 'branch_model_probe', arguments: '{"status":"ok"}' },
+            }],
+          },
+          finish_reason: 'tool_calls',
+        }],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      });
+    });
+    const modelServer = await new Promise<Server>(resolve => {
+      const next = modelApp.listen(0, '127.0.0.1', () => resolve(next));
+    });
+    const address = modelServer.address();
+    if (!address || typeof address === 'string') throw new Error('model server did not bind');
+    try {
+      const response = await fetch(`${baseUrl}/api/branch-agents/memory/model/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: 'openai',
+          apiBase: `http://127.0.0.1:${address.port}/v1`,
+          model: 'tool-model',
+          contextWindowTokens: 256000,
+          apiKey: { action: 'replace', value: 'test-key' },
+        }),
+      });
+      const data = await response.json() as any;
+      assert.equal(response.status, 200, JSON.stringify(data));
+      assert.equal(data.toolCalling, true);
+      assert.equal(requestBody?.max_tokens, 1024);
+    } finally {
+      await new Promise<void>(resolve => modelServer.close(() => resolve()));
+    }
   });
 
   test('reuses a matching Branch relay key when the remote service cannot reveal it', async () => {

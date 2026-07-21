@@ -5,7 +5,11 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { createCatsCoLocalConfigService } from '../src/catscompany/local-config';
 import { ConfigManager } from '../src/utils/config';
-import { FileBotCatalogModelRuntimeRepository, FileBotDefinitionRepository } from '../src/bot-definition/repository';
+import {
+  FileBotCatalogModelRuntimeRepository,
+  FileBotCustomModelProfileRepository,
+  FileBotDefinitionRepository,
+} from '../src/bot-definition/repository';
 import { resolveActiveBotLLMConfig } from '../src/bot-definition/llm-config-resolver';
 import {
   botModelDefinitionFromLocalProfile,
@@ -14,12 +18,14 @@ import {
 } from '../src/bot-definition/service';
 import {
   BOT_CATALOG_MODEL_RUNTIME_SCHEMA,
+  BOT_CUSTOM_MODEL_PROFILE_SCHEMA,
   BOT_DEFINITION_SCHEMA,
   type BotDefinition,
 } from '../src/bot-definition/types';
 
 const managedEnvKeys = [
   'XIAOBA_USER_DATA_DIR',
+  'XIAOBA_BUNDLED_EXECUTABLES_DIR',
   'XIAOBA_BOT_DEFINITION_SIMULATED_CLOUD_DIR',
   'CATSCO_MODEL_SOURCE',
   'CATSCO_CUSTOM_LLM_PROVIDER',
@@ -137,6 +143,46 @@ describe('BotDefinition local simulation', () => {
     assert.deepStrictEqual(repository.readCache('bot-alpha'), canonical);
   });
 
+  test('pull preserves the previous custom profile outside the active Definition and runtime roots stay isolated', () => {
+    const repository = new FileBotDefinitionRepository({ runtimeRoot, simulatedCloudRoot });
+    const customModel = {
+      kind: 'custom' as const,
+      protocol: 'openai-responses' as const,
+      apiBase: 'https://custom.example.test/v1',
+      model: 'gpt-custom',
+      apiKey: 'sk-custom-only',
+      contextWindowTokens: 256000,
+      reasoningEffort: 'high' as const,
+    };
+    repository.writeCache({
+      schema: BOT_DEFINITION_SCHEMA,
+      botId: 'bot-alpha',
+      model: customModel,
+    });
+    repository.writeCanonical({
+      schema: BOT_DEFINITION_SCHEMA,
+      botId: 'bot-alpha',
+      model: { kind: 'catalog', modelId: 'MiniMax-M3' },
+    });
+
+    const service = createBotDefinitionSyncService({ runtimeRoot, simulatedCloudRoot });
+    service.pull('bot-alpha');
+
+    assert.deepStrictEqual(service.readCustomModelProfile('bot-alpha'), customModel);
+    const profileRepository = new FileBotCustomModelProfileRepository({ runtimeRoot });
+    assert.deepStrictEqual(profileRepository.read('bot-alpha'), {
+      schema: BOT_CUSTOM_MODEL_PROFILE_SCHEMA,
+      botId: 'bot-alpha',
+      model: customModel,
+    });
+    assert.equal(profileRepository.getPath('bot-alpha').startsWith(path.resolve(runtimeRoot)), true);
+
+    const otherRuntimeRoot = path.join(runtimeRoot, 'other-packaged-user-data');
+    const otherRepository = new FileBotCustomModelProfileRepository({ runtimeRoot: otherRuntimeRoot });
+    assert.equal(otherRepository.read('bot-alpha'), undefined);
+    assert.notEqual(otherRepository.getPath('bot-alpha'), profileRepository.getPath('bot-alpha'));
+  });
+
   test('ignores a malformed canonical record instead of applying a partial model', () => {
     const repository = new FileBotDefinitionRepository({ runtimeRoot, simulatedCloudRoot });
     const canonicalPath = repository.getCanonicalPath('bot-alpha');
@@ -199,6 +245,7 @@ describe('BotDefinition local simulation', () => {
     };
     repository.writeCache(definition);
     process.env.XIAOBA_USER_DATA_DIR = runtimeRoot;
+    process.env.XIAOBA_BUNDLED_EXECUTABLES_DIR = path.join(simulatedCloudRoot, 'bundled-executables');
     process.env.GAUZ_LLM_PROVIDER = 'anthropic';
     process.env.GAUZ_LLM_API_BASE = 'https://stale.example.test/v1';
     process.env.GAUZ_LLM_MODEL = 'stale-model';

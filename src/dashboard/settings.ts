@@ -66,12 +66,33 @@ export interface DashboardSettingsUpdateResult {
   kept: string[];
 }
 
+export type DashboardModelConfig = Pick<
+  ChatConfig,
+  | 'provider'
+  | 'apiUrl'
+  | 'apiKey'
+  | 'model'
+  | 'contextWindowTokens'
+  | 'maxTokens'
+  | 'temperature'
+  | 'reasoningEffort'
+  | 'openaiApiMode'
+>;
+
 export interface DashboardSettingsOptions {
   runtimeRoot?: string;
   env?: NodeJS.ProcessEnv;
   now?: Date;
   /** The bound bot's resolved Definition config, when one is active. */
-  modelConfig?: Pick<ChatConfig, 'provider' | 'apiUrl' | 'apiKey' | 'model' | 'contextWindowTokens' | 'reasoningEffort' | 'openaiApiMode'>;
+  modelConfig?: DashboardModelConfig;
+  /** Whether the bound bot config came from a custom Definition or catalog runtime. */
+  modelConfigSource?: DashboardModelStartupSnapshot['source'];
+  /** Saved per-bot custom profile, even when a catalog model is active. */
+  customModelConfig?: DashboardModelConfig;
+  /** Saved per-bot catalog runtime, even when a custom model is active. */
+  relayModelConfig?: DashboardModelConfig;
+  /** The Runtime's effective model when legacy env is not its source of truth. */
+  effectiveModelConfig?: DashboardModelConfig;
 }
 
 interface NormalizedSettingUpdate {
@@ -305,9 +326,17 @@ function readCustomModelProfile(
 function buildModelStartupSnapshot(
   fileEnv: Record<string, string>,
   env: NodeJS.ProcessEnv,
+  effectiveModelConfig?: NonNullable<DashboardSettingsOptions['effectiveModelConfig']>,
 ): DashboardModelStartupSnapshot {
-  const effective = readModelProfile(EFFECTIVE_MODEL_ENV_KEYS, fileEnv, env);
-  const custom = readCustomModelProfile(fileEnv, env);
+  const storedEffective = readModelProfile(EFFECTIVE_MODEL_ENV_KEYS, fileEnv, env);
+  const runtimeEffective = effectiveModelConfig && modelProfileSnapshot(effectiveModelConfig);
+  const effective = storedEffective.configured ? storedEffective : runtimeEffective ?? storedEffective;
+  const storedCustom = readCustomModelProfile(fileEnv, env);
+  const custom = storedCustom.configured
+    ? storedCustom
+    : effective.configured && !isCatsRelayApiBase(effective.apiBase)
+      ? effective
+      : storedCustom;
   const storedRelay = readModelProfile(RELAY_MODEL_ENV_KEYS, fileEnv, env);
   const requestedSource = firstNonEmpty(fileEnv[MODEL_SOURCE_ENV_KEY], env[MODEL_SOURCE_ENV_KEY]);
   const effectiveIsRelay = isCatsRelayApiBase(effective.apiBase);
@@ -355,10 +384,10 @@ function modelConfigValue(
   }
 }
 
-function modelConfigSnapshot(
+function modelProfileSnapshot(
   config: NonNullable<DashboardSettingsOptions['modelConfig']>,
-): DashboardModelStartupSnapshot {
-  const effective: DashboardModelProfileSnapshot = {
+): DashboardModelProfileSnapshot {
+  return {
     provider: config.provider,
     apiBase: sanitizeUrlSettingValue(config.apiUrl ?? ''),
     model: config.model,
@@ -368,13 +397,26 @@ function modelConfigSnapshot(
     apiKeyPresent: Boolean(config.apiKey),
     configured: Boolean(config.provider && config.apiUrl && config.model && config.apiKey),
   };
-  const relay = isCatsRelayApiBase(config.apiUrl)
-    ? { ...effective, reasoningEffort: effective.reasoningEffort === 'default' ? 'high' as const : effective.reasoningEffort }
-    : { apiKeyPresent: false, configured: false };
-  const custom = isCatsRelayApiBase(config.apiUrl)
-    ? { apiKeyPresent: false, configured: false }
-    : effective;
-  return { source: isCatsRelayApiBase(config.apiUrl) ? 'relay' : 'custom', effective, custom, relay };
+}
+
+function modelConfigSnapshot(
+  config: NonNullable<DashboardSettingsOptions['modelConfig']>,
+  source: NonNullable<DashboardSettingsOptions['modelConfigSource']>,
+  customConfig?: DashboardSettingsOptions['customModelConfig'],
+  relayConfig?: DashboardSettingsOptions['relayModelConfig'],
+): DashboardModelStartupSnapshot {
+  const effective = modelProfileSnapshot(config);
+  const relayBase = relayConfig
+    ? modelProfileSnapshot(relayConfig)
+    : source === 'relay' ? effective : { apiKeyPresent: false, configured: false };
+  const relay = {
+    ...relayBase,
+    reasoningEffort: relayBase.reasoningEffort === 'default' ? 'high' as const : relayBase.reasoningEffort,
+  };
+  const custom = customConfig
+    ? modelProfileSnapshot(customConfig)
+    : source === 'custom' ? effective : { apiKeyPresent: false, configured: false };
+  return { source, effective, custom, relay };
 }
 
 export function getDashboardSettings(
@@ -383,17 +425,27 @@ export function getDashboardSettings(
   const runtimeRoot = path.resolve(options.runtimeRoot ?? process.cwd());
   const env = options.env ?? process.env;
   const fileEnv = readDashboardEnvFile(runtimeRoot);
+  const modelConfigSource = options.modelConfig
+    ? options.modelConfigSource ?? (isCatsRelayApiBase(options.modelConfig.apiUrl) ? 'relay' : 'custom')
+    : undefined;
+  const customFieldConfig = options.customModelConfig
+    ?? (modelConfigSource === 'custom' ? options.modelConfig : undefined);
 
   return {
     runtimeRoot,
     generatedAt: (options.now ?? new Date()).toISOString(),
     modelStartup: options.modelConfig
-      ? modelConfigSnapshot(options.modelConfig)
-      : buildModelStartupSnapshot(fileEnv, env),
+      ? modelConfigSnapshot(
+        options.modelConfig,
+        modelConfigSource!,
+        options.customModelConfig,
+        options.relayModelConfig,
+      )
+      : buildModelStartupSnapshot(fileEnv, env, options.effectiveModelConfig),
     fields: DASHBOARD_SETTING_DEFINITIONS.map(definition => {
       const value = isModelSetting(definition.id)
-        ? options.modelConfig
-          ? modelConfigValue(definition, options.modelConfig)
+        ? customFieldConfig
+          ? modelConfigValue(definition, customFieldConfig)
           : modelSettingDisplayValue(definition, fileEnv, env)
         : firstNonEmpty(fileEnv[definition.envKey], env[definition.envKey]);
       const common = {

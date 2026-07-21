@@ -11,7 +11,8 @@ import {
   resolvePromptPathWithin,
 } from './prompt-template';
 import { buildPromptTraceSnapshot, hashText } from './prompt-observability';
-import { BRANCH_AGENTS_ENABLED_ENV, isBranchAgentsEnabled } from '../core/branch-agent-settings';
+import { BRANCH_AGENTS_ENABLED_ENV } from '../core/branch-agent-settings';
+import { loadBranchAgentConfig } from '../core/branch-agent-config';
 
 const MAX_PROMPT_EDIT_BYTES = 256 * 1024;
 
@@ -75,7 +76,7 @@ export async function getPromptEditorState(): Promise<PromptEditorState> {
 
 export function getPromptBranchAgentsState(): PromptBranchAgentsState {
   return {
-    enabled: isBranchAgentsEnabled(),
+    enabled: loadBranchAgentConfig().branches.memorySearch.enabled,
     env_key: BRANCH_AGENTS_ENABLED_ENV,
   };
 }

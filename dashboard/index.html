@@ -5287,7 +5287,7 @@
       <div class="sidebar-brand-icon"><img src="cat-icon.png" style="width:100%;height:100%;object-fit:contain;border-radius:inherit" alt="CatsCo"></div>
       <div>
         <div class="sidebar-brand-text">CatsCo</div>
-        <div class="sidebar-brand-ver">v1.4.4</div>
+        <div class="sidebar-brand-ver">v1.4.5</div>
       </div>
     </div>
     <nav class="sidebar-nav">
@@ -6824,19 +6824,18 @@
       const enabled=branchPageState.enabled!==false;
       const source=branchPageState.modelSource||'inherit';
       const custom=branchPageState.custom||{};
+      const primary=branchPageState.primary||{};
       const effective=branchPageState.effective||{};
       const selectedId=branchPageState.selectedCatalogModelId||'';
       const customActive=source==='custom';
-      const modelCards=[renderBranchCustomCard(custom,customActive)].concat((branchModels||[]).map(model=>renderBranchCatalogCard(model,source==='catalog'&&selectedId===model.id))).join('');
+      const modelCards=[renderBranchCustomCard(custom,customActive),renderBranchInheritCard(primary,source==='inherit')].concat((branchModels||[]).map(model=>renderBranchCatalogCard(model,source==='catalog'&&selectedId===model.id))).join('');
       const service=branchPageState.service||{};
       const serviceText=service.status==='running'?'CatsCo Agent 正在运行'+(service.pid?' · PID '+service.pid:''):'CatsCo Agent 当前未运行，下次启动时生效';
-      const inheritNote=source==='inherit'?'<div class="runtime-note" style="margin-top:14px">兼容状态：当前跟随主 Agent 模型；选择上方任一模型后，将使用独立的 Branch 模型配置。</div>':'';
       root.innerHTML='<section class="branch-card">'+
         '<div class="branch-card-head"><div><div class="branch-card-title">Memory Search</div><div class="branch-card-copy">检索相关历史并把内部观察结果交给主 Agent。当前模型：'+escapeHtml(effective.model||'跟随主模型')+'</div></div>'+
         '<label class="branch-switch"><span>'+(enabled?'已开启':'已关闭')+'</span><input id="memory-branch-enabled" type="checkbox" '+(enabled?'checked':'')+' onchange="setMemoryBranchEnabled(this.checked)" '+(branchMutationInFlight?'disabled':'')+'><span class="branch-switch-track"></span></label></div>'+
         '<div class="branch-model-label">选择模型</div><div class="branch-model-grid">'+modelCards+'</div>'+
         renderBranchCustomPanel(custom,customActive)+
-        inheritNote+
         '<div class="branch-form-actions"><span class="branch-status-note" id="branch-page-status">'+escapeHtml(serviceText)+'</span></div>'+
       '</section>';
     }
@@ -6847,6 +6846,13 @@
         (active?'<span class="branch-selected-dot"></span>':'')+'<div class="branch-model-name">自定义模型</div>'+
         '<div class="branch-model-id">'+escapeHtml(configured?custom.model:'OpenAI / Anthropic compatible')+'</div>'+
         '<div class="branch-model-meta">'+(configured?'已配置访问凭证 · 点击展开':'点击展开并配置独立模型')+'</div></button>';
+    }
+
+    function renderBranchInheritCard(primary,active){
+      return '<button class="branch-model-card '+(active?'active':'')+'" type="button" onclick="applyBranchInheritModel()" '+((branchMutationInFlight||active)?'disabled':'')+'>'+
+        (active?'<span class="branch-selected-dot"></span>':'')+'<div class="branch-model-name">跟随主 Agent</div>'+
+        '<div class="branch-model-id">'+escapeHtml(primary.model||'主 Agent 当前模型')+'</div>'+
+        '<div class="branch-model-meta">只切换模型来源 · 保留自定义配置与凭证</div></button>';
     }
 
     function renderBranchCatalogCard(model,active){
@@ -6870,7 +6876,7 @@
       const apiMode=draft.openaiApiMode??custom.openaiApiMode??'chat_completions';
       const apiKeyValue=draft.apiKeyValue??'';
       const clearKey=draft.clearKey===true;
-      return '<div class="branch-custom-panel" '+(open?'':'hidden')+' oninput="updateBranchCustomDraft()" onchange="updateBranchCustomDraft()"><div class="model-source-head"><div><div class="model-source-title">自定义模型</div><div class="model-source-copy">只用于 Memory Search Branch；保存前可以执行真实 Tool Calling 测试。</div></div><span class="tag green">'+(custom.apiKeyPresent?'已配置凭证':'需要凭证')+'</span></div>'+
+      return '<div class="branch-custom-panel" '+(open?'':'hidden')+' oninput="updateBranchCustomDraft()" onchange="updateBranchCustomDraft()"><div class="model-source-head"><div><div class="model-source-title">自定义模型</div><div class="model-source-copy">Memory Branch 自定义模型必须支持 Tool Calling，否则无法执行记忆检索；保存前可以执行真实测试。</div></div><span class="tag green">'+(custom.apiKeyPresent?'已配置凭证':'需要凭证')+'</span></div>'+
         '<div class="branch-form-grid">'+
           '<div class="branch-form-field"><label>兼容类型</label><select id="branch-custom-provider"><option value="openai" '+(provider==='openai'?'selected':'')+'>OpenAI-compatible</option><option value="anthropic" '+(provider==='anthropic'?'selected':'')+'>Anthropic-compatible</option></select></div>'+
           '<div class="branch-form-field"><label>模型名称</label><input id="branch-custom-model" value="'+escapeHtml(model)+'" placeholder="gpt-5.6-terra"></div>'+
@@ -6879,7 +6885,7 @@
           '<div class="branch-form-field"><label>推理强度</label><select id="branch-custom-reasoning">'+REASONING_EFFORT_OPTIONS.map(option=>'<option value="'+option.value+'" '+(reasoning===option.value?'selected':'')+'>'+escapeHtml(option.label)+'</option>').join('')+'</select></div>'+
           '<div class="branch-form-field"><label>OpenAI API 模式</label><select id="branch-custom-api-mode">'+OPENAI_API_MODE_OPTIONS.map(option=>'<option value="'+option.value+'" '+(apiMode===option.value?'selected':'')+'>'+escapeHtml(option.label)+'</option>').join('')+'</select></div>'+
           '<div class="branch-form-field"><label>访问凭证</label><input id="branch-custom-api-key" type="password" value="'+escapeHtml(apiKeyValue)+'" placeholder="'+(custom.apiKeyPresent?'留空表示保留现有凭证':'请输入 API Key')+'"></div>'+
-        '</div><label class="branch-status-note" style="display:flex;align-items:center;gap:8px;margin-top:12px"><input id="branch-custom-clear-key" type="checkbox" '+(clearKey?'checked':'')+'> 清除已保存的访问凭证，并恢复跟随主模型</label>'+
+        '</div><label class="branch-status-note" style="display:flex;align-items:center;gap:8px;margin-top:12px"><input id="branch-custom-clear-key" type="checkbox" '+(clearKey?'checked':'')+'> 清除已保存的自定义模型访问凭证'+(active?'（当前将改为跟随主 Agent）':'')+'</label>'+
         '<div class="branch-form-actions"><button class="btn" onclick="testBranchCustomModel()" '+(branchMutationInFlight?'disabled':'')+'>测试 Tool Calling</button><button class="btn btn-primary" onclick="saveBranchCustomModel()" '+(branchMutationInFlight?'disabled':'')+'>保存自定义模型</button><span class="branch-status-note" id="branch-custom-status"></span></div></div>';
     }
 
@@ -6928,6 +6934,13 @@
         return;
       }
       await mutateBranchPage('/api/branch-agents/memory/enabled','PUT',{enabled:Boolean(enabled)},'Branch 状态已保存');
+    }
+
+    async function applyBranchInheritModel(){
+      if(branchMutationInFlight||branchModelTestInFlight||branchPageState?.modelSource==='inherit')return;
+      updateBranchCustomDraft();
+      if(!confirm('切换 Memory Search 为跟随主 Agent？已保存的自定义模型配置和凭证会保留。'))return;
+      await mutateBranchPage('/api/branch-agents/memory/model/inherit','PUT',{},'已切换为跟随主 Agent');
     }
 
     async function applyBranchCatalogModel(modelId){
@@ -8627,8 +8640,8 @@
     let catsAutoStartAttemptAt=0;
     const CUSTOM_MODEL_AUTO_SAVE_DELAY=900;
     const RELAY_FALLBACK_MODELS=[
-      {id:'minimax-m2.7',label:'MiniMax M2.7',model:'MiniMax-M2.7',provider:'anthropic',protocol:'Anthropic-compatible',base_url:'https://relay.catsco.cc/anthropic',sdk_label:'Anthropic SDK',quota_class:'standard',context_window_tokens:204800,context_label:'204.8K',default:true},
-      {id:'minimax-m3',label:'MiniMax M3',model:'MiniMax-M3',provider:'anthropic',protocol:'Anthropic-compatible',base_url:'https://relay.catsco.cc/anthropic',sdk_label:'Anthropic SDK',quota_class:'multimodal',context_window_tokens:1000000,context_label:'1M'},
+      {id:'minimax-m2.7',label:'MiniMax M2.7',model:'MiniMax-M2.7',provider:'anthropic',protocol:'Anthropic-compatible',base_url:'https://relay.catsco.cc/anthropic',sdk_label:'Anthropic SDK',quota_class:'standard',context_window_tokens:204800,context_label:'204.8K'},
+      {id:'minimax-m3',label:'MiniMax M3',model:'MiniMax-M3',provider:'anthropic',protocol:'Anthropic-compatible',base_url:'https://relay.catsco.cc/anthropic',sdk_label:'Anthropic SDK',quota_class:'multimodal',context_window_tokens:1000000,context_label:'1M',default:true},
       {id:'deepseek-v4-flash',label:'DeepSeek V4 Flash',model:'deepseek-v4-flash',provider:'anthropic',protocol:'Anthropic-compatible',base_url:'https://relay.catsco.cc/anthropic',sdk_label:'Anthropic SDK',quota_class:'flash-low',context_window_tokens:1000000,context_label:'1M'},
     ];
     const CUSTOM_MODEL_CONTEXT_WINDOW_OPTIONS=[
@@ -9166,7 +9179,7 @@
               <button class="btn btn-primary" onclick="saveCustomModelSettings()">保存自定义模型</button>
               <span class="config-saved" id="model-source-saved">已保存</span>
             </div>
-            <div id="model-source-status" style="color:var(--text2);font-size:13px">凭证仅保存到本地 .env；自定义模型上下文会写入本地配置，新 session 或下一次启动 connector 后生效。</div>
+            <div id="model-source-status" style="color:var(--text2);font-size:13px">自定义模型会保存到当前 bot 的本地 Definition 缓存，并立即重启或启动 connector 生效。</div>
           </div>
         </details>
       </div>`;
@@ -9603,6 +9616,7 @@
 
     async function saveCustomModelSettings(options){
       const auto=Boolean(options&&options.auto);
+      if(!auto)clearTimeout(customModelAutoSaveTimer);
       let built;
       try{
         built=buildCustomModelSettingsPayload();
@@ -9620,31 +9634,44 @@
       }
       const signature=customModelPayloadSignature(payload);
       if(auto && signature===customModelAutoSaveLastSignature && secretUpdate.action==='keep'){
-        setModelSourceStatus('已保存。新 session 或下一次启动 connector 后生效。','success');
+        setModelSourceStatus('已自动保存，等待启用。','success');
         return;
       }
-      if(auto && customModelAutoSaveInFlight){
+      if(customModelAutoSaveInFlight){
         customModelAutoSaveQueued=true;
+        if(!auto)setModelSourceStatus('正在完成上一项模型配置，随后会启用当前配置...','muted');
         return;
       }
       const sensitive=secretUpdate.action!=='keep';
       const message=sensitive
-        ? '保存并启用自定义模型？访问凭证会写入本地 .env，仅用于本机 runtime。若 CatsCo agent 正在运行，会请求重启以使用新配置。'
+        ? '保存并启用自定义模型？访问凭证会写入当前 bot 的本地 Definition 缓存。若 CatsCo agent 正在运行，会请求重启以使用新配置。'
         : '保存并启用自定义模型？若 CatsCo agent 正在运行，会请求重启以使用新配置。';
       if(!auto && !confirm(message))return;
       try{
         customModelAutoSaveInFlight=true;
         setModelSourceStatus(auto?'自动保存中...':'保存中...','muted');
-        const requestPayload={...payload,restartConnector:!auto};
+        const requestPayload={...payload,modelProfileSource:'custom',activateConnector:!auto};
         const r=await fetch(API+'/api/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(requestPayload)});
         const d=await r.json();
         if(!r.ok||d.error)throw new Error(d.error||'保存失败');
         customModelAutoSaveLastSignature=signature;
         updateReasoningEffortSnapshots(payload.settings['model.reasoningEffort']||'default','custom');
-        const appliedMessage=!auto&&d.connectorRestarted
-          ? '已保存，并已请求重启 CatsCo agent 使用新配置。'
-          : (auto?'已自动保存自定义配置。':'已保存自定义配置。')+'配置完整时会切换为自定义启动。';
-        setModelSourceStatus(appliedMessage,'success');
+        const activationError=d.connectorStartBlocked
+          ? '模型配置已保存，但 connector 启动检查未通过。请查看 CatsCo 连接检查项。'
+          : d.restartError||d.startError
+            ? '模型配置已保存，但 connector 激活失败：'+(d.restartError||d.startError)
+            : '';
+        const appliedMessage=auto
+          ? '已自动保存，等待启用。'
+          : activationError||(
+          d.connectorRestarted
+            ? '已保存自定义模型，并已请求重启 CatsCo agent 使用新配置。'
+            : d.connectorStarted
+              ? '已保存自定义模型，并已启动 CatsCo agent 使用新配置。'
+              : '已保存自定义模型。connector 状态未改变。'
+          );
+        if(auto)await fetchDashboardSettings();
+        setModelSourceStatus(appliedMessage,!auto&&activationError?'error':'success');
         const secretInput=document.getElementById('model-secret-setting');
         const clearInput=document.getElementById('model-secret-clear-setting');
         if(secretInput && secretUpdate.action==='replace'){
@@ -9657,7 +9684,7 @@
         if(!auto){
           setModelSourceStatus('已保存，正在刷新启动状态...','muted');
           await Promise.all([fetchDashboardSettings(),fetchStatus(),fetchReadiness(),fetchCatsStatus()]);
-          setModelSourceStatus(d.connectorRestarted?'已保存，并已请求重启 CatsCo agent 使用自定义模型。':'已保存自定义配置。配置完整时会切换为自定义启动。','success');
+          setModelSourceStatus(appliedMessage,activationError?'error':'success');
         }
       }catch(e){
         setModelSourceStatus('保存失败：'+formatDashboardApiError(e,'/api/settings'),'error');
@@ -10195,9 +10222,13 @@
       setCatsAction(message);
       setTimeout(async()=>{
         try{
-          await setupCatsBot({forceLegacySetup:true, automatic:true});
+          if(reason==='binding'){
+            await setupCatsBot({forceLegacySetup:true, automatic:true});
+          }else{
+            await startCurrentCatsConnector({automatic:true});
+          }
         }catch(e){
-          setCatsAction('自动启动失败：'+formatDashboardApiError(e,'/api/cats/setup'), true);
+          setCatsAction('自动启动失败：'+formatDashboardApiError(e,reason==='binding'?'/api/cats/setup':'/api/cats/connector/start'), true);
         }finally{
           setCatsAutoStartBusy(false);
         }
@@ -10519,7 +10550,36 @@
         setCatsAction('CatsCompany connector 已在运行。');
         return;
       }
-      return bindCatsBot(catsState.botUid, catsState.botName || catsState.bot?.name || catsState.botUid, document.getElementById('cats-setup-btn'), { confirm: false });
+      return startCurrentCatsConnector();
+    }
+
+    async function startCurrentCatsConnector(options={}) {
+      if(catsSetupInFlight){
+        setCatsAction('正在配置 CatsCo 连接，请稍候...');
+        return;
+      }
+      if(relayModelApplyInFlight){
+        setCatsAction('模型切换正在进行，请稍候...');
+        return;
+      }
+      setCatsSetupBusy(true);
+      setCatsStatusMutationBusy(true);
+      invalidateCatsStatusRequests();
+      setCatsAction('正在按当前 agent 配置启动 CatsCompany connector...');
+      try{
+        const data=await parseCatsResponse(await fetch(API+'/api/cats/connector/start',{method:'POST'}));
+        const stage=await refreshCatsChatAfterMutation({focusInput:options.automatic!==true});
+        if(stage.key==='ready'){
+          setCatsAction(data.connectorStarted?'CatsCompany connector 已启动。':'CatsCompany connector 已在运行。');
+          if(options.automatic!==true)pulsePetState('success','已连接',1800);
+        }else{
+          setCatsAction(stage.copy||'connector 已启动，请按当前检查项继续。',stage.status==='blocked');
+        }
+        return data;
+      }finally{
+        setCatsStatusMutationBusy(false);
+        setCatsSetupBusy(false);
+      }
     }
 
     async function sendCatsCode(){
