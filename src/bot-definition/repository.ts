@@ -17,6 +17,12 @@ export interface BotDefinitionRepository {
   writeCache(definition: BotDefinition): void;
 }
 
+export interface BotCloudModelOverrideRepository {
+  read(botId: string): BotDefinition | undefined;
+  write(definition: BotDefinition): void;
+  delete(botId: string): void;
+}
+
 /**
  * Per-device catalog runtime material. This is intentionally a separate
  * repository because relay credentials are not part of the portable bot
@@ -36,6 +42,9 @@ export interface FileBotDefinitionRepositoryOptions {
   runtimeRoot?: string;
   simulatedCloudRoot?: string;
   cacheRoot?: string;
+  catalogRuntimeRoot?: string;
+  cloudOverrideRoot?: string;
+  cloudCatalogRuntimeRoot?: string;
 }
 
 function normalizeBotId(botId: string): string {
@@ -217,12 +226,49 @@ export class FileBotDefinitionRepository implements BotDefinitionRepository {
   }
 }
 
+/** Device-local cloud override. The canonical/cache repositories remain the user's local preference. */
+export class FileBotCloudModelOverrideRepository implements BotCloudModelOverrideRepository {
+  private readonly root: string;
+
+  constructor(options: FileBotDefinitionRepositoryOptions = {}) {
+    const runtimeRoot = path.resolve(options.runtimeRoot ?? PathResolver.getRuntimeDataRoot());
+    this.root = path.resolve(
+      options.cloudOverrideRoot ?? path.join(runtimeRoot, 'data', 'bot-cloud-model-override'),
+    );
+  }
+
+  read(botId: string): BotDefinition | undefined {
+    const normalized = normalizeBotId(botId);
+    return readDefinition(this.overridePath(normalized), normalized);
+  }
+
+  write(definition: BotDefinition): void {
+    const botId = normalizeBotId(definition.botId);
+    writeDefinition(this.overridePath(botId), definition);
+  }
+
+  delete(botId: string): void {
+    const normalized = normalizeBotId(botId);
+    fs.rmSync(this.overridePath(normalized), { force: true });
+  }
+
+  getPath(botId: string): string {
+    return this.overridePath(normalizeBotId(botId));
+  }
+
+  private overridePath(botId: string): string {
+    return path.join(this.root, 'bots', `${botId}.json`);
+  }
+}
+
 export class FileBotCatalogModelRuntimeRepository implements BotCatalogModelRuntimeRepository {
   private readonly root: string;
 
   constructor(options: FileBotDefinitionRepositoryOptions = {}) {
     const runtimeRoot = path.resolve(options.runtimeRoot ?? PathResolver.getRuntimeDataRoot());
-    this.root = path.resolve(path.join(runtimeRoot, 'data', 'bot-catalog-model-runtime'));
+    this.root = path.resolve(
+      options.catalogRuntimeRoot ?? path.join(runtimeRoot, 'data', 'bot-catalog-model-runtime'),
+    );
   }
 
   read(botId: string): BotCatalogModelRuntime | undefined {
@@ -248,6 +294,17 @@ export class FileBotCatalogModelRuntimeRepository implements BotCatalogModelRunt
 
   private runtimePath(botId: string): string {
     return path.join(this.root, 'bots', `${botId}.json`);
+  }
+}
+
+export class FileBotCloudCatalogModelRuntimeRepository extends FileBotCatalogModelRuntimeRepository {
+  constructor(options: FileBotDefinitionRepositoryOptions = {}) {
+    const runtimeRoot = path.resolve(options.runtimeRoot ?? PathResolver.getRuntimeDataRoot());
+    super({
+      ...options,
+      catalogRuntimeRoot: options.cloudCatalogRuntimeRoot
+        ?? path.join(runtimeRoot, 'data', 'bot-cloud-catalog-model-runtime'),
+    });
   }
 }
 

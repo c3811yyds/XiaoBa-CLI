@@ -55,7 +55,10 @@ export async function prepareBoundBotDefinition(
   let sync = selectedCatalogRuntime
     ? undefined
     : definitionService.pullOrBootstrap(botId);
-  let definition = sync?.definition;
+  let localDefinition = sync?.definition;
+  const previousCloudDefinition = definitionService.readCloudModelOverride(botId);
+  const previousCloudRuntime = definitionService.readCloudCatalogRuntime(botId);
+  let definition = previousCloudDefinition ?? localDefinition;
   const auth = options.auth ?? createCatsCoLocalConfigService({ runtimeRoot: options.runtimeRoot }).getAuthState();
   let initializedDefault = false;
   let materializedCatalogRuntime = false;
@@ -78,19 +81,22 @@ export async function prepareBoundBotDefinition(
 
   if (cloudSelection) {
     try {
-      if (cloudSelection.kind === 'custom') {
+      if (cloudSelection.kind === 'local') {
+        definitionService.clearCloudModelOverride(botId);
+        definition = localDefinition;
+      } else if (cloudSelection.kind === 'custom') {
         if (!cloudSelection.customModel) {
           throw new Error('CatsCo cloud custom model configuration is missing.');
         }
-        definitionService.storeCustomModelProfile(botId, cloudSelection.customModel);
         sync = definitionService.acceptCloud(botId, cloudSelection.customModel);
+        definition = sync.definition;
       } else {
         const cloudModel = {
           kind: 'catalog' as const,
           modelId: cloudSelection.modelId,
           ...(cloudSelection.reasoningEffort ? { reasoningEffort: cloudSelection.reasoningEffort } : {}),
         };
-        const runtime = definitionService.readCatalogRuntime(botId);
+        const runtime = definitionService.readCloudCatalogRuntime(botId);
         if (!runtime || !catalogRuntimeMatchesModelId(runtime, cloudSelection.modelId)) {
           const materialized = await provisionCatsRelayCatalogRuntime({
             botId,
@@ -99,20 +105,20 @@ export async function prepareBoundBotDefinition(
             auth,
             fetchImpl: options.fetchImpl,
           });
-          definitionService.storeCatalogRuntime(materialized);
+          definitionService.storeCloudCatalogRuntime(materialized);
           materializedCatalogRuntime = true;
         } else if (
           cloudSelection.reasoningEffort
           && runtime.reasoningEffort !== cloudSelection.reasoningEffort
         ) {
-          definitionService.storeCatalogRuntime({
+          definitionService.storeCloudCatalogRuntime({
             ...runtime,
             reasoningEffort: cloudSelection.reasoningEffort,
           });
         }
         sync = definitionService.acceptCloud(botId, cloudModel);
+        definition = sync.definition;
       }
-      definition = sync.definition;
       cloudSelectionApplied = true;
       if (shouldAcknowledgeCloudSelection) {
         try {
@@ -126,6 +132,20 @@ export async function prepareBoundBotDefinition(
         }
       }
     } catch (error) {
+      try {
+        if (previousCloudDefinition) {
+          definitionService.acceptCloud(botId, previousCloudDefinition.model);
+          definition = previousCloudDefinition;
+        } else {
+          definitionService.clearCloudModelOverride(botId);
+          definition = localDefinition;
+        }
+        if (previousCloudRuntime) {
+          definitionService.storeCloudCatalogRuntime(previousCloudRuntime);
+        }
+      } catch (restoreError) {
+        Logger.warning(`CatsCo 云端模型覆盖恢复失败: ${errorMessage(restoreError)}`);
+      }
       const message = redactCloudBotModelError(error, cloudSelection);
       cloudApplyError = message;
       Logger.warning(`CatsCo 云端模型 ${cloudSelection.modelId} 应用失败，保留上一份本地配置: ${message}`);
@@ -143,13 +163,14 @@ export async function prepareBoundBotDefinition(
     }
   }
 
-  if (selectedCatalogRuntime && !cloudSelectionApplied) {
+  if (selectedCatalogRuntime && (!cloudSelectionApplied || cloudSelection?.kind === 'local')) {
     definitionService.storeCatalogRuntime(selectedCatalogRuntime);
     sync = definitionService.publish(botId, {
       kind: 'catalog',
       modelId: selectedCatalogRuntime.modelId,
     });
-    definition = sync.definition;
+    localDefinition = sync.definition;
+    definition = definitionService.readCloudModelOverride(botId) ?? sync.definition;
     materializedCatalogRuntime = true;
   }
 
@@ -170,8 +191,12 @@ export async function prepareBoundBotDefinition(
     materializedCatalogRuntime = true;
   }
 
+  const activeCloudOverride = definitionService.readCloudModelOverride(botId);
+  if (activeCloudOverride) definition = activeCloudOverride;
   if (definition.model.kind === 'catalog') {
-    const runtime = definitionService.readCatalogRuntime(botId);
+    const runtime = activeCloudOverride
+      ? definitionService.readCloudCatalogRuntime(botId)
+      : definitionService.readCatalogRuntime(botId);
     if (!runtime || !catalogRuntimeMatchesModelId(runtime, definition.model.modelId)) {
       const materialized = await provisionCatsRelayCatalogRuntime({
         botId,
@@ -179,7 +204,8 @@ export async function prepareBoundBotDefinition(
         auth,
         fetchImpl: options.fetchImpl,
       });
-      definitionService.storeCatalogRuntime(materialized);
+      if (activeCloudOverride) definitionService.storeCloudCatalogRuntime(materialized);
+      else definitionService.storeCatalogRuntime(materialized);
       materializedCatalogRuntime = true;
     }
   }
@@ -193,7 +219,7 @@ export async function prepareBoundBotDefinition(
     materializedCatalogRuntime,
     ...(cloudSelection ? { cloudSelection } : {}),
     ...(cloudApplyError ? { cloudApplyError } : {}),
-    ...(cloudSelection && sync?.direction === 'cloud_to_local' ? { cloudRevision: cloudSelection.revision } : {}),
+    ...(cloudSelectionApplied && cloudSelection ? { cloudRevision: cloudSelection.revision } : {}),
   };
 }
 

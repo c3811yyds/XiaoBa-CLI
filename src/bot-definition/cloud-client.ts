@@ -7,7 +7,7 @@ const CLOUD_MODEL_REQUEST_TIMEOUT_MS = 10_000;
 
 export interface CloudBotModelSelection {
   /** Missing means catalog for compatibility with selections created by older callers. */
-  kind?: 'catalog' | 'custom';
+  kind?: 'catalog' | 'custom' | 'local';
   modelId: string;
   reasoningEffort?: ReasoningEffort;
   revision: number;
@@ -25,16 +25,20 @@ export async function pullCloudBotModelSelection(
 ): Promise<CloudBotModelSelection | undefined> {
   const response = await cloudModelRequest(options, 'GET', '/api/bot/model-config');
   if (response === undefined) return undefined;
-  if (response?.configured !== true) return undefined;
   const responseBotId = String(response?.uid ?? '').trim();
-  const kind = normalizeCloudModelKind(response?.desired?.kind);
   const modelId = String(response?.desired?.model_id || '').trim();
   const revision = Number(response?.desired?.revision);
-  const rawReasoning = String(response?.desired?.reasoning_effort || '').trim();
-  const reasoningEffort = rawReasoning ? normalizeReasoningEffort(rawReasoning) : undefined;
   if (responseBotId !== String(options.botId).trim() || !modelId || !Number.isInteger(revision) || revision < 0) {
     throw new Error('CatsCo cloud returned an invalid bot model configuration.');
   }
+  if (response?.configured !== true) {
+    return revision > 0 && modelId === 'local'
+      ? { kind: 'local', modelId: 'local', revision }
+      : undefined;
+  }
+  const kind = normalizeCloudModelKind(response?.desired?.kind);
+  const rawReasoning = String(response?.desired?.reasoning_effort || '').trim();
+  const reasoningEffort = rawReasoning ? normalizeReasoningEffort(rawReasoning) : undefined;
   if (rawReasoning && !reasoningEffort) {
     throw new Error(`CatsCo cloud returned an unsupported reasoning effort: ${rawReasoning}`);
   }
@@ -64,7 +68,7 @@ export async function acknowledgeCloudBotModelSelection(
 ): Promise<void> {
   await cloudModelRequest(options, 'POST', '/api/bot/model-config/ack', {
     revision: selection.revision,
-    ...(selection.kind === 'custom' ? { kind: 'custom' } : {}),
+    ...(selection.kind === 'custom' || selection.kind === 'local' ? { kind: selection.kind } : {}),
     model_id: selection.modelId,
     reasoning_effort: selection.reasoningEffort || '',
     ...(applyError ? { error: applyError } : {}),

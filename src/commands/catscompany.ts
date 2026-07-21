@@ -259,14 +259,13 @@ async function applyCloudModelRuntimeSelection(
   const botId = options.botId;
   if (!botId || !options.canApply()) return 'deferred';
   const definitionService = createBotDefinitionSyncService({ runtimeRoot: options.runtimeRoot });
-  const previousDefinition = definitionService.pullOrBootstrap(botId)?.definition;
-  const previousRuntime = previousDefinition?.model.kind === 'catalog'
-    ? definitionService.readCatalogRuntime(botId)
-    : undefined;
+  definitionService.pullOrBootstrap(botId);
+  const previousCloudDefinition = definitionService.readCloudModelOverride(botId);
+  const previousCloudRuntime = definitionService.readCloudCatalogRuntime(botId);
   const restorePreviousModelFiles = () => {
-    if (!previousDefinition) return;
-    definitionService.acceptCloud(botId, previousDefinition.model);
-    if (previousRuntime) definitionService.storeCatalogRuntime(previousRuntime);
+    if (previousCloudDefinition) definitionService.acceptCloud(botId, previousCloudDefinition.model);
+    else definitionService.clearCloudModelOverride(botId);
+    if (previousCloudRuntime) definitionService.storeCloudCatalogRuntime(previousCloudRuntime);
   };
 
   const prepared = await prepareBoundBotDefinition({
@@ -294,6 +293,11 @@ async function applyCloudModelRuntimeSelection(
   if (!cloudSelectionsMatch(latestSelection, options.selection)) {
     restorePreviousModelFiles();
     return 'deferred';
+  }
+
+  if (options.selection.kind === 'local' && !previousCloudDefinition) {
+    await acknowledgeCloudModelApply(options);
+    return 'applied';
   }
 
   const previousBot = options.currentBot();

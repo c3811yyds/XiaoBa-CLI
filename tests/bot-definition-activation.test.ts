@@ -6,7 +6,13 @@ import * as path from 'node:path';
 import { prepareBoundBotDefinition } from '../src/bot-definition/activation';
 import { redactCloudBotModelError } from '../src/bot-definition/cloud-client';
 import { createCatsCoLocalConfigService } from '../src/catscompany/local-config';
-import { FileBotCatalogModelRuntimeRepository, FileBotDefinitionRepository } from '../src/bot-definition/repository';
+import {
+  FileBotCatalogModelRuntimeRepository,
+  FileBotCloudCatalogModelRuntimeRepository,
+  FileBotCloudModelOverrideRepository,
+  FileBotCustomModelProfileRepository,
+  FileBotDefinitionRepository,
+} from '../src/bot-definition/repository';
 import { resolveActiveBotLLMConfig } from '../src/bot-definition/llm-config-resolver';
 import { BOT_DEFINITION_SCHEMA } from '../src/bot-definition/types';
 
@@ -151,9 +157,10 @@ describe('BotDefinition activation', () => {
     assert.deepStrictEqual(prepared?.definition.model, {
       kind: 'catalog', modelId: 'deepseek-v4-flash', reasoningEffort: 'max',
     });
-    const runtime = new FileBotCatalogModelRuntimeRepository({ runtimeRoot }).read('43');
+    const runtime = new FileBotCloudCatalogModelRuntimeRepository({ runtimeRoot }).read('43');
     assert.equal(runtime?.modelId, 'deepseek-v4-flash');
     assert.equal(runtime?.reasoningEffort, 'max');
+    assert.equal(new FileBotCatalogModelRuntimeRepository({ runtimeRoot }).read('43'), undefined);
     const ack = requests.find(item => item.path === '/api/bot/model-config/ack');
     assert.deepStrictEqual(ack?.body, {
       revision: 2,
@@ -206,7 +213,7 @@ describe('BotDefinition activation', () => {
     }) as typeof fetch;
 
     const prepared = await prepareBoundBotDefinition({ runtimeRoot, simulatedCloudRoot, env, fetchImpl });
-    const runtime = new FileBotCatalogModelRuntimeRepository({ runtimeRoot }).read('43');
+    const runtime = new FileBotCloudCatalogModelRuntimeRepository({ runtimeRoot }).read('43');
 
     assert.equal(prepared?.cloudRevision, 5);
     assert.equal(runtime?.provider, 'openai');
@@ -494,5 +501,148 @@ describe('BotDefinition activation', () => {
     assert.deepStrictEqual(prepared?.definition.model, customModel);
     assert.equal(prepared?.cloudRevision, undefined);
     assert.equal(acknowledged, false);
+  });
+
+  test('keeps local model state separate across cloud apply, restart, and return to device local', async () => {
+    const runtimeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-cloud-overlay-runtime-'));
+    const simulatedCloudRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-cloud-overlay-canonical-'));
+    roots.push(runtimeRoot, simulatedCloudRoot);
+    const env = {} as NodeJS.ProcessEnv;
+    createCatsCoLocalConfigService({ runtimeRoot, env }).save({
+      version: 1,
+      endpoints: { httpBaseUrl: 'https://cats.example.test', serverUrl: 'wss://cats.example.test/v0/channels' },
+      currentBot: { uid: '43', apiKey: 'bot-api-key', boundByUserUid: '7', bindingSource: 'test' },
+    });
+    const localModel = {
+      kind: 'custom' as const,
+      protocol: 'openai-responses' as const,
+      apiBase: 'https://local.example.test/v1',
+      model: 'local-model',
+      apiKey: 'sk-local-model',
+      contextWindowTokens: 128_000,
+    };
+    const localDefinition = { schema: BOT_DEFINITION_SCHEMA, botId: '43', model: localModel } as const;
+    const definitions = new FileBotDefinitionRepository({ runtimeRoot, simulatedCloudRoot });
+    definitions.writeCanonical(localDefinition);
+
+    const cloudModel = {
+      kind: 'custom' as const,
+      protocol: 'openai-responses' as const,
+      apiBase: 'https://cloud.example.test/v1',
+      model: 'cloud-model',
+      apiKey: 'sk-cloud-model',
+      contextWindowTokens: 256_000,
+      reasoningEffort: 'high' as const,
+    };
+    const cloudPrepared = await prepareBoundBotDefinition({
+      runtimeRoot,
+      simulatedCloudRoot,
+      env,
+      cloudSelection: {
+        kind: 'custom', modelId: 'cloud-model', revision: 11,
+        reasoningEffort: 'high', customModel: cloudModel,
+      },
+      acknowledgeCloudSelection: false,
+    });
+
+    assert.equal(cloudPrepared?.cloudRevision, 11);
+    assert.equal(resolveActiveBotLLMConfig({ runtimeRoot, env })?.config.model, 'cloud-model');
+    assert.deepStrictEqual(definitions.readCanonical('43'), localDefinition);
+    assert.deepStrictEqual(definitions.readCache('43'), localDefinition);
+    assert.deepStrictEqual(new FileBotCustomModelProfileRepository({ runtimeRoot }).read('43')?.model, localModel);
+    assert.equal(new FileBotCloudModelOverrideRepository({ runtimeRoot }).read('43')?.model.kind, 'custom');
+
+    const restartPrepared = await prepareBoundBotDefinition({
+      runtimeRoot,
+      simulatedCloudRoot,
+      env,
+      fetchImpl: (async () => Response.json({ error: 'temporary outage' }, { status: 500 })) as typeof fetch,
+      acknowledgeCloudSelection: false,
+    });
+    assert.equal(restartPrepared?.definition.model.kind, 'custom');
+    assert.equal(resolveActiveBotLLMConfig({ runtimeRoot, env })?.config.model, 'cloud-model');
+
+    const localPrepared = await prepareBoundBotDefinition({
+      runtimeRoot,
+      simulatedCloudRoot,
+      env,
+      cloudSelection: { kind: 'local', modelId: 'local', revision: 12 },
+      acknowledgeCloudSelection: false,
+    });
+    assert.equal(localPrepared?.cloudRevision, 12);
+    assert.equal(resolveActiveBotLLMConfig({ runtimeRoot, env })?.config.model, 'local-model');
+    assert.equal(new FileBotCloudModelOverrideRepository({ runtimeRoot }).read('43'), undefined);
+    assert.deepStrictEqual(definitions.readCanonical('43'), localDefinition);
+    assert.deepStrictEqual(new FileBotCustomModelProfileRepository({ runtimeRoot }).read('43')?.model, localModel);
+  });
+
+  test('restores the untouched local catalog runtime after a cloud catalog round trip', async () => {
+    const runtimeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-cloud-catalog-roundtrip-runtime-'));
+    const simulatedCloudRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xiaoba-cloud-catalog-roundtrip-canonical-'));
+    roots.push(runtimeRoot, simulatedCloudRoot);
+    const env = {} as NodeJS.ProcessEnv;
+    createCatsCoLocalConfigService({ runtimeRoot, env }).save({
+      version: 1,
+      endpoints: { httpBaseUrl: 'https://cats.example.test', serverUrl: 'wss://cats.example.test/v0/channels' },
+      account: { token: 'user-token', uid: '7' },
+      currentBot: { uid: '43', apiKey: 'bot-api-key', boundByUserUid: '7', bindingSource: 'test' },
+    });
+    const definitions = new FileBotDefinitionRepository({ runtimeRoot, simulatedCloudRoot });
+    definitions.writeCanonical({
+      schema: BOT_DEFINITION_SCHEMA,
+      botId: '43',
+      model: { kind: 'catalog', modelId: 'minimax-m3' },
+    });
+    const localRuntimes = new FileBotCatalogModelRuntimeRepository({ runtimeRoot });
+    localRuntimes.write({
+      schema: 'xiaoba.bot-catalog-model-runtime.v1',
+      botId: '43',
+      modelId: 'minimax-m3',
+      provider: 'anthropic',
+      apiBase: 'https://relay.example.test/anthropic',
+      apiKey: 'sk-local-relay',
+      model: 'MiniMax-M3',
+      contextWindowTokens: 1_000_000,
+    });
+    const fetchImpl = (async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      if (url.pathname === '/api/relay/config') {
+        return Response.json({
+          self_service_enabled: true,
+          base_url: 'https://relay.example.test',
+          endpoints: [{ protocol: 'Anthropic-compatible', base_url: 'https://relay.example.test/anthropic' }],
+        });
+      }
+      if (url.pathname === '/api/relay/key') {
+        return Response.json({ key: { state: 'active', key: 'sk-cloud-relay' } });
+      }
+      if (url.pathname === '/api/bot/model-config/ack') {
+        return Response.json({ status: 'applied' });
+      }
+      return Response.json({ error: 'unexpected request' }, { status: 500 });
+    }) as typeof fetch;
+
+    await prepareBoundBotDefinition({
+      runtimeRoot,
+      simulatedCloudRoot,
+      env,
+      fetchImpl,
+      cloudSelection: { kind: 'catalog', modelId: 'deepseek-v4-flash', reasoningEffort: 'max', revision: 20 },
+    });
+    assert.equal(resolveActiveBotLLMConfig({ runtimeRoot, env })?.config.model, 'deepseek-v4-flash');
+    assert.equal(resolveActiveBotLLMConfig({ runtimeRoot, env })?.config.apiKey, 'sk-cloud-relay');
+    assert.equal(localRuntimes.read('43')?.apiKey, 'sk-local-relay');
+
+    await prepareBoundBotDefinition({
+      runtimeRoot,
+      simulatedCloudRoot,
+      env,
+      fetchImpl,
+      cloudSelection: { kind: 'local', modelId: 'local', revision: 21 },
+    });
+    const restored = resolveActiveBotLLMConfig({ runtimeRoot, env });
+    assert.equal(restored?.config.model, 'MiniMax-M3');
+    assert.equal(restored?.config.apiKey, 'sk-local-relay');
+    assert.equal(localRuntimes.read('43')?.apiKey, 'sk-local-relay');
   });
 });

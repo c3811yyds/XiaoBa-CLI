@@ -876,6 +876,7 @@ async function commitCatsBotBindingAndStartConnector(
       runtimeRoot: runtimeDataRoot(),
       botId: input.botUid,
       selectedCatalogRuntime: input.selectedCatalogRuntime,
+      acknowledgeCloudSelection: false,
     });
     const botDefinitionSync = toBotDefinitionSyncPayload(preparedBot?.sync);
     const {
@@ -3402,6 +3403,7 @@ export function createApiRouter(
       const preparedBot = await prepareBoundBotDefinition({
         runtimeRoot: runtimeDataRoot(),
         botId,
+        acknowledgeCloudSelection: false,
       });
       const result = await startCatsCompanyConnectorIfReady(serviceManager);
       if (!result.service) {
