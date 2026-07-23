@@ -380,6 +380,38 @@ describe('SkillHub user subscriptions', () => {
     assert.equal(called, true);
   });
 
+  test('Tool rejects Skill mutations from an untrusted CatsCo actor', async () => {
+    let called = false;
+    const tool = mutationTrackingTool(() => {
+      called = true;
+    });
+
+    const result = await tool.execute(
+      { action: 'subscribe', skillId: 'alice/ppt' },
+      catsCoContext('usr9', 'untrusted'),
+    );
+
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.errorCode, 'PERMISSION_DENIED');
+    assert.equal(called, false);
+  });
+
+  test('Tool rejects Skill mutations from a legacy CatsCo context', async () => {
+    let called = false;
+    const tool = mutationTrackingTool(() => {
+      called = true;
+    });
+
+    const result = await tool.execute(
+      { action: 'unsubscribe', skillId: 'alice/ppt' },
+      catsCoContext('usr9', 'legacy_context'),
+    );
+
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.errorCode, 'PERMISSION_DENIED');
+    assert.equal(called, false);
+  });
+
   test('ToolManager does not introduce a confirmation step for SkillHub operations', async () => {
     const manager = new ToolManager(testRoot, {}, { enabledToolNames: [] });
     let confirmations = 0;
@@ -477,7 +509,27 @@ function baseContext(): ToolExecutionContext {
   return { workingDirectory: testCwd(), conversationHistory: [] };
 }
 
-function catsCoContext(actorUserId = 'usr7'): ToolExecutionContext {
+function mutationTrackingTool(onMutation: () => void): SkillHubTool {
+  return new SkillHubTool(
+    { search: async () => ({ skills: [] }) },
+    {
+      list: async () => ({ scope: 'runtime', subscriptions: [] }),
+      subscribe: async skillId => {
+        onMutation();
+        return { scope: 'runtime', action: 'installed', subscription: subscription(skillId, 'ppt', '1.0.0') };
+      },
+      unsubscribe: async skillId => {
+        onMutation();
+        return { scope: 'runtime', skillId, removed: true, subscriptionFound: true };
+      },
+    },
+  );
+}
+
+function catsCoContext(
+  actorUserId = 'usr7',
+  identityTrust: ExecutionScope['identityTrust'] = 'server_canonical',
+): ToolExecutionContext {
   const scope: ExecutionScope = {
     source: 'catscompany',
     sessionKey: 'session:v2:catscompany:p2p:p2p_7_43:agent:usr43',
@@ -486,8 +538,8 @@ function catsCoContext(actorUserId = 'usr7'): ToolExecutionContext {
     actorUserId,
     agentId: 'usr43',
     agentBodyId: 'body-main',
-    identityTrust: 'server_canonical',
-    isTrusted: true,
+    identityTrust,
+    isTrusted: identityTrust === 'server_canonical',
   };
   const localDeviceGrant: ScopedLocalDeviceGrant = {
     kind: 'catscompany_body',

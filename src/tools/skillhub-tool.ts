@@ -2,6 +2,7 @@ import type { Tool, ToolDefinition, ToolExecutionContext, ToolExecutionResult } 
 import { SkillHubService } from '../skillhub/service';
 import { SkillHubSubscriptionService } from '../skillhub/subscription-service';
 import type { SkillHubSearchResponse } from '../skillhub/types';
+import { isCatsCoToolGatewayContext } from './tool-gateway';
 
 export interface SkillHubCatalogGateway {
   search(query?: string, options?: { category?: string }): Promise<SkillHubSearchResponse & { installed?: unknown[] }>;
@@ -92,6 +93,8 @@ export class SkillHubTool implements Tool {
       }
 
       if (action === 'subscribe' || action === 'unsubscribe') {
+        const denied = mutationDenied(context);
+        if (denied) return denied;
         const skillId = required(args?.skillId, 'skillId');
         if (action === 'subscribe') {
           const result = await this.subscriptions.subscribe(skillId);
@@ -124,6 +127,23 @@ export class SkillHubTool implements Tool {
       };
     }
   }
+}
+
+function mutationDenied(context: ToolExecutionContext): ToolExecutionResult | undefined {
+  if (!isCatsCoToolGatewayContext(context)) return undefined;
+  const scope = context.executionScope;
+  if (
+    scope?.source === 'catscompany'
+    && scope.identityTrust === 'server_canonical'
+    && scope.isTrusted
+  ) {
+    return undefined;
+  }
+  return {
+    ok: false,
+    errorCode: 'PERMISSION_DENIED',
+    message: '当前消息身份未经服务端确认，不能添加或删除 Skill。',
+  };
 }
 
 function required(value: unknown, field: string): string {
