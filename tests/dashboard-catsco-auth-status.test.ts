@@ -507,7 +507,11 @@ describe('dashboard CatsCo account status', () => {
   test('POST /cats/auth/login writes both CatsCo and CatsCompany env aliases', async () => {
     await startCatsServer((req, res) => {
       if (req.path === '/api/auth/login') {
-        assert.deepStrictEqual(req.body, { account: 'demo@example.com', password: 'passw0rd' });
+        assert.deepStrictEqual(req.body, {
+          account: 'demo@example.com',
+          password: 'passw0rd',
+          persistent: true,
+        });
         return res.json({
           token: 'new-user-token',
           uid: 77,
@@ -539,6 +543,9 @@ describe('dashboard CatsCo account status', () => {
     assert.equal(env.CATSCOMPANY_USER_UID, '77');
     assert.equal(env.CATSCO_USER_DISPLAY_NAME, 'Demo User');
     assert.equal(env.CATSCOMPANY_USER_DISPLAY_NAME, 'Demo User');
+    const persisted = createCatsCoLocalConfigService({ runtimeRoot: testRoot }).load();
+    assert.equal(persisted.account?.token, 'new-user-token');
+    assert.equal(persisted.account?.uid, '77');
   });
 
   test('POST /cats/desktop-connect exchanges a web login code and persists CatsCo account aliases', async () => {

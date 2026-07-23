@@ -3406,6 +3406,7 @@ export function createApiRouter(
       const login = await catsRequest('POST', state.httpBaseUrl, '/api/auth/login', {
         account: email,
         password,
+        persistent: true,
       }, undefined, { timeoutMs: 10000 });
       persistCatsUserSession(state, login);
       res.json({
@@ -3428,7 +3429,14 @@ export function createApiRouter(
       const password = String(req.body?.password || '');
       if (!account || !password) return res.status(400).json({ error: 'account and password are required' });
 
-      const login = await catsRequest('POST', state.httpBaseUrl, '/api/auth/login', { account, password }, undefined, { timeoutMs: 10000 });
+      const login = await catsRequest(
+        'POST',
+        state.httpBaseUrl,
+        '/api/auth/login',
+        { account, password, persistent: true },
+        undefined,
+        { timeoutMs: 10000 },
+      );
       persistCatsUserSession(state, login);
       res.json({
         ok: true,
