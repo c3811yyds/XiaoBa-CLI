@@ -97,7 +97,7 @@ describe('CatsCo default relay model bootstrap', () => {
     assert.ok(runtime.capabilitiesCheckedAt);
   });
 
-  test('drops legacy GPT vision=false even when relay metadata is temporarily unavailable', async () => {
+  test('replaces legacy GPT vision=false from static catalog metadata when relay metadata is unavailable', async () => {
     const runtime = await refreshCatsRelayCatalogRuntimeCapabilities({
       schema: 'xiaoba.bot-catalog-model-runtime.v1',
       botId: 'bot-1',
@@ -111,7 +111,7 @@ describe('CatsCo default relay model bootstrap', () => {
       capabilities: { vision: false, toolCalling: true, streaming: true },
     }, (async () => new Response('temporarily unavailable', { status: 503 })) as typeof fetch);
 
-    assert.equal(runtime.capabilities?.vision, undefined);
+    assert.equal(runtime.capabilities?.vision, true);
     assert.equal(runtime.capabilities?.toolCalling, true);
     assert.equal(runtime.capabilitiesSource, 'static');
   });

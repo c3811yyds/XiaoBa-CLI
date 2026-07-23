@@ -15,6 +15,7 @@ export interface ModelContextWindowResolution {
   label: string;
   contextWindowTokens: number;
   promptBudgetTokens: number;
+  maxInputTokens?: number;
   safetyReserveTokens: number;
   maxOutputTokens: number;
   summaryBudgetTokens: number;
@@ -112,6 +113,9 @@ export function resolveModelContextWindow(
   const explicitWindow = parsePositiveInteger(config.contextWindowTokens) ?? resolveConfiguredContextWindowTokens(env);
   const knownSpec = findKnownModelContextWindowSpec(model);
   const relay = isCatsRelayModelConfig(config, env);
+  const knownProfile = relay
+    ? RELAY_MODEL_PROFILES.find(profile => profile.id === knownSpec?.id)
+    : undefined;
   const contextWindowTokens = explicitWindow
     ?? (relay ? knownSpec?.contextWindowTokens : undefined)
     ?? CUSTOM_MODEL_DEFAULT_CONTEXT_WINDOW_TOKENS;
@@ -120,15 +124,21 @@ export function resolveModelContextWindow(
     contextWindowTokens,
   } as ChatConfig);
   const budget = calculatePromptBudgetTokens(contextWindowTokens, maxOutputTokens);
-  const summaryBudgetTokens = calculateSummaryBudgetTokens(budget.promptBudgetTokens);
+  const maxInputTokens = knownProfile?.maxInputTokens;
+  const promptBudgetTokens = maxInputTokens
+    ? Math.min(budget.promptBudgetTokens, maxInputTokens)
+    : budget.promptBudgetTokens;
+  const safetyReserveTokens = contextWindowTokens - promptBudgetTokens;
+  const summaryBudgetTokens = calculateSummaryBudgetTokens(promptBudgetTokens);
 
   return {
     source: explicitWindow ? 'explicit' : relay ? 'relay' : 'custom',
     model,
     label: knownSpec?.label || model || '自定义模型',
     contextWindowTokens,
-    promptBudgetTokens: budget.promptBudgetTokens,
-    safetyReserveTokens: budget.safetyReserveTokens,
+    promptBudgetTokens,
+    ...(maxInputTokens ? { maxInputTokens } : {}),
+    safetyReserveTokens,
     maxOutputTokens,
     summaryBudgetTokens,
   };
@@ -158,7 +168,7 @@ export function formatContextWindowTokens(tokens: number | undefined): string {
   if (!Number.isFinite(tokens) || !tokens) return '安全默认';
   if (tokens >= 1_000_000) {
     const value = tokens / 1_000_000;
-    return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1)}M`;
+    return `${Number.isInteger(value) ? value.toFixed(0) : Number(value.toFixed(2))}M`;
   }
   if (tokens >= 1_000) {
     const value = tokens / 1_000;
