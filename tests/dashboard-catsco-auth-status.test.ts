@@ -507,7 +507,11 @@ describe('dashboard CatsCo account status', () => {
   test('POST /cats/auth/login writes both CatsCo and CatsCompany env aliases', async () => {
     await startCatsServer((req, res) => {
       if (req.path === '/api/auth/login') {
-        assert.deepStrictEqual(req.body, { account: 'demo@example.com', password: 'passw0rd' });
+        assert.deepStrictEqual(req.body, {
+          account: 'demo@example.com',
+          password: 'passw0rd',
+          persistent: true,
+        });
         return res.json({
           token: 'new-user-token',
           uid: 77,
@@ -539,6 +543,60 @@ describe('dashboard CatsCo account status', () => {
     assert.equal(env.CATSCOMPANY_USER_UID, '77');
     assert.equal(env.CATSCO_USER_DISPLAY_NAME, 'Demo User');
     assert.equal(env.CATSCOMPANY_USER_DISPLAY_NAME, 'Demo User');
+    const persisted = createCatsCoLocalConfigService({ runtimeRoot: testRoot }).load();
+    assert.equal(persisted.account?.token, 'new-user-token');
+    assert.equal(persisted.account?.uid, '77');
+  });
+
+  test('POST /cats/auth/register requests a persistent token after registration', async () => {
+    const requests: string[] = [];
+    await startCatsServer((req, res) => {
+      requests.push(req.path);
+      if (req.path === '/api/auth/register') {
+        assert.deepStrictEqual(req.body, {
+          email: 'new@example.com',
+          username: 'new-user',
+          password: 'passw0rd',
+          code: '123456',
+        });
+        return res.json({ ok: true });
+      }
+      if (req.path === '/api/auth/login') {
+        assert.deepStrictEqual(req.body, {
+          account: 'new@example.com',
+          password: 'passw0rd',
+          persistent: true,
+        });
+        return res.json({
+          token: 'registered-user-token',
+          uid: 78,
+          username: 'new-user',
+          display_name: 'New User',
+        });
+      }
+      return res.status(404).json({ error: 'not found' });
+    });
+
+    const response = await fetch(`${dashboardBaseUrl}/api/cats/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        httpBaseUrl: catsBaseUrl,
+        serverUrl: 'wss://app.catsco.cc/v0/channels',
+        email: 'new@example.com',
+        username: 'new-user',
+        password: 'passw0rd',
+        code: '123456',
+      }),
+    });
+    const data = await response.json() as any;
+
+    assert.equal(response.status, 200);
+    assert.equal(data.ok, true);
+    assert.deepStrictEqual(requests, ['/api/auth/register', '/api/auth/login']);
+    const persisted = createCatsCoLocalConfigService({ runtimeRoot: testRoot }).load();
+    assert.equal(persisted.account?.token, 'registered-user-token');
+    assert.equal(persisted.account?.uid, '78');
   });
 
   test('POST /cats/desktop-connect exchanges a web login code and persists CatsCo account aliases', async () => {
